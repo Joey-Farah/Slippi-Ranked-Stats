@@ -1,6 +1,6 @@
 {
   "productName": "Slippi Ranked Stats",
-  "version": "1.2.0",
+  "version": "1.1.8",
   "identifier": "com.slippi.rankedstats",
   "build": {
     "frontendDist": "../dist",
@@ -27,7 +27,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEyQzczRkRCNkZGRDA1RkMKUldUOEJmMXYyei9IRWhvVUFmR2tWWWFvdjFsT1R5TzRkLzNqVnNoNmRESG1yTGIyZlFxY21YWmcK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE2OTQ0OUM3OUM4RUY5NjUKUldSbCtZNmN4MG1VcHBOOGozQ1lydDZCOFA5NC9iMHlzcDdjamY0TWllOW5tamJ4ZENkdnJyK0kK",
       "endpoints": [
         "https://github.com/Joey-Farah/Slippi-Ranked-Stats/releases/latest/download/latest.json"
       ]
