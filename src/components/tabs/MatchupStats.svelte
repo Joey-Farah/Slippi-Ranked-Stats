@@ -22,6 +22,9 @@
     ? $sets.filter((s) => !s.opponent_char_ids.some((id) => hiddenChars.includes(id)))
     : $sets);
 
+  type SortMode = "alpha" | "best" | "worst";
+  let oppCharSort = $state<SortMode>("alpha");
+
   // Opponent char win rates (set-based)
   let oppCharStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
@@ -33,7 +36,7 @@
         m.set(id, e);
       }
     }
-    return [...m.entries()]
+    const rows = [...m.entries()]
       .filter(([, v]) => v.total >= MIN_SETS)
       .map(([id, v]) => ({
         id,
@@ -41,8 +44,11 @@
         wins: v.wins,
         total: v.total,
         pct: (v.wins / v.total) * 100,
-      }))
-      .sort((a, b) => b.name.localeCompare(a.name));
+      }));
+    if (oppCharSort === "alpha") rows.sort((a, b) => a.name.localeCompare(b.name));
+    else if (oppCharSort === "best") rows.sort((a, b) => a.pct - b.pct);
+    else rows.sort((a, b) => b.pct - a.pct);
+    return rows;
   })());
 
   // Your character breakdown (set-based)
@@ -133,7 +139,25 @@
 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:16px">
   {#if oppCharStats.length > 0}
     <div class="card">
-      <div class="section-title">Win % vs Opponent Character</div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+        <div class="section-title" style="margin-bottom:0">Win % vs Opponent Character</div>
+        <div style="display:flex; gap:4px">
+          {#each [["alpha", "A–Z"], ["best", "Best"], ["worst", "Worst"]] as [mode, label]}
+            <button
+              onclick={() => oppCharSort = mode as SortMode}
+              style="
+                padding: 3px 10px;
+                border-radius: 20px;
+                border: 1px solid {oppCharSort === mode ? 'var(--accent)' : 'var(--border)'};
+                background: {oppCharSort === mode ? 'rgba(46,139,46,0.2)' : 'var(--card)'};
+                color: {oppCharSort === mode ? 'var(--accent)' : 'var(--muted)'};
+                font-size: 11px;
+                cursor: pointer;
+              "
+            >{label}</button>
+          {/each}
+        </div>
+      </div>
       <BarChart
         categories={oppCharStats.map((c) => `${c.name} (${c.total})`)}
         values={oppCharStats.map((c) => c.pct)}
