@@ -23,6 +23,7 @@ export const seasons = writable<SeasonRow[]>([]);
 // ── UI state ───────────────────────────────────────────────────────────────
 
 export const activeTab = writable<number>(0);
+export const sidebarOpen = writable<boolean>(true);
 export const scanProgress = writable<{ scanned: number; total: number; alreadyProcessed: number } | null>(null);
 export const isScanning = writable<boolean>(false);
 export const isFetchingSnapshot = writable<boolean>(false);

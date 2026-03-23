@@ -4,7 +4,7 @@
   import {
     connectCode, replayDir, dateRange,
     games, snapshots, seasons,
-    isScanning, isFetchingSnapshot, scanProgress, statusMessage, watcherActive,
+    isScanning, isFetchingSnapshot, scanProgress, statusMessage, watcherActive, sidebarOpen,
   } from "../lib/store";
   import { getDb } from "../lib/db";
   import { getRankTier } from "../lib/parser";
@@ -42,7 +42,7 @@
       // Reload games from DB
       const loaded = await getGames(db);
       games.set(loaded);
-      statusMessage.set(`Scan complete — ${filesScanned} files, ${gamesInserted} ranked games found (${loaded.length} total in DB).`);
+      statusMessage.set(`Scan complete — ${filesScanned} files, ${gamesInserted} ranked replays found (${loaded.length} total in DB).`);
     } catch (e: any) {
       statusMessage.set("Scan error: " + (e?.message ?? JSON.stringify(e) ?? String(e)));
     } finally {
@@ -133,9 +133,15 @@
 </script>
 
 <aside class="sidebar">
+  <div class="sidebar-scroll">
   <div class="logo">
     <img src="/srs-logo.svg" alt="SRS" class="logo-img" />
     Slippi Ranked Stats
+    <button
+      onclick={() => sidebarOpen.set(false)}
+      title="Collapse sidebar"
+      style="margin-left:auto; background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0 2px; line-height:1"
+    >‹</button>
   </div>
 
   <!-- Connect Code -->
@@ -247,11 +253,12 @@
     </div>
   </div> -->
 
+  </div><!-- end sidebar-scroll -->
+
   <!-- Patreon -->
   <button
     onclick={() => openUrl("https://www.patreon.com")}
     style="
-      margin-top: auto;
       display: flex; align-items: center; justify-content: center; gap: 8px;
       width: 100%; padding: 10px;
       background: #FF424D; color: #fff;

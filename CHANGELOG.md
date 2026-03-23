@@ -1,5 +1,27 @@
 # Slippi Ranked Stats — Changelog
 
+## 2026-03-23 — Zoom fix + sidebar Patreon button + scan wording
+
+### Bug fixes
+- Fixed Patreon button disappearing when zoomed in — changed zoom from `document.documentElement.style.zoom` to `transform: scale()` on `#app` with inverse width/height, and changed `.layout` from `height: 100vh` to `height: 100%` so it inherits the scaled dimensions
+- Fixed Patreon button scrolling out of view when sidebar content overflows — wrapped scrollable sidebar content in `.sidebar-scroll` inner div, keeping the button pinned outside it at the bottom
+
+### Changes
+- Scan complete message now says "ranked replays found" instead of "ranked games found"
+
+---
+
+## 2026-03-23 — Character sort + incomplete set fixes (v1.2.4)
+
+### Features
+- Added sort controls to "Win % vs Opponent Character" chart: **A–Z**, **Best** (lowest win % first), **Worst** (highest win % first)
+
+### Bug fixes
+- Fixed incomplete set detection to also exclude sets where nobody reached 2 wins (handles opponent quitting between games, not just mid-game LRAS disconnects)
+- Fixed set win count/win % discrepancy between header and All-Time Stats tab — `AllTimeStats.svelte`, `MatchupStats.svelte`, and `Header.svelte` were all still reading from the raw `sets` store instead of `cleanSets`
+
+---
+
 ## 2026-03-21 — Incomplete set detection (v1.2.2)
 
 ### Feature

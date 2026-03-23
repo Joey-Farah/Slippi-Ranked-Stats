@@ -5,7 +5,7 @@
   import MatchupStats from "./components/tabs/MatchupStats.svelte";
   import RatingProgression from "./components/tabs/RatingProgression.svelte";
   import AllTimeStats from "./components/tabs/AllTimeStats.svelte";
-  import { activeTab, connectCode, games, snapshots, seasons } from "./lib/store";
+  import { activeTab, connectCode, games, snapshots, seasons, sidebarOpen } from "./lib/store";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { onMount } from "svelte";
   import { check } from "@tauri-apps/plugin-updater";
@@ -67,15 +67,29 @@
 
   // Zoom support: Ctrl+/Ctrl-/Ctrl+0
   let zoom = $state(1.0);
+  function setZoom(z: number) {
+    zoom = z;
+    const app = document.getElementById("app")!;
+    if (zoom === 1.0) {
+      app.style.transform = "";
+      app.style.transformOrigin = "";
+      app.style.width = "";
+      app.style.height = "";
+    } else {
+      app.style.transform = `scale(${zoom})`;
+      app.style.transformOrigin = "top left";
+      app.style.width = `${100 / zoom}vw`;
+      app.style.height = `${100 / zoom}vh`;
+    }
+  }
   function applyZoom(delta: number) {
-    zoom = Math.min(2.0, Math.max(0.5, Math.round((zoom + delta) * 10) / 10));
-    document.documentElement.style.zoom = String(zoom);
+    setZoom(Math.min(2.0, Math.max(0.5, Math.round((zoom + delta) * 10) / 10)));
   }
   function handleKeydown(e: KeyboardEvent) {
     if (!e.ctrlKey) return;
     if (e.key === "=" || e.key === "+") { e.preventDefault(); applyZoom(+0.1); }
     else if (e.key === "-") { e.preventDefault(); applyZoom(-0.1); }
-    else if (e.key === "0") { e.preventDefault(); zoom = 1.0; document.documentElement.style.zoom = "1"; }
+    else if (e.key === "0") { e.preventDefault(); setZoom(1.0); }
   }
 
   const TABS = [
@@ -88,9 +102,18 @@
 
 <svelte:window onkeydown={handleKeydown} />
 <div class="layout">
-  <Sidebar />
+  {#if $sidebarOpen}
+    <Sidebar />
+  {/if}
 
-  <div class="main">
+  <div class="main" style="position:relative">
+    {#if !$sidebarOpen}
+      <button
+        onclick={() => sidebarOpen.set(true)}
+        title="Open sidebar"
+        style="position:absolute; top:6px; left:6px; z-index:10; background:none; border:none; color:var(--muted); cursor:pointer; font-size:28px; padding:4px 8px; line-height:1"
+      >›</button>
+    {/if}
     {#if updateAvailable}
       <div style="background:#f39c12; color:#000; padding:8px 16px; display:flex; align-items:center; gap:12px; font-size:13px; font-weight:600">
         <span>Update available: v{updateVersion}</span>

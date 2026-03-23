@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { headerStats, cleanSets as sets } from "../lib/store";
+  import { headerStats, cleanSets as sets, snapshots, sidebarOpen } from "../lib/store";
+  import { getRankTier } from "../lib/parser";
 
   // Recent form: last N sets
   let formCount = $state(10);
@@ -7,6 +8,17 @@
 </script>
 
 <div class="card-grid">
+  <!-- Rating (only shown when sidebar is collapsed) -->
+  {#if !$sidebarOpen && $snapshots.length > 0}
+    {@const snap = $snapshots.at(-1)!}
+    {@const tier = getRankTier(snap.rating)}
+    <div class="stat-card">
+      <div class="label">Rating</div>
+      <div class="value">{snap.rating.toFixed(1)}</div>
+      <div class="sub">{tier.name}</div>
+    </div>
+  {/if}
+
   <!-- Set Win % -->
   <div class="stat-card">
     <div class="label">Set Win %</div>

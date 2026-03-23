@@ -31,7 +31,7 @@ html, body, #app {
 
 .layout {
   display: flex;
-  height: 100vh;
+  height: 100%;
 }
 
 .sidebar {
@@ -43,7 +43,16 @@ html, body, #app {
   flex-direction: column;
   padding: 16px 12px;
   gap: 12px;
+  overflow: hidden;
+}
+
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .main {
