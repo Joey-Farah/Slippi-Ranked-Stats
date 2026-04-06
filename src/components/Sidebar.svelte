@@ -290,8 +290,12 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M14.82 2.41C11.25 2.41 8.35 5.31 8.35 8.88c0 3.56 2.9 6.46 6.47 6.46 3.56 0 6.46-2.9 6.46-6.46 0-3.57-2.9-6.47-6.46-6.47zM3.19 21.59h2.52V2.41H3.19v19.18z"/></svg>
               Support on Patreon
             </button>
-            <div style="font-size:10px; color:var(--muted); margin-top:3px; padding-left:2px">
-              Subscribe and join the Discord server (link is on the Patreon page).
+            <div style="font-size:10px; color:var(--muted); margin-top:3px; padding-left:2px; line-height:1.4">
+              Subscribe, then join the Discord server (link on the Patreon page) and
+              <button
+                onclick={() => openUrl("https://support.patreon.com/hc/en-us/articles/212052266-Getting-Discord-access")}
+                style="background:none; border:none; color:var(--muted); font-size:10px; cursor:pointer; text-decoration:underline; padding:0"
+              >connect your Patreon to Discord</button>.
             </div>
           </div>
         </div>

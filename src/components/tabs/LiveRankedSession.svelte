@@ -92,6 +92,33 @@
     <p class="muted" style="margin-bottom: 16px">
       Monitoring will begin automatically when a ranked game is detected.
     </p>
+  {:else if $liveGameStats.length === 0}
+    <!-- Empty state — watcher is running but no games this session yet -->
+    <div style="
+      background: var(--card); border: 1px solid var(--border);
+      border-left: 3px solid var(--muted); border-radius: 8px;
+      padding: 16px 20px; margin-bottom: 16px;
+      display: flex; align-items: flex-start; gap: 14px;
+    ">
+      <div style="font-size: 22px; line-height: 1; padding-top: 2px">🎮</div>
+      <div>
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px">No games tracked yet this session</div>
+        <div style="font-size: 12px; color: var(--muted); line-height: 1.5">
+          Head into a ranked match and this page will update automatically — no need to refresh.
+        </div>
+      </div>
+    </div>
+
+    <!-- Session overview with zeroed-out cards so the layout isn't empty -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; opacity: 0.4">
+      <div class="stat-card"><div class="label">Session Sets</div><div class="value">0–0</div></div>
+      <div class="stat-card"><div class="label">Win Rate</div><div class="value">—</div></div>
+      <div class="stat-card"><div class="label">Rating Change</div><div class="value">—</div></div>
+      {#if $liveSessionStartRating !== null}
+        <div class="stat-card"><div class="label">Session Start</div><div class="value">{$liveSessionStartRating.toFixed(1)}</div></div>
+      {/if}
+    </div>
+
   {:else}
 
     <!-- NOW PLAYING card -->

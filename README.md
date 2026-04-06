@@ -4,7 +4,7 @@
 
 # Slippi Ranked Stats
 
-A desktop app for analyzing statistics around your Slippi Ranked sets. Point it at your replay folder, scan, and get a full breakdown of your sets — matchups, stages, sessions, and more.
+A desktop app for tracking and analyzing your Slippi Ranked sets. Point it at your replay folder, scan, and get a full breakdown of your play — matchups, stages, sessions, rating history, and live session tracking.
 
 ![Version](https://img.shields.io/github/v/release/Joey-Farah/Slippi-Ranked-Stats)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
@@ -18,13 +18,9 @@ A desktop app for analyzing statistics around your Slippi Ranked sets. Point it 
 - **Stage stats** — see which stages you're winning and losing on
 - **Session breakdown** — each play session grouped separately with a momentum chart
 - **All-time stats** — overall win rate, comeback rate, deciding game win %, and more
-- **Rating tracking** — fetch your current rating, rank tier, and global rank
-- **Auto-updates** — notifies you when a new version is out and installs it in one click
-
-Coming Soon!
-
-- **Rating Progression** — watch your rating over time
-- **Live Rating Updates** — monitor your current session's stats and rating changes
+- **Rating history** — track your rating over time with a set-by-set breakdown
+- **Live session tracking** — monitor your current session's stats, NOW PLAYING card, and rating delta in real time (Premium)
+- **Auto-updates** — notified in-app when a new version is available; installs in one click, no manual download needed
 
 ---
 
@@ -33,6 +29,8 @@ Coming Soon!
 1. Go to the [Releases](https://github.com/Joey-Farah/Slippi-Ranked-Stats/releases/latest) page
 2. Download `Slippi Ranked Stats_x.x.x_x64-setup.exe`
 3. Run the installer
+
+Once installed, future updates will be delivered automatically — you'll see a banner inside the app when one is ready.
 
 ---
 
@@ -55,19 +53,27 @@ Your connect code and folder path are saved, so next time you open the app it'll
 
 ---
 
-## Privacy
+## Privacy & Security
 
-Everything is stored locally. 
+Everything is stored locally on your machine. No gameplay data, replays, or personal information is ever uploaded or shared.
 
-Nothing is uploaded or shared.
+Updates are cryptographically signed — the app will only install an update that was signed with this project's private key. This means no one can push unauthorized code to your machine through the updater, even if the GitHub repository were ever compromised.
+
+---
+
+## Premium
+
+Premium features (live session tracking, rating history) are available to [Patreon supporters](https://www.patreon.com/slippirankedstats).
+
+After subscribing, join the Discord server (linked on the Patreon page), connect your Patreon account to Discord, then click **Connect Discord** in the app sidebar to verify your role.
 
 ---
 
 ## Support
 
-If you get some use out of this, feel free to support me Patreon:
+If you get some use out of this, feel free to support the project on Patreon:
 
-[patreon.com/joeydonuts](https://www.patreon.com/joeydonuts)
+[patreon.com/slippirankedstats](https://www.patreon.com/slippirankedstats)
 
 ---
 

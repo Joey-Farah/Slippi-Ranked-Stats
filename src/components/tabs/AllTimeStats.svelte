@@ -188,7 +188,7 @@
       style="font-size:11px; margin-left:8px; background:var(--card); border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; cursor:pointer"
     >Export CSV</button>
   </div>
-  <div class="card" style="padding:0; overflow:hidden; max-height:520px; overflow-y:auto">
+  <div class="card" style="padding:0; overflow:hidden; max-height:300px; overflow-y:auto">
     <table>
       <thead>
         <tr><th>#</th><th>Date</th><th>Duration</th><th>Sets</th><th>W</th><th>L</th><th>Win %</th></tr>

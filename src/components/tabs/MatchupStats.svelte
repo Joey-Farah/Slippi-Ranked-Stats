@@ -100,6 +100,8 @@
     a.download = name;
     a.click();
   }
+
+  const TABLE_MAX_HEIGHT = 300;
 </script>
 
 <!-- Character filter chips -->
@@ -199,7 +201,7 @@
     </button>
   {/if}
 </div>
-<div class="card" style="padding:0; overflow:hidden; margin-bottom:16px; max-height:520px; overflow-y:auto">
+<div class="card" style="padding:0; overflow:hidden; margin-bottom:16px; max-height:{TABLE_MAX_HEIGHT}px; overflow-y:auto">
   <table>
     <thead>
       <tr>
@@ -240,7 +242,7 @@
     </button>
   {/if}
 </div>
-<div class="card" style="padding:0; overflow:hidden; max-height:520px; overflow-y:auto">
+<div class="card" style="padding:0; overflow:hidden; max-height:{TABLE_MAX_HEIGHT}px; overflow-y:auto">
   <table>
     <thead>
       <tr>

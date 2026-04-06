@@ -7,3 +7,5 @@ srs.key.pub
 .claude/
 HOW TO RELEASE UPDATES.txt
 CHANGELOG.md
+release.ps1
+assets/
