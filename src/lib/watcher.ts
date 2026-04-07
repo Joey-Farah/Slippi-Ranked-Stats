@@ -107,11 +107,6 @@ export async function startWatcher(
       const typeStr = typeof event.type === "string" ? event.type : JSON.stringify(event.type);
       const slpPaths = event.paths.filter((p) => p.endsWith(".slp"));
 
-      // Log every event so we can see what's coming through
-      if (event.paths.length > 0) {
-        statusMessage.set(`[watcher] event: ${typeStr} — ${event.paths.map(p => p.split(/[/\\]/).pop()).join(", ")}`);
-      }
-
       if (typeof event.type === "string") return;
 
       const isCreate = "create" in event.type;
@@ -121,7 +116,6 @@ export async function startWatcher(
       if (slpPaths.length === 0) return;
 
       for (const filepath of slpPaths) {
-        statusMessage.set(`[watcher] ${isCreate ? "new file" : "updating"}: ${filepath.split(/[/\\]/).pop()}`);
         scheduleFileParse(filepath, connectCode, db);
       }
     },
@@ -229,13 +223,13 @@ async function processSlpFile(
     const loaded = await getGames(db);
     games.set(loaded);
 
-    statusMessage.set(`[watcher] parsed: ${filename} — ${parsed.length} game(s)`);
+    statusMessage.set("Ranked session being monitored");
 
     if (completedMatchId) {
       scheduleSnapshotFetch(connectCode, db, completedMatchId);
     }
   } catch (e: any) {
-    statusMessage.set(`[watcher] parse failed: ${filename} — ${e?.message ?? String(e)}`);
+    statusMessage.set(`Error processing ${filename}: ${e?.message ?? String(e)}`);
     // File might be unreadable or still incomplete — leave it unscanned
     // so the manual scanner can retry it later.
   }

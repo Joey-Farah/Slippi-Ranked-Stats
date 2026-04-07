@@ -75,12 +75,6 @@ export async function fetchRatingSnapshot(
   const profile = user.rankedNetplayProfile ?? {};
   const history: any[] = user.rankedNetplayProfileHistory ?? [];
 
-  // Log API character IDs to console — helps verify the char ID mapping
-  const apiChars: any[] = profile.characters ?? [];
-  if (apiChars.length > 0) {
-    console.log("[Slippi API] characters:", JSON.stringify(apiChars));
-  }
-
   const snapshot: RatingSnapshot = {
     timestamp: new Date().toISOString(),
     rating: profile.ratingOrdinal ?? 0,
