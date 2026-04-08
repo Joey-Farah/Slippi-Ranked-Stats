@@ -34,7 +34,7 @@
     <!-- Not connected at all — show both options -->
     <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; max-width:280px">
       <button
-        onclick={() => openUrl("https://www.patreon.com/slippirankedstats")}
+        onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
         style="
           display:flex; align-items:center; justify-content:center; gap:8px;
           width:100%; padding:10px 20px;
@@ -85,7 +85,7 @@
     </div>
     <div style="display:flex; flex-direction:column; align-items:center; gap:8px; width:100%; max-width:280px">
       <button
-        onclick={() => openUrl("https://www.patreon.com/slippirankedstats")}
+        onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
         style="
           display:flex; align-items:center; justify-content:center; gap:8px;
           width:100%; padding:10px 20px;

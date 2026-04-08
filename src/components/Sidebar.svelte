@@ -249,7 +249,7 @@
         {/if}
       </div>
       <button
-        onclick={() => openUrl("https://www.patreon.com/slippirankedstats")}
+        onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
         style="
           display:flex; align-items:center; justify-content:center; gap:7px;
           width:100%; padding:9px;
@@ -278,7 +278,7 @@
           ">1</div>
           <div style="flex:1">
             <button
-              onclick={() => openUrl("https://www.patreon.com/slippirankedstats")}
+              onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
               style="
                 display:flex; align-items:center; gap:6px;
                 width:100%; padding:7px 10px;

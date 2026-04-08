@@ -27,6 +27,11 @@
   let chart: echarts.ECharts | null = null;
 
   function buildOption() {
+    // ECharts renders horizontal bars bottom-to-top, so reverse to make
+    // the first item appear at the top of the chart.
+    const cats = horizontal ? [...categories].reverse() : categories;
+    const vals = horizontal ? [...values].reverse() : values;
+
     const axis = {
       type: "value" as const,
       axisLine: { lineStyle: { color: "#3a3a3a" } },
@@ -36,7 +41,7 @@
     };
     const cat = {
       type: "category" as const,
-      data: categories,
+      data: cats,
       axisLine: { lineStyle: { color: "#3a3a3a" } },
       axisLabel: { color: "#aaa", fontSize: 11 },
     };
@@ -68,7 +73,7 @@
             name: "Win",
             type: "bar",
             stack: "winloss",
-            data: values,
+            data: vals,
             itemStyle: { color: "#2ecc71" },
             label: {
               show: true,
@@ -86,7 +91,7 @@
             name: "Loss",
             type: "bar",
             stack: "winloss",
-            data: values.map((v) => 100 - v),
+            data: vals.map((v) => 100 - v),
             itemStyle: { color: "#e74c3c" },
             label: {
               show: true,
@@ -124,7 +129,7 @@
         {
           name: label,
           type: "bar",
-          data: values,
+          data: vals,
           itemStyle: {
             color: (params: any) => {
               const v = params.value as number;
