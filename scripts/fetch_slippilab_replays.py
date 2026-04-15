@@ -25,10 +25,10 @@ import json
 import os
 import sys
 import tempfile
-import time
 import urllib.request
 import urllib.error
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import numpy as np
@@ -37,9 +37,9 @@ from slippi.event import LCancel
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-BASE_URL      = "https://slippilab.com"
-REQUEST_DELAY = 0.2   # seconds between downloads — be polite to the server
-TIMEOUT       = 30    # seconds per HTTP request
+BASE_URL    = "https://slippilab.com"
+TIMEOUT     = 30   # seconds per HTTP request
+MAX_WORKERS = 4    # parallel download+parse workers (py-slippi is GIL-bound, so processes)
 
 # Internal character IDs as used by the game binary (mirrors parser.ts CHARACTERS).
 CHARACTERS: dict[int, str] = {
@@ -101,18 +101,15 @@ def is_vulnerable(state: int) -> bool:
 
 # ── Stat computation ───────────────────────────────────────────────────────────
 
-def compute_game_stats(filepath: str, player_port: int, opp_port: int):
+def compute_game_stats(game, player_port: int, opp_port: int):
     """
-    Compute all performance stats for player_port in the given game.
+    Compute all performance stats for player_port in the given pre-parsed Game.
 
-    Returns a dict with all STAT_KEYS, or None if the game can't be parsed.
+    Returns a dict with all STAT_KEYS, or None if stats can't be computed.
     Values may be None for stats that couldn't be computed (e.g. 0 kills).
+    Accepts a pre-parsed Game object so the caller can parse once and reuse
+    across both ports (avoids the 3x parse that was a major bottleneck).
     """
-    try:
-        game = Game(filepath)
-    except Exception:
-        return None
-
     neutral_wins   = 0
     neutral_losses = 0
     prev_p_ctrl    = False
@@ -209,11 +206,10 @@ def compute_game_stats(filepath: str, player_port: int, opp_port: int):
 
 def process_both_ports(filepath: str):
     """
-    Process both player ports from a 1v1 replay.
+    Parse a 1v1 replay once and compute stats from both ports.
 
     Returns a list of (stats_dict, player_char_name, opp_char_name) tuples.
-    Processing both ports gives population-level data rather than a single
-    player's perspective.
+    Processing both ports doubles the population-level sample size per replay.
     """
     try:
         game = Game(filepath)
@@ -237,7 +233,7 @@ def process_both_ports(filepath: str):
         player_char_name = CHARACTERS.get(player_char_id, f"Unknown_{player_char_id}")
         opp_char_name    = CHARACTERS.get(opp_char_id,    f"Unknown_{opp_char_id}")
 
-        stats = compute_game_stats(filepath, player_port, opp_port)
+        stats = compute_game_stats(game, player_port, opp_port)
         if stats is not None:
             results.append((stats, player_char_name, opp_char_name))
 
@@ -284,23 +280,49 @@ def fetch_replay_list(limit: int) -> list[dict]:
     return replays[:limit]
 
 
-def download_replay(replay_id: int, file_name: str, dest_path: str) -> bool:
+def process_one_replay(replay: dict):
+    """
+    Worker entry point: download a replay, parse it once, compute stats for
+    both ports, and clean up. Runs in a separate process so the py-slippi parse
+    (CPU-bound, GIL-bound) can run in parallel with other workers.
+
+    Returns:
+        ("ok",      port_results)  on a successful parse
+        ("empty",   None)          when parsing succeeded but yielded no usable rows
+        ("skip",    reason_str)    when the replay couldn't be downloaded/identified
+    """
+    file_name = replay.get("file_name")
+    if not file_name:
+        return ("skip", "no file_name")
+
     url = f"{BASE_URL}/api/replay/{file_name}"
+    tmp_path = None
     try:
         req = urllib.request.Request(
             url, headers={"User-Agent": "slippi-ranked-stats-baseline/1.0"}
         )
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
             data = resp.read()
-        with open(dest_path, "wb") as f:
-            f.write(data)
-        return True
+
+        with tempfile.NamedTemporaryFile(suffix=".slp", delete=False) as tf:
+            tf.write(data)
+            tmp_path = tf.name
+
+        port_results = process_both_ports(tmp_path)
+        if not port_results:
+            return ("empty", None)
+        return ("ok", port_results)
+
     except urllib.error.HTTPError as e:
-        print(f"  [WARN] HTTP {e.code} for replay {replay_id} — skipping", file=sys.stderr)
-        return False
+        return ("skip", f"HTTP {e.code}")
     except Exception as e:
-        print(f"  [WARN] Download error for {replay_id}: {e} — skipping", file=sys.stderr)
-        return False
+        return ("skip", f"{type(e).__name__}: {e}")
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
@@ -308,13 +330,16 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build grade baselines from SlippiLab community replays"
     )
-    parser.add_argument("--limit",  type=int, default=1000,
+    parser.add_argument("--limit",   type=int, default=1000,
                         help="Max replays to process (default: 1000)")
-    parser.add_argument("--output", default=os.path.join(os.path.dirname(__file__), "grade_baselines.json"),
+    parser.add_argument("--workers", type=int, default=MAX_WORKERS,
+                        help=f"Parallel download+parse workers (default: {MAX_WORKERS})")
+    parser.add_argument("--output",  default=os.path.join(os.path.dirname(__file__), "grade_baselines.json"),
                         help="Output path for grade_baselines.json")
     args = parser.parse_args()
 
     replays = fetch_replay_list(args.limit)
+    total   = len(replays)
 
     # Two grouping dimensions:
     #   by_player_char — for character-specific stat comparisons
@@ -327,50 +352,37 @@ def main():
     processed = 0
     errors    = 0
     skipped   = 0
+    completed = 0
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = os.path.join(tmpdir, "replay.slp")
+    print(f"Dispatching {total} replays across {args.workers} workers...", flush=True)
 
-        for i, replay in enumerate(replays):
-            replay_id = replay.get("id")
-            if replay_id is None:
-                skipped += 1
-                continue
+    with ProcessPoolExecutor(max_workers=args.workers) as pool:
+        futures = [pool.submit(process_one_replay, r) for r in replays]
 
-            if (i + 1) % 100 == 0 or i == 0:
-                print(f"[{i+1}/{len(replays)}]  processed={processed}  errors={errors}  skipped={skipped}")
+        for future in as_completed(futures):
+            completed += 1
+            status, payload = future.result()
 
-            file_name = replay.get("file_name")
-            if not file_name or not download_replay(replay_id, file_name, tmp_path):
-                skipped += 1
-                time.sleep(REQUEST_DELAY)
-                continue
-
-            port_results = process_both_ports(tmp_path)
-
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-
-            if not port_results:
+            if status == "ok":
+                for stats, player_char, opp_char in payload:
+                    for key in STAT_KEYS:
+                        val = stats.get(key)
+                        if val is None:
+                            continue
+                        if isinstance(val, float) and val != val:  # NaN guard
+                            continue
+                        by_player_char[player_char][key].append(val)
+                        by_opponent_char[opp_char][key].append(val)
+                        overall[key].append(val)
+                processed += 1
+            elif status == "empty":
                 errors += 1
-                time.sleep(REQUEST_DELAY)
-                continue
+            else:  # "skip"
+                skipped += 1
 
-            for stats, player_char, opp_char in port_results:
-                for key in STAT_KEYS:
-                    val = stats.get(key)
-                    if val is None:
-                        continue
-                    if isinstance(val, float) and val != val:  # NaN guard
-                        continue
-                    by_player_char[player_char][key].append(val)
-                    by_opponent_char[opp_char][key].append(val)
-                    overall[key].append(val)
-
-            processed += 1
-            time.sleep(REQUEST_DELAY)
+            if completed % 100 == 0 or completed == 1 or completed == total:
+                print(f"[{completed}/{total}]  processed={processed}  errors={errors}  skipped={skipped}",
+                      flush=True)
 
     print(f"\nFinished. Processed: {processed}  Errors: {errors}  Skipped: {skipped}")
 
