@@ -133,7 +133,7 @@ function averageSetStats(games: LiveGameStats[]): Record<string, number | null> 
 
   for (const g of games) {
     for (const key of allKeys) {
-      const val = (g as Record<string, unknown>)[key] as number | null;
+      const val = (g as unknown as Record<string, unknown>)[key] as number | null;
       if (val !== null && val !== undefined && isFinite(val)) accum[key].push(val);
     }
   }
@@ -177,7 +177,7 @@ export function gradeSet(
 
   for (const key of Object.keys(STAT_LABELS) as (keyof SetGrade["breakdown"])[]) {
     const value      = averaged[key] ?? null;
-    const thresholds = (benchmarks as Record<string, StatThresholds>)[key];
+    const thresholds = (benchmarks as unknown as Record<string, StatThresholds>)[key];
     const inverted   = INVERTED_STATS.has(key);
 
     let score: number | null = null;

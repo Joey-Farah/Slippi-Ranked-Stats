@@ -282,8 +282,8 @@ def fetch_replay_list(limit: int) -> list[dict]:
     return replays[:limit]
 
 
-def download_replay(replay_id: int, dest_path: str) -> bool:
-    url = f"{BASE_URL}/api/replay/{replay_id}"
+def download_replay(replay_id: int, file_name: str, dest_path: str) -> bool:
+    url = f"{BASE_URL}/api/replay/{file_name}"
     try:
         req = urllib.request.Request(
             url, headers={"User-Agent": "slippi-ranked-stats-baseline/1.0"}
@@ -338,7 +338,8 @@ def main():
             if (i + 1) % 100 == 0 or i == 0:
                 print(f"[{i+1}/{len(replays)}]  processed={processed}  errors={errors}  skipped={skipped}")
 
-            if not download_replay(replay_id, tmp_path):
+            file_name = replay.get("file_name")
+            if not file_name or not download_replay(replay_id, file_name, tmp_path):
                 skipped += 1
                 time.sleep(REQUEST_DELAY)
                 continue

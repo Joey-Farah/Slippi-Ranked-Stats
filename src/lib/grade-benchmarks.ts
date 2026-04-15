@@ -1,20 +1,13 @@
 /**
- * grade-benchmarks.ts — Placeholder stat percentile thresholds for the Set Grading System.
+ * grade-benchmarks.ts — Stat percentile thresholds for the Set Grading System.
  *
  * !! DEV ONLY — not shipped to users yet !!
  *
- * Replace BENCHMARKS with the "by_player_char" field from grade_baselines.json
- * after running scripts/fetch_slippilab_replays.py.
- *
- * Schema:
- *   p5/p10/p25 = low-end percentiles (used for inverted stats: openings_per_kill, avg_kill_percent)
- *   p50        = median
- *   p75/p90/p95 = high-end percentiles (used for normal stats)
- *
- * Grading dimension: benchmarks are keyed by the PLAYER'S character so that
- * a Fox player's damage/opening is compared against other Fox players, not
- * against Jigglypuff players whose kit produces fundamentally different numbers.
- * Use "_overall" as the cross-character fallback for universal stats (neutral win ratio).
+ * Generated from scripts/grade_baselines.json via scripts/fetch_slippilab_replays.py.
+ * Characters with fewer than 20 samples in the source dataset fall back to _overall.
+ * inputs_per_minute is a placeholder — py-slippi's frame API doesn't expose pre-frame
+ * button states, so the Python pipeline can't compute it; the in-app parser computes
+ * it live but we have no community baseline for it yet.
  */
 
 export interface StatThresholds {
@@ -28,34 +21,140 @@ export interface StatThresholds {
 }
 
 export interface CharacterBenchmarks {
-  // Neutral category
   neutral_win_ratio:  StatThresholds;
   openings_per_kill:  StatThresholds;  // inverted: lower = better
-  // Punish category
   damage_per_opening: StatThresholds;
   avg_kill_percent:   StatThresholds;  // inverted: lower = better (killing early)
-  // Defense category
   avg_death_percent:  StatThresholds;
-  // Execution category
   l_cancel_ratio:     StatThresholds;
   inputs_per_minute:  StatThresholds;
 }
 
-/**
- * Benchmarks keyed by player character name (matching CHARACTERS in parser.ts).
- * "_overall" is the character-agnostic fallback.
- *
- * Replace this object with the "by_player_char" field from grade_baselines.json
- * after running scripts/fetch_slippilab_replays.py.
- */
 export const BENCHMARKS: Record<string, CharacterBenchmarks> = {
-  _overall: {
-    neutral_win_ratio:  { p5: 0.33, p10: 0.38, p25: 0.44, p50: 0.50, p75: 0.57, p90: 0.63, p95: 0.67 },
-    openings_per_kill:  { p5: 2.0,  p10: 2.3,  p25: 2.8,  p50: 3.3,  p75: 4.1,  p90: 5.2,  p95: 6.0  },
-    damage_per_opening: { p5: 8.0,  p10: 10.2, p25: 13.5, p50: 19.2, p75: 24.1, p90: 29.4, p95: 34.0 },
-    avg_kill_percent:   { p5: 58,   p10: 68,   p25: 82,   p50: 98,   p75: 118,  p90: 138,  p95: 152  },
-    avg_death_percent:  { p5: 52,   p10: 65,   p25: 80,   p50: 98,   p75: 118,  p90: 138,  p95: 152  },
-    l_cancel_ratio:     { p5: 0.40, p10: 0.55, p25: 0.68, p50: 0.78, p75: 0.87, p90: 0.93, p95: 0.97 },
-    inputs_per_minute:  { p5: 90,   p10: 130,  p25: 185,  p50: 260,  p75: 340,  p90: 410,  p95: 460  },
+  "_overall": {
+    neutral_win_ratio:   { p5: 0.1579, p10: 0.2308, p25: 0.3571, p50: 0.5, p75: 0.6429, p90: 0.7692, p95: 0.8421 },
+    openings_per_kill:   { p5: 0.6667, p10: 1.0, p25: 1.5, p50: 2.25, p75: 3.25, p90: 4.5, p95: 6.0 },
+    damage_per_opening:  { p5: 22.538, p10: 28.5928, p25: 38.1294, p50: 51.5814, p75: 74.465, p90: 110.1636, p95: 153.05 },
+    avg_kill_percent:    { p5: 64.0003, p10: 75.616, p25: 92.2989, p50: 110.2025, p75: 127.661, p90: 141.909, p95: 154.0926 },
+    avg_death_percent:   { p5: 64.0003, p10: 75.616, p25: 92.2989, p50: 110.2025, p75: 127.661, p90: 141.909, p95: 154.0926 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.2, p25: 0.5882, p50: 0.7907, p75: 0.8848, p90: 0.9474, p95: 0.9714 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Captain Falcon": {
+    neutral_win_ratio:   { p5: 0.1111, p10: 0.2143, p25: 0.3333, p50: 0.5, p75: 0.5882, p90: 0.7078, p95: 0.8 },
+    openings_per_kill:   { p5: 0.5, p10: 0.75, p25: 1.3333, p50: 2.0, p75: 3.0, p90: 4.0, p95: 4.3333 },
+    damage_per_opening:  { p5: 27.4944, p10: 31.8267, p25: 41.7925, p50: 55.7525, p75: 78.6467, p90: 112.407, p95: 169.432 },
+    avg_kill_percent:    { p5: 60.9133, p10: 72.5994, p25: 88.3675, p50: 106.5356, p75: 121.8571, p90: 133.41, p95: 140.7118 },
+    avg_death_percent:   { p5: 60.5825, p10: 73.7552, p25: 89.3862, p50: 108.135, p75: 123.8051, p90: 136.618, p95: 144.48 },
+    l_cancel_ratio:      { p5: 0.3778, p10: 0.4755, p25: 0.7018, p50: 0.8387, p75: 0.913, p90: 0.9576, p95: 0.9697 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Falco": {
+    neutral_win_ratio:   { p5: 0.2091, p10: 0.2802, p25: 0.3333, p50: 0.4143, p75: 0.587, p90: 0.6846, p95: 0.8791 },
+    openings_per_kill:   { p5: 0.75, p10: 1.075, p25: 1.5, p50: 1.75, p75: 2.9375, p90: 3.0, p95: 5.375 },
+    damage_per_opening:  { p5: 25.6998, p10: 31.6253, p25: 37.1045, p50: 51.01, p75: 75.0217, p90: 83.4433, p95: 90.4856 },
+    avg_kill_percent:    { p5: 36.6443, p10: 55.1684, p25: 73.5588, p50: 102.2421, p75: 117.2662, p90: 131.156, p95: 142.7459 },
+    avg_death_percent:   { p5: 5.0, p10: 80.2976, p25: 89.9925, p50: 123.3533, p75: 141.4625, p90: 151.9558, p95: 156.2467 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.0, p25: 0.0, p50: 0.5455, p75: 0.7822, p90: 0.9034, p95: 0.95 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Ganondorf": {
+    neutral_win_ratio:   { p5: 0.185, p10: 0.2222, p25: 0.4256, p50: 0.5, p75: 0.6174, p90: 0.7821, p95: 0.89 },
+    openings_per_kill:   { p5: 0.3625, p10: 0.65, p25: 1.0, p50: 1.5, p75: 2.0, p90: 2.525, p95: 3.2542 },
+    damage_per_opening:  { p5: 29.7834, p10: 35.8359, p25: 49.5442, p50: 72.4114, p75: 99.1432, p90: 171.073, p95: 183.0557 },
+    avg_kill_percent:    { p5: 65.8169, p10: 70.3095, p25: 85.5087, p50: 91.7525, p75: 100.2617, p90: 115.9835, p95: 133.5538 },
+    avg_death_percent:   { p5: 56.407, p10: 81.7617, p25: 93.2267, p50: 109.065, p75: 126.9103, p90: 157.982, p95: 164.588 },
+    l_cancel_ratio:      { p5: 0.1792, p10: 0.2133, p25: 0.3333, p50: 0.6036, p75: 0.8024, p90: 0.8857, p95: 0.9381 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Jigglypuff": {
+    neutral_win_ratio:   { p5: 0.3567, p10: 0.4397, p25: 0.5, p50: 0.6667, p75: 0.8045, p90: 0.8943, p95: 1.0 },
+    openings_per_kill:   { p5: 0.6667, p10: 1.0, p25: 1.2708, p50: 2.0, p75: 3.0, p90: 4.0, p95: 6.0 },
+    damage_per_opening:  { p5: 4.91, p10: 25.6046, p25: 37.2795, p50: 48.39, p75: 69.9149, p90: 100.79, p95: 116.694 },
+    avg_kill_percent:    { p5: 62.2097, p10: 66.4487, p25: 81.5184, p50: 99.905, p75: 123.8406, p90: 137.7728, p95: 142.1451 },
+    avg_death_percent:   { p5: 77.4877, p10: 79.874, p25: 95.5084, p50: 112.68, p75: 122.7727, p90: 137.773, p95: 144.2298 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.0938, p25: 0.4118, p50: 0.75, p75: 0.8668, p90: 0.9549, p95: 1.0 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Luigi": {
+    neutral_win_ratio:   { p5: 0.125, p10: 0.17, p25: 0.3267, p50: 0.4167, p75: 0.5132, p90: 0.6145, p95: 0.7159 },
+    openings_per_kill:   { p5: 0.6875, p10: 0.875, p25: 1.375, p50: 2.8333, p75: 3.3333, p90: 3.7083, p95: 3.75 },
+    damage_per_opening:  { p5: 33.9023, p10: 37.2108, p25: 40.6605, p50: 59.2962, p75: 101.307, p90: 128.6695, p95: 153.04 },
+    avg_kill_percent:    { p5: 77.5733, p10: 85.06, p25: 105.1442, p50: 112.57, p75: 125.5223, p90: 142.4795, p95: 144.9001 },
+    avg_death_percent:   { p5: 98.49, p10: 98.942, p25: 112.6304, p50: 127.5275, p75: 143.3962, p90: 168.39, p95: 176.5643 },
+    l_cancel_ratio:      { p5: 0.0556, p10: 0.1163, p25: 0.4447, p50: 0.7188, p75: 0.8193, p90: 0.9402, p95: 0.9677 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Mario": {
+    neutral_win_ratio:   { p5: 0.1357, p10: 0.1818, p25: 0.2778, p50: 0.3889, p75: 0.5385, p90: 0.6818, p95: 0.7364 },
+    openings_per_kill:   { p5: 0.5, p10: 0.75, p25: 1.25, p50: 2.0, p75: 2.6667, p90: 4.0, p95: 5.0 },
+    damage_per_opening:  { p5: 21.1241, p10: 28.202, p25: 43.5125, p50: 58.7783, p75: 86.3283, p90: 149.1, p95: 230.31 },
+    avg_kill_percent:    { p5: 69.88, p10: 77.745, p25: 89.1467, p50: 104.2925, p75: 117.9875, p90: 133.9275, p95: 139.4105 },
+    avg_death_percent:   { p5: 71.0005, p10: 82.9549, p25: 97.84, p50: 115.1025, p75: 131.76, p90: 146.8276, p95: 163.0467 },
+    l_cancel_ratio:      { p5: 0.0278, p10: 0.3103, p25: 0.6866, p50: 0.8182, p75: 0.8957, p90: 0.9333, p95: 0.9551 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Mewtwo": {
+    neutral_win_ratio:   { p5: 0.22, p10: 0.2722, p25: 0.375, p50: 0.5385, p75: 0.6875, p90: 0.7857, p95: 0.7943 },
+    openings_per_kill:   { p5: 0.0, p10: 0.5, p25: 1.4167, p50: 2.25, p75: 3.1667, p90: 5.0, p95: 6.75 },
+    damage_per_opening:  { p5: 29.4271, p10: 30.7737, p25: 35.5265, p50: 48.25, p75: 81.0333, p90: 107.6425, p95: 172.588 },
+    avg_kill_percent:    { p5: 80.43, p10: 85.5881, p25: 88.4975, p50: 107.8175, p75: 127.05, p90: 143.84, p95: 151.4042 },
+    avg_death_percent:   { p5: 85.186, p10: 97.0525, p25: 103.095, p50: 114.2075, p75: 136.43, p90: 158.963, p95: 160.69 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.0, p25: 0.075, p50: 0.49, p75: 0.733, p90: 0.8784, p95: 1.0 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Peach": {
+    neutral_win_ratio:   { p5: 0.1847, p10: 0.2592, p25: 0.3571, p50: 0.4721, p75: 0.625, p90: 0.7359, p95: 0.8462 },
+    openings_per_kill:   { p5: 0.75, p10: 1.0, p25: 1.5, p50: 2.25, p75: 3.0, p90: 4.3, p95: 6.4 },
+    damage_per_opening:  { p5: 21.9369, p10: 31.4393, p25: 40.1418, p50: 51.767, p75: 72.718, p90: 100.8075, p95: 130.1447 },
+    avg_kill_percent:    { p5: 57.863, p10: 72.3147, p25: 89.2225, p50: 107.53, p75: 128.1531, p90: 147.058, p95: 165.11 },
+    avg_death_percent:   { p5: 67.5833, p10: 79.8225, p25: 94.8798, p50: 108.3067, p75: 124.835, p90: 140.3667, p95: 151.34 },
+    l_cancel_ratio:      { p5: 0.0556, p10: 0.2856, p25: 0.5926, p50: 0.7857, p75: 0.8846, p90: 0.9412, p95: 0.9583 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Pikachu": {
+    neutral_win_ratio:   { p5: 0.0462, p10: 0.1426, p25: 0.2163, p50: 0.2963, p75: 0.4088, p90: 0.5, p95: 0.5373 },
+    openings_per_kill:   { p5: 0.6875, p10: 0.75, p25: 1.5, p50: 2.0, p75: 2.75, p90: 4.0, p95: 4.0 },
+    damage_per_opening:  { p5: 31.3277, p10: 37.6251, p25: 50.7379, p50: 59.119, p75: 92.5045, p90: 150.8925, p95: 180.7907 },
+    avg_kill_percent:    { p5: 82.7701, p10: 92.0611, p25: 106.5632, p50: 118.2368, p75: 131.2996, p90: 139.4365, p95: 142.9124 },
+    avg_death_percent:   { p5: 74.2081, p10: 89.425, p25: 108.0548, p50: 123.5997, p75: 144.509, p90: 155.704, p95: 160.0179 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.0, p25: 0.0, p50: 0.3667, p75: 0.6562, p90: 1.0, p95: 1.0 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Sheik": {
+    neutral_win_ratio:   { p5: 0.1677, p10: 0.2646, p25: 0.3717, p50: 0.5789, p75: 0.6992, p90: 0.8185, p95: 0.869 },
+    openings_per_kill:   { p5: 1.0, p10: 1.0, p25: 1.5, p50: 2.25, p75: 3.625, p90: 5.6667, p95: 6.4583 },
+    damage_per_opening:  { p5: 20.0954, p10: 26.732, p25: 37.7248, p50: 50.1255, p75: 88.7508, p90: 115.008, p95: 123.807 },
+    avg_kill_percent:    { p5: 69.8437, p10: 87.2275, p25: 94.63, p50: 122.0325, p75: 130.4081, p90: 145.4047, p95: 153.3969 },
+    avg_death_percent:   { p5: 78.779, p10: 81.1005, p25: 102.7234, p50: 118.2325, p75: 131.7925, p90: 142.0414, p95: 144.4934 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.0, p25: 0.203, p50: 0.4773, p75: 0.663, p90: 0.7698, p95: 0.8194 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Yoshi": {
+    neutral_win_ratio:   { p5: 0.1587, p10: 0.255, p25: 0.3636, p50: 0.6202, p75: 0.7133, p90: 0.75, p95: 0.75 },
+    openings_per_kill:   { p5: 0.75, p10: 0.75, p25: 1.375, p50: 1.7083, p75: 3.0833, p90: 4.725, p95: 6.75 },
+    damage_per_opening:  { p5: 13.0, p10: 23.0296, p25: 34.37, p50: 51.0779, p75: 84.46, p90: 137.88, p95: 140.8849 },
+    avg_kill_percent:    { p5: 65.895, p10: 75.3105, p25: 86.7675, p50: 100.0507, p75: 108.0783, p90: 131.4945, p95: 134.3936 },
+    avg_death_percent:   { p5: 64.9184, p10: 65.0935, p25: 93.2867, p50: 115.33, p75: 129.4063, p90: 154.8433, p95: 155.823 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.1429, p25: 0.2857, p50: 0.5, p75: 0.75, p90: 1.0, p95: 1.0 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Young Link": {
+    neutral_win_ratio:   { p5: 0.2222, p10: 0.3, p25: 0.4375, p50: 0.5455, p75: 0.6667, p90: 0.7692, p95: 0.8135 },
+    openings_per_kill:   { p5: 1.0, p10: 1.3333, p25: 2.0, p50: 3.0, p75: 4.0, p90: 5.6667, p95: 7.0 },
+    damage_per_opening:  { p5: 22.0231, p10: 25.3571, p25: 32.9288, p50: 44.1229, p75: 63.5706, p90: 89.913, p95: 118.5974 },
+    avg_kill_percent:    { p5: 75.6, p10: 87.744, p25: 103.47, p50: 118.6425, p75: 133.275, p90: 152.0, p95: 162.576 },
+    avg_death_percent:   { p5: 53.9473, p10: 67.1933, p25: 83.9217, p50: 102.285, p75: 118.7038, p90: 131.8628, p95: 138.2075 },
+    l_cancel_ratio:      { p5: 0.3609, p10: 0.5955, p25: 0.75, p50: 0.8333, p75: 0.9044, p90: 0.9551, p95: 0.9722 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
+  },
+  "Zelda": {
+    neutral_win_ratio:   { p5: 0.2, p10: 0.2825, p25: 0.4167, p50: 0.5556, p75: 0.6667, p90: 0.7955, p95: 0.8212 },
+    openings_per_kill:   { p5: 0.8375, p10: 1.25, p25: 1.75, p50: 2.25, p75: 3.6667, p90: 5.5, p95: 6.0 },
+    damage_per_opening:  { p5: 22.7563, p10: 29.9385, p25: 36.824, p50: 48.7598, p75: 64.744, p90: 98.5912, p95: 136.616 },
+    avg_kill_percent:    { p5: 72.7332, p10: 91.7357, p25: 99.4428, p50: 109.9773, p75: 127.8183, p90: 140.5967, p95: 147.3 },
+    avg_death_percent:   { p5: 78.0725, p10: 83.07, p25: 98.6125, p50: 112.8315, p75: 131.0014, p90: 153.03, p95: 162.3563 },
+    l_cancel_ratio:      { p5: 0.0, p10: 0.0, p25: 0.4325, p50: 0.6667, p75: 0.8309, p90: 0.9202, p95: 0.9585 },
+    inputs_per_minute:   { p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 },
   },
 };
