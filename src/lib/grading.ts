@@ -63,12 +63,15 @@ export interface SetGrade {
 /** Stats where LOWER raw value = BETTER performance. */
 const INVERTED_STATS = new Set(["openings_per_kill", "avg_kill_percent"]);
 
-/** Category definitions — stats listed in display order within each category. */
-const CATEGORY_DEFS: Record<CategoryKey, { label: string; stats: (keyof SetGrade["breakdown"])[] }> = {
-  neutral:   { label: "Neutral",   stats: ["neutral_win_ratio",  "openings_per_kill"]  },
-  punish:    { label: "Punish",    stats: ["damage_per_opening", "avg_kill_percent"]   },
-  defense:   { label: "Defense",   stats: ["avg_death_percent"]                        },
-  execution: { label: "Execution", stats: ["l_cancel_ratio",     "inputs_per_minute"]  },
+/** Category definitions — stats listed in display order within each category.
+ *  Exported so the display component can iterate the same mapping (avoids
+ *  the previous duplicated list in SetGradeDisplay.svelte that drifted on
+ *  category changes). */
+export const CATEGORY_DEFS: Record<CategoryKey, { label: string; stats: (keyof SetGrade["breakdown"])[] }> = {
+  neutral:   { label: "Neutral",   stats: ["neutral_win_ratio"]                                            },
+  punish:    { label: "Punish",    stats: ["damage_per_opening", "openings_per_kill", "avg_kill_percent"] },
+  defense:   { label: "Defense",   stats: ["avg_death_percent"]                                            },
+  execution: { label: "Execution", stats: ["l_cancel_ratio",     "inputs_per_minute"]                     },
 };
 
 const STAT_LABELS: Record<string, string> = {

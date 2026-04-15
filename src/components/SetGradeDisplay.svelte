@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SetGrade, GradeLetter, CategoryKey } from "../lib/grading";
+  import { CATEGORY_DEFS, type SetGrade, type GradeLetter, type CategoryKey } from "../lib/grading";
 
   let { grade }: { grade: SetGrade } = $props();
 
@@ -74,13 +74,9 @@
           {/if}
         </div>
 
-        <!-- Stat rows within category -->
-        {#each (
-          catKey === "neutral"   ? ["neutral_win_ratio",  "openings_per_kill"]  :
-          catKey === "punish"    ? ["damage_per_opening", "avg_kill_percent"]   :
-          catKey === "defense"   ? ["avg_death_percent"]                        :
-                                   ["l_cancel_ratio",     "inputs_per_minute"]
-        ) as statKey}
+        <!-- Stat rows within category — driven by CATEGORY_DEFS so display
+             stays in sync with grading logic when categories are rearranged. -->
+        {#each CATEGORY_DEFS[catKey].stats as statKey}
           {@const stat = catStats[statKey as keyof typeof catStats]}
           <div style="
             display: grid; grid-template-columns: 1fr 72px 52px 26px;
