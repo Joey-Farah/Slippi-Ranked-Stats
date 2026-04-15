@@ -1,12 +1,91 @@
 <script lang="ts">
   import {
     isPremium, watcherActive, activeSet, liveSessionStartRating,
-    snapshots, liveGameStats, sets, lastSetGrade,
+    snapshots, liveGameStats, sets, lastSetGrade, connectCode,
+    type LiveGameStats,
   } from "../../lib/store";
-  import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
+  import { CHARACTERS, STAGES, getRankTier, parseSlpFile } from "../../lib/parser";
+  import { gradeSet, type SetGrade } from "../../lib/grading";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
+
+  // ── Dev-only: grade the most recent completed set on demand ──────────────
+  // The DB only stores game metadata, not per-game stats — so we re-parse
+  // each .slp file in the most recent completed set, then run gradeSet.
+  let devTestBusy = $state(false);
+  let devTestStatus = $state<string | null>(null);
+  let devTestGrade = $state<SetGrade | null>(null);
+
+  async function runDevGradeTest() {
+    devTestBusy = true;
+    devTestStatus = null;
+    devTestGrade = null;
+    try {
+      const code = $connectCode;
+      if (!code) {
+        devTestStatus = "Set your connect code in the sidebar first.";
+        return;
+      }
+
+      const completedSets = $sets.filter((s) => Math.max(s.wins, s.losses) >= 2);
+      if (completedSets.length === 0) {
+        devTestStatus = "No completed sets in your DB. Scan your replay folder first.";
+        return;
+      }
+
+      const lastSet = completedSets.at(-1)!;
+      devTestStatus = `Re-parsing ${lastSet.games.length} game${lastSet.games.length === 1 ? "" : "s"} from set vs ${lastSet.opponent_code}…`;
+
+      const liveGames: LiveGameStats[] = [];
+      let parseFailures = 0;
+      for (const g of lastSet.games) {
+        if (!g.filepath) { parseFailures++; continue; }
+        try {
+          const parsed = await parseSlpFile(g.filepath, code);
+          for (const p of parsed) {
+            liveGames.push({
+              match_id: p.match_id,
+              result: p.result,
+              kills: p.kills,
+              deaths: p.deaths,
+              openings_per_kill: p.openings_per_kill,
+              damage_per_opening: p.damage_per_opening,
+              neutral_win_ratio: p.neutral_win_ratio,
+              inputs_per_minute: p.inputs_per_minute,
+              l_cancel_ratio: p.l_cancel_ratio,
+              avg_kill_percent: p.avg_kill_percent,
+              avg_death_percent: p.avg_death_percent,
+              duration_frames: p.duration_frames,
+              stage_id: p.stage_id,
+              player_char_id: p.player_char_id,
+              opponent_char_id: p.opponent_char_id,
+              opponent_code: p.opponent_code,
+              timestamp: p.timestamp,
+            });
+          }
+        } catch {
+          parseFailures++;
+        }
+      }
+
+      if (liveGames.length === 0) {
+        devTestStatus = "Couldn't parse any of the set's .slp files (files may have been moved or deleted).";
+        return;
+      }
+
+      const playerChar = CHARACTERS[lastSet.player_char_ids[0]] ?? "Unknown";
+      const opponentChar = CHARACTERS[lastSet.opponent_char_ids[0]] ?? "Unknown";
+      const grade = gradeSet(liveGames, playerChar, opponentChar, lastSet.result, lastSet.wins, lastSet.losses);
+      devTestGrade = grade;
+      const failNote = parseFailures > 0 ? ` (${parseFailures} file${parseFailures === 1 ? "" : "s"} skipped)` : "";
+      devTestStatus = `Graded set vs ${lastSet.opponent_code} — ${lastSet.wins}–${lastSet.losses}${failNote}.`;
+    } catch (e: any) {
+      devTestStatus = `Error: ${e?.message ?? String(e)}`;
+    } finally {
+      devTestBusy = false;
+    }
+  }
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -81,6 +160,42 @@
     return v !== null ? (v * 100).toFixed(0) + "%" : "—";
   }
 </script>
+
+{#if import.meta.env.DEV}
+  <!-- Dev-only test affordance: re-parse the most recent completed set's
+       .slp files and run gradeSet against current benchmarks. Lets us
+       iterate on the grading UI without playing a live ranked set. -->
+  <div class="card" style="margin-bottom: 16px; border-left: 3px solid #f0c040">
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+      <div style="flex: 1; min-width: 0">
+        <div class="section-title" style="margin-bottom: 2px">Dev: Grade Last Completed Set</div>
+        <div style="font-size: 11px; color: var(--muted); line-height: 1.4">
+          Re-parses the .slp files of the most recent completed set in your DB and runs <code>gradeSet</code> against current benchmarks. Visible in dev builds only.
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={devTestBusy}
+        onclick={runDevGradeTest}
+        style="
+          padding: 8px 14px; font-size: 12px; font-weight: 600;
+          background: #f0c040; color: #1a1a1a; border: none; border-radius: 6px;
+          cursor: {devTestBusy ? 'wait' : 'pointer'}; opacity: {devTestBusy ? 0.6 : 1};
+          flex-shrink: 0;
+        "
+      >
+        {devTestBusy ? "Grading…" : "Grade Last Set"}
+      </button>
+    </div>
+    {#if devTestStatus}
+      <div style="font-size: 11px; color: var(--muted); margin-top: 8px">{devTestStatus}</div>
+    {/if}
+  </div>
+
+  {#if devTestGrade}
+    <SetGradeDisplay grade={devTestGrade} />
+  {/if}
+{/if}
 
 {#if !$isPremium}
   <PremiumGate
