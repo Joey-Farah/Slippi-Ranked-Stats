@@ -26,7 +26,10 @@ import {
   setResultFlash,
   statusMessage,
   liveGameStats,
+  lastSetGrade,
 } from "./store";
+import { CHARACTERS } from "./parser";
+import { gradeSet } from "./grading";
 
 let _unwatch: UnwatchFn | null = null;
 let _snapshotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -144,6 +147,7 @@ export async function stopWatcher(): Promise<void> {
   activeSet.set(null);
   liveSessionStartRating.set(null);
   liveGameStats.set([]);
+  lastSetGrade.set(null);
   watcherActive.set(false);
 }
 
@@ -299,6 +303,19 @@ async function handleRankedGame(
       wins,
       losses,
     });
+
+    if (import.meta.env.DEV) {
+      const setStats = get(liveGameStats).filter((s) => s.match_id === g.match_id);
+      const opponentChar = CHARACTERS[g.opponent_char_id] ?? "Unknown";
+      const setResult = wins > losses ? "win" : "loss";
+      try {
+        const grade = gradeSet(setStats, opponentChar, setResult, wins, losses);
+        lastSetGrade.set(grade);
+      } catch {
+        lastSetGrade.set(null);
+      }
+    }
+
     activeSet.set(null);
   }
 

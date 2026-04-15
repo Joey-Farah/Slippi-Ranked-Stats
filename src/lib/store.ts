@@ -1,5 +1,6 @@
 import { writable, derived } from "svelte/store";
 import type { GameRow, SnapshotRow, SeasonRow } from "./db";
+import type { SetGrade } from "./grading";
 
 // ── Persistent settings (auto-saved to localStorage) ───────────────────────
 
@@ -81,6 +82,9 @@ export interface SetResultFlash {
   losses: number;
 }
 export const setResultFlash = writable<SetResultFlash | null>(null);
+
+// ── Dev-only: set grading (not shipped until personally vetted) ───────────
+export const lastSetGrade = writable<SetGrade | null>(null);
 
 // ── Derived: filtered games by date range ─────────────────────────────────
 

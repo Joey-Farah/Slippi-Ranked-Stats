@@ -1,11 +1,12 @@
 <script lang="ts">
   import {
     isPremium, watcherActive, activeSet, liveSessionStartRating,
-    snapshots, liveGameStats, sets,
+    snapshots, liveGameStats, sets, lastSetGrade,
   } from "../../lib/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
+  import SetGradeDisplay from "../SetGradeDisplay.svelte";
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -230,6 +231,10 @@
         </div>
 
       </div>
+
+      {#if import.meta.env.DEV && complete && $lastSetGrade && $lastSetGrade.wins + $lastSetGrade.losses === games.length}
+        <SetGradeDisplay grade={$lastSetGrade} />
+      {/if}
     {/if}
 
     <!-- Session overview -->

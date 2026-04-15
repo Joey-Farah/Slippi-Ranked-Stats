@@ -83,6 +83,9 @@ interface StreamResult {
   durationFrames: number;
   // ordered action state per port: [frameNum, actionState][]
   actionFrames: Record<number, [number, number][]>;
+  // L-cancel tracking (replay spec v2.1.0+): byte 35 of post-frame payload
+  lCancelSuccesses: Record<number, number>;
+  lCancelAttempts: Record<number, number>;
 }
 
 // ── Action-state helpers (mirrors slippi-js common.ts) ─────────────────────
@@ -184,6 +187,8 @@ function parseEventStream(data: Uint8Array): StreamResult {
   const finalStocks: Record<number, number> = {};
   const maxPercents: Record<number, number> = {};
   const actionFrames: Record<number, [number, number][]> = {};
+  const lCancelSuccesses: Record<number, number> = {};
+  const lCancelAttempts: Record<number, number> = {};
   let durationFrames = 0;
 
   while (pos < eventsEnd) {
@@ -226,6 +231,16 @@ function parseEventStream(data: Uint8Array): StreamResult {
           if (percent > (maxPercents[port] ?? 0)) maxPercents[port] = percent;
           if (!actionFrames[port]) actionFrames[port] = [];
           actionFrames[port].push([frameNum, actionState]);
+
+          // L-cancel status byte at offset 35 (added in replay spec v2.1.0)
+          // 0x01 = success, 0x02 = failure; 0x00 = no attempt this frame
+          if (size >= 36) {
+            const lcStatus = data[ps + 35];
+            if (lcStatus === 1 || lcStatus === 2) {
+              lCancelAttempts[port] = (lCancelAttempts[port] ?? 0) + 1;
+              if (lcStatus === 1) lCancelSuccesses[port] = (lCancelSuccesses[port] ?? 0) + 1;
+            }
+          }
         }
       }
 
@@ -240,7 +255,7 @@ function parseEventStream(data: Uint8Array): StreamResult {
     pos += 1 + size;
   }
 
-  return { matchId, stageId, gameEndMethod, lrasInitiator, finalStocks, maxPercents, durationFrames, actionFrames };
+  return { matchId, stageId, gameEndMethod, lrasInitiator, finalStocks, maxPercents, durationFrames, actionFrames, lCancelSuccesses, lCancelAttempts };
 }
 
 // ── Metadata parser ────────────────────────────────────────────────────────
@@ -425,6 +440,10 @@ export function parseSlpBytes(
     damage_per_opening: convStats.damage_per_opening,
     neutral_win_ratio:  convStats.neutral_win_ratio,
     inputs_per_minute:  null, // requires per-frame input data, not tracked yet
-    l_cancel_ratio:     null,
+    l_cancel_ratio: (() => {
+      const attempts  = stream.lCancelAttempts[playerPort]  ?? 0;
+      const successes = stream.lCancelSuccesses[playerPort] ?? 0;
+      return attempts > 0 ? successes / attempts : null;
+    })(),
   }];
 }
