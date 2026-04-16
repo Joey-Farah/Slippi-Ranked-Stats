@@ -11,3 +11,5 @@ release.ps1
 assets/
 scripts/logs/
 scripts/parse_hf_checkpoint.json
+__pycache__/
+*.pyc
