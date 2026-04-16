@@ -41,16 +41,16 @@ For each stat in a completed set, `percentileScore(value, thresholds, inverted)`
 | Defense   | `avg_death_percent`, `defensive_option_rate`                   |
 | Execution | `l_cancel_ratio`, `inputs_per_minute`                          |
 
-**New stats added (placeholder baselines, real data pending):**
+**All 9 stats now have real community baselines** (from HuggingFace parse, see below):
 - `counter_hit_rate` — % of neutral wins where opponent was mid-attack when opened. Measures neutral read quality. Tracked in `slp_parser.ts` via `isAttacking()`: states 44–74 (ground+aerial attacks) + 0xB0–0xB2 (specials).
 - `defensive_option_rate` — player's roll/spotdodge uses per minute (inverted). Tracked via transitions into states 29 (roll fwd), 30 (roll back), 31 (spotdodge). Fewer = better defensive decision-making.
-- `inputs_per_minute` — still a placeholder for community baseline (py-slippi can't compute it). IPM should use `by_player_char` thresholds once available, as Fox/Falco naturally play with 2-3× the IPM of Marth/Puff.
+- `inputs_per_minute` — computed from `pre.buttons_physical` frame changes via peppi-py. Character-specific (Fox/Falco ~250 IPM, Puff ~150 IPM).
 
 ### Open issues before shipping
 
-1. ~~Low per-char sample sizes~~ **Resolved.** 5k SlippiLab pull landed (4951 successful, 45 errors, 4 skips). 24 chars now have ≥20 samples (was 13). Only Mr. Game & Watch (16) still falls back to `_overall`. `grade-benchmarks.ts` regenerated with new `by_player_char`/`by_matchup` structure; `counter_hit_rate` and `defensive_option_rate` use placeholders until next fetch run (both stats now tracked by the fetch script).
-2. **`inputs_per_minute` placeholder** — py-slippi's frame API doesn't surface pre-frame button bytes. The in-app TS parser computes IPM live from pre-frame event 0x37, but no community baseline exists. Either port input-counting to Python or derive a baseline from accumulated user data.
-3. **Grade history persistence — proposed, not built.** Add a `set_grades` SQL table keyed by `match_id` storing overall letter/score, per-category scores, per-stat values + scores, `baseline_version`, and `generated_at`. Insert from `watcher.ts` `handleRankedGame` when grading runs; optionally insert from the dev test panel too. Surfaces as a **premium-only** Grade History tab. Build after grading is calibrated (wait for 5k baseline regeneration).
+1. ~~Low per-char sample sizes~~ **Resolved.** HuggingFace Falco parse (42,547 replays) provides massive sample sizes for all characters Falco faces. Combined with 5k SlippiLab pull for broader coverage.
+2. ~~`inputs_per_minute` placeholder~~ **Resolved.** peppi-py exposes `pre.buttons_physical` for IPM computation. All 9 stats now have real community baselines.
+3. **Grade history persistence — proposed, not built.** Add a `set_grades` SQL table keyed by `match_id` storing overall letter/score, per-category scores, per-stat values + scores, `baseline_version`, and `generated_at`. Insert from `watcher.ts` `handleRankedGame` when grading runs; optionally insert from the dev test panel too. Surfaces as a **premium-only** Grade History tab.
 
 ---
 
@@ -79,13 +79,30 @@ python3 -u scripts/fetch_slippilab_replays.py --limit 5000 --workers 4 --output 
 
 Alternative script that reads from the user's local SQLite DB instead of SlippiLab. Useful for generating personal baselines. Outputs same `by_player_char` + `by_matchup` structure as the fetch script.
 
+### `scripts/parse_hf_replays.py` (primary pipeline)
+
+Parses replays from the HuggingFace `erickfm/slippi-public-dataset-v3.7` dataset using **peppi-py** (Rust backend, ~170 parses/sec). Computes all 9 stats including `inputs_per_minute` (from `pre.buttons_physical`), `counter_hit_rate`, and `defensive_option_rate`.
+
+**Key design decisions:**
+- **peppi-py** uses external character IDs (CSS order), NOT internal IDs. The CHARACTERS dict in this script maps accordingly (e.g. 20 = Falco, 0 = Captain Falcon).
+- **Vectorized stats** via numpy on PyArrow struct-of-arrays (no per-frame Python loop)
+- **Batch download+delete** to conserve disk space (~500 files / ~1 GB per batch)
+- **Concurrent downloads** via ThreadPoolExecutor (8 threads) — download is I/O-bound
+- **Checkpointing** every batch for resume on interruption
+- **counter_hit_rate** fix: requires `o_ctrl & o_atk & o_vuln` (counter hits ⊆ neutral wins)
+
+```bash
+# Requires Python 3.10+ venv with peppi-py, numpy, huggingface_hub
+python3 scripts/parse_hf_replays.py --character FALCO --batch-size 500 --dl-workers 8
+```
+
 ### `scripts/global_baseline_parser.py`
 
-Streams a hypothetical 140 GB JSON dump of global Slippi match data using `ijson` (constant memory). **Do not execute** until the JSON format is confirmed.
+Streams a hypothetical 140 GB JSON dump of global Slippi match data using `ijson` (constant memory). **Superseded** by `parse_hf_replays.py` for the HuggingFace dataset (which is raw .slp files, not pre-computed JSON). Kept for reference.
 
 ### `scripts/regen_benchmarks.py`
 
-Reads `scripts/grade_baselines.json` and emits `src/lib/grade-benchmarks.ts`. Run after every fresh fetch. Filters baked in: skip `Unknown_*` buckets (parser couldn't map the internal char ID), skip chars with fewer than 20 samples, always include `_overall`. Handles the `by_matchup` structure and new stat keys (`counter_hit_rate`, `defensive_option_rate`); carries `inputs_per_minute` forward as a placeholder.
+Reads `scripts/grade_baselines.json` and emits `src/lib/grade-benchmarks.ts`. Run after every fresh parse. Now handles all 9 stats (no more placeholders) and the `by_matchup` structure.
 
 ```bash
 python3 scripts/regen_benchmarks.py

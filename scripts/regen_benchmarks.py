@@ -3,13 +3,12 @@
 regen_benchmarks.py — Regenerate src/lib/grade-benchmarks.ts from the
 current scripts/grade_baselines.json.
 
-Reads the by_player_char section, emits one BENCHMARKS entry per character
-with sample_size >= MIN_SAMPLES, plus an _overall fallback. Skips
-"Unknown_*" buckets (parser couldn't map the internal char ID).
+Reads by_player_char and by_matchup sections, emits one BENCHMARKS entry
+per character with sample_size >= MIN_SAMPLES, plus an _overall fallback.
+Skips "Unknown_*" buckets (parser couldn't map the char ID).
 
-inputs_per_minute is carried forward as a placeholder — py-slippi's frame
-API doesn't surface pre-frame button bytes, so the Python pipeline can't
-compute it. The in-app TS parser computes IPM live; baseline TBD.
+Now supports all 9 stats including counter_hit_rate, defensive_option_rate,
+and inputs_per_minute from the HuggingFace peppi-py parse pipeline.
 
 Usage:
     python3 scripts/regen_benchmarks.py
@@ -26,17 +25,15 @@ MIN_SAMPLES   = 20
 
 STAT_KEYS = [
     "neutral_win_ratio",
+    "counter_hit_rate",
     "openings_per_kill",
     "damage_per_opening",
     "avg_kill_percent",
     "avg_death_percent",
+    "defensive_option_rate",
     "l_cancel_ratio",
+    "inputs_per_minute",
 ]
-
-# IPM placeholder — kept in sync with grade-benchmarks.ts header notes.
-IPM_PLACEHOLDER = (
-    "{ p5: 90, p10: 130, p25: 185, p50: 260, p75: 340, p90: 410, p95: 460 }"
-)
 
 
 def fmt_thresholds(t: dict) -> str:
@@ -51,10 +48,11 @@ def emit_char_entry(name: str, data: dict, *, indent: int = 2) -> str:
     key  = json.dumps(name)  # safe quoting for any char name
     lines = [f"{pad}{key}: {{"]
     for stat in STAT_KEYS:
-        thr = data[stat]
-        line = f"{pad2}{stat:18s}:  {fmt_thresholds(thr)},"
+        thr = data.get(stat)
+        if thr is None or thr.get("p50") is None:
+            continue
+        line = f"{pad2}{stat + ':':22s}{fmt_thresholds(thr)},"
         lines.append(line)
-    lines.append(f"{pad2}{'inputs_per_minute':18s}:  {IPM_PLACEHOLDER},")
     lines.append(f"{pad}}},")
     return "\n".join(lines)
 
@@ -65,10 +63,8 @@ HEADER = '''/**
  * !! DEV ONLY — not shipped to users yet !!
  *
  * Generated from scripts/grade_baselines.json via scripts/regen_benchmarks.py.
- * Characters with fewer than {min_samples} samples in the source dataset fall back to _overall.
- * inputs_per_minute is a placeholder — py-slippi's frame API doesn't expose pre-frame
- * button states, so the Python pipeline can't compute it; the in-app parser computes
- * it live but we have no community baseline for it yet.
+ * Source: {source} ({replay_count} replays).
+ * Characters with fewer than {min_samples} samples fall back to by_player_char["_overall"].
  */
 
 export interface StatThresholds {{
@@ -82,16 +78,24 @@ export interface StatThresholds {{
 }}
 
 export interface CharacterBenchmarks {{
-  neutral_win_ratio:  StatThresholds;
-  openings_per_kill:  StatThresholds;  // inverted: lower = better
-  damage_per_opening: StatThresholds;
-  avg_kill_percent:   StatThresholds;  // inverted: lower = better (killing early)
-  avg_death_percent:  StatThresholds;
-  l_cancel_ratio:     StatThresholds;
-  inputs_per_minute:  StatThresholds;
+  neutral_win_ratio:     StatThresholds;
+  counter_hit_rate:      StatThresholds;
+  openings_per_kill:     StatThresholds;  // inverted: lower = better
+  damage_per_opening:    StatThresholds;
+  avg_kill_percent:      StatThresholds;  // inverted: lower = better (killing early)
+  avg_death_percent:     StatThresholds;
+  defensive_option_rate: StatThresholds;  // inverted: lower = better (fewer rolls/dodges)
+  l_cancel_ratio:        StatThresholds;
+  inputs_per_minute:     StatThresholds;
 }}
 
-export const BENCHMARKS: Record<string, CharacterBenchmarks> = {{
+export interface Benchmarks {{
+  by_player_char: Record<string, CharacterBenchmarks>;
+  by_matchup: Record<string, Record<string, CharacterBenchmarks>>;
+}}
+
+export const BENCHMARKS: Benchmarks = {{
+  by_player_char: {{
 '''
 
 
@@ -104,12 +108,16 @@ def main():
         data = json.load(f)
 
     by_player = data.get("by_player_char", {})
+    by_matchup = data.get("by_matchup", {})
+
     if "_overall" not in by_player:
         print("ERROR: _overall bucket missing from grade_baselines.json", file=sys.stderr)
         sys.exit(1)
 
     overall_n = by_player["_overall"].get("sample_size", 0)
-    print(f"Source: {data.get('source', '?')} · {data.get('replay_count', 0)} replays")
+    source = data.get("source", "?")
+    replay_count = data.get("replay_count", 0)
+    print(f"Source: {source} · {replay_count} replays")
     print(f"Overall sample_size: {overall_n}")
 
     eligible = []
@@ -124,11 +132,33 @@ def main():
             continue
         eligible.append((name, n))
 
-    parts = [HEADER.format(min_samples=MIN_SAMPLES)]
-    parts.append(emit_char_entry("_overall", by_player["_overall"]))
+    # ── Emit by_player_char section ──────────────────────────────────────────
+    parts = [HEADER.format(min_samples=MIN_SAMPLES, source=source, replay_count=replay_count)]
+    parts.append(emit_char_entry("_overall", by_player["_overall"], indent=4))
     parts.append("")
     for name, _ in eligible:
-        parts.append(emit_char_entry(name, by_player[name]))
+        parts.append(emit_char_entry(name, by_player[name], indent=4))
+    parts.append("  },")
+
+    # ── Emit by_matchup section ──────────────────────────────────────────────
+    parts.append("  by_matchup: {")
+    matchup_count = 0
+    for player_char in sorted(by_matchup.keys()):
+        if player_char.startswith("Unknown_"):
+            continue
+        opp_entries = by_matchup[player_char]
+        valid_opps = {k: v for k, v in opp_entries.items()
+                      if not k.startswith("Unknown_")
+                      and v.get("sample_size", 0) >= MIN_SAMPLES}
+        if not valid_opps:
+            continue
+        parts.append(f"    {json.dumps(player_char)}: {{")
+        for opp_char in sorted(valid_opps.keys()):
+            parts.append(emit_char_entry(opp_char, valid_opps[opp_char], indent=6))
+            matchup_count += 1
+        parts.append("    },")
+    parts.append("  },")
+
     parts.append("};")
     parts.append("")
     output = "\n".join(parts)
@@ -141,6 +171,7 @@ def main():
     print(f"Included {len(eligible)} chars (>= {MIN_SAMPLES} samples) + _overall:")
     for name, n in eligible:
         print(f"  {name:20s}  n={n}")
+    print(f"Included {matchup_count} matchup entries (>= {MIN_SAMPLES} samples)")
     if excluded:
         print(f"\nExcluded {len(excluded)} chars:")
         for name, n, reason in excluded:

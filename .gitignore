@@ -10,3 +10,4 @@ CHANGELOG.md
 release.ps1
 assets/
 scripts/logs/
+scripts/parse_hf_checkpoint.json
