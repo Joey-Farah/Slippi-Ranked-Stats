@@ -124,9 +124,9 @@ const STAT_WEIGHTS: Partial<Record<keyof SetGrade["breakdown"], number>> = {
  *  converting openings and winning neutral exchanges are the primary skill expression. */
 const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
   punish:    0.35,
-  neutral:   0.30,
-  defense:   0.20,
-  execution: 0.15,
+  neutral:   0.35,
+  defense:   0.25,
+  execution: 0.05,
 };
 
 /** Category definitions — stats listed in display order within each category.

@@ -1,7 +1,31 @@
 # HuggingFace Benchmark Pipeline — Run Instructions
 
-This guide walks you through regenerating `grade_baselines.json` and
+This guide walks through regenerating `grade_baselines.json` and
 `src/lib/grade-benchmarks.ts` after pulling the latest `main` branch.
+It is written for both human runners and a Claude Code (AI) session.
+
+---
+
+## If You Are Claude Code
+
+Run these steps in order using the Bash tool. The parser takes 45–120 minutes
+and prints progress every batch — do not time out or cancel it. After the
+parser finishes, run the regen script, then commit only the two output files.
+Do NOT commit `scripts/parse_hf_checkpoint.json` (it is deleted automatically
+on success) or any source files. Do NOT add a Co-Authored-By tag to the commit.
+
+```
+Step 1:  python3 -m venv .venv && source .venv/bin/activate
+Step 2:  pip install peppi-py numpy huggingface_hub
+Step 3:  python scripts/parse_hf_replays.py          ← long-running, resume-safe
+Step 4:  python scripts/regen_benchmarks.py
+Step 5:  git add scripts/grade_baselines.json src/lib/grade-benchmarks.ts
+Step 6:  git commit -m "Regenerate benchmarks: 18 stats from HuggingFace FALCO dataset"
+Step 7:  git push
+```
+
+If Step 3 errors or is interrupted, re-run the exact same command — the
+checkpoint at `scripts/parse_hf_checkpoint.json` resumes automatically.
 
 ---
 
@@ -62,7 +86,7 @@ The checkpoint file resumes automatically from where it stopped.
 python scripts/regen_benchmarks.py
 ```
 
-This reads `scripts/grade_baselines.json` and writes
+Reads `scripts/grade_baselines.json` and writes
 `src/lib/grade-benchmarks.ts` with all 18 stat percentile thresholds.
 
 Sample output:
@@ -81,9 +105,12 @@ Wrote src/lib/grade-benchmarks.ts
 
 ```bash
 git add scripts/grade_baselines.json src/lib/grade-benchmarks.ts
-git commit -m "Regenerate benchmarks: 18 stats, expanded stat set"
+git commit -m "Regenerate benchmarks: 18 stats from HuggingFace FALCO dataset"
 git push
 ```
+
+Commit **only** those two files. Do not stage `parse_hf_checkpoint.json`
+(deleted on success) or any source code files.
 
 ---
 
@@ -97,8 +124,8 @@ python scripts/parse_hf_replays.py --character MARTH --merge
 python scripts/regen_benchmarks.py
 ```
 
-Each character run has its own checkpoint. Delete
-`scripts/parse_hf_checkpoint.json` between characters if you want a fresh run.
+Delete `scripts/parse_hf_checkpoint.json` between characters if you want
+each run to start fresh rather than resume a prior partial run.
 
 ---
 
@@ -110,18 +137,18 @@ pip install --upgrade peppi-py
 ```
 
 **New stats (stage_control, edgeguard, recovery) all come back `null`:**
-Position field names vary by peppi-py version. Run this to check:
+Position field names vary by peppi-py version. Run this to diagnose:
 ```python
 import peppi_py as peppi
 game = peppi.read_slippi('path/to/any.slp')
 port = game.frames.ports[0].leader.post
-print(dir(port))          # look for: position, position_x, position_y
+print(dir(port))            # look for: position, position_x, position_y
 pos = port.position
-print(type(pos), dir(pos))  # look for: x, y  (or use .field('x') for PyArrow)
+print(type(pos), dir(pos))  # look for: x, y  (or .field('x') for PyArrow)
 ```
-Then open a GitHub issue with the output and the peppi-py version (`pip show peppi-py`).
+Open a GitHub issue with that output and `pip show peppi-py`.
 
-**Start from scratch (ignore checkpoint):**
+**Start from scratch (discard checkpoint):**
 ```bash
 rm scripts/parse_hf_checkpoint.json
 python scripts/parse_hf_replays.py
