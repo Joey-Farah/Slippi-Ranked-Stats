@@ -263,7 +263,7 @@ def main():
     conn = sqlite3.connect(db_path)
     rows = conn.execute(
         "SELECT filepath, player_port, player_char_id, opponent_char_id, result "
-        "FROM games WHERE match_type='ranked' AND filepath IS NOT NULL"
+        "FROM games WHERE filepath IS NOT NULL"
     ).fetchall()
     conn.close()
 
