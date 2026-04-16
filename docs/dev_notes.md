@@ -29,7 +29,7 @@ For each stat in a completed set, `percentileScore(value, thresholds, inverted)`
 
 ### Open issues before shipping
 
-1. **Low per-char sample sizes** — Fox/Marth/Ice Climbers had ≤10 samples in the 1k SlippiLab pull, below the 20-sample threshold. A 5000-replay fetch was kicked off via the parallelized fetcher (~60 replays/min, ~90 min total). When done, regenerate `src/lib/grade-benchmarks.ts` from the new `scripts/grade_baselines.json`.
+1. ~~Low per-char sample sizes~~ **Resolved.** 5k SlippiLab pull landed (4951 successful, 45 errors, 4 skips). 24 chars now have ≥20 samples (was 13). Only Mr. Game & Watch (16) still falls back to `_overall`. Regenerate via `python3 scripts/regen_benchmarks.py`.
 2. **`inputs_per_minute` placeholder** — py-slippi's frame API doesn't surface pre-frame button bytes. The in-app TS parser computes IPM live from pre-frame event 0x37, but no community baseline exists. Either port input-counting to Python or derive a baseline from accumulated user data.
 3. **`_overall` kill% == death%** — identical by symmetry when both ports of a 1v1 are pooled. Per-char values diverge correctly. Chars falling back to `_overall` get identical raw thresholds for kill/death% (scored in opposite directions, so still produces a signal).
 4. **Grade history persistence — proposed, not built.** Add a `set_grades` SQL table keyed by `match_id` storing overall letter/score, per-category scores, per-stat values + scores, `baseline_version`, and `generated_at`. Insert from `watcher.ts` `handleRankedGame` when grading runs; optionally insert from the dev test panel too. Surfaces as a future history view. Discuss approach before building.
@@ -57,9 +57,13 @@ python3 -u scripts/fetch_slippilab_replays.py --limit 5000 --workers 4 --output 
 
 Streams a hypothetical 140 GB JSON dump of global Slippi match data using `ijson` (constant memory) and overwrites `scripts/grade_baselines.json`. Code-complete and aligned with the dual-grouping schema (`by_player_char` + `by_opponent_char` + `_overall`). **Do not execute** until the JSON format is confirmed.
 
-### Regenerating in-app benchmarks after a fresh fetch
+### `scripts/regen_benchmarks.py`
 
-After the fetch script writes a new `grade_baselines.json`, regenerate `src/lib/grade-benchmarks.ts`. The conversion is mechanical (read JSON, emit a TS const exporting `BENCHMARKS`). Most recent regeneration is committed in `d08339d`.
+Reads `scripts/grade_baselines.json` and emits `src/lib/grade-benchmarks.ts`. Run after every fresh fetch. Filters baked in: skip `Unknown_*` buckets (parser couldn't map the internal char ID), skip chars with fewer than 20 samples, always include `_overall`. Carries `inputs_per_minute` forward as a placeholder.
+
+```bash
+python3 scripts/regen_benchmarks.py
+```
 
 ---
 
