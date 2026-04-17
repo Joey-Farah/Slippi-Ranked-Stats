@@ -1,16 +1,22 @@
 /**
  * grading.ts — Set Grading System logic.
  *
- * Grades a completed set across four equally-weighted categories:
- *   Neutral   (neutral_win_ratio)
- *   Punish    (damage_per_opening, openings_per_kill, avg_kill_percent*)
- *   Defense   (avg_death_percent*)
- *   Execution (inputs_per_minute, wavedash_miss_rate)
- *             (l_cancel_ratio shown but not scored — benchmark data unreliable)
+ * Grades a completed set across three scored categories:
+ *   Neutral   (neutral_win_ratio, opening_conversion_rate, stage_control_ratio,
+ *              lead_maintenance_rate, comeback_rate)
+ *   Punish    (damage_per_opening, openings_per_kill, avg_kill_percent*,
+ *              edgeguard_success_rate, tech_chase_rate, hit_advantage_rate)
+ *   Defense   (avg_death_percent*, recovery_success_rate, avg_stock_duration,
+ *              respawn_defense_rate)
  *
- * counter_hit_rate and defensive_option_rate are shown in the breakdown but
- * excluded from scoring — they are confounded by opponent quality and do not
- * reliably measure skill independent of matchup difficulty.
+ * Execution stats (l_cancel_ratio, inputs_per_minute, wavedash_miss_rate) are
+ * shown in the breakdown display but excluded from scoring:
+ *   - l_cancel_ratio: HF dataset benchmark is degenerate (p50–p90 all 0.0)
+ *   - inputs_per_minute: not a reliable skill indicator; low variance at top level
+ *   - wavedash_miss_rate: kept as context; too situational to weight fairly
+ *
+ * counter_hit_rate and defensive_option_rate are also display-only — confounded
+ * by opponent quality, not reliable measures of individual skill.
  *
  * * avg_kill_percent and avg_death_percent are only scored when a character-
  *   specific or matchup-specific baseline is available. The _overall bucket
@@ -23,8 +29,8 @@
  *   3. by_player_char["_overall"]       — cross-character fallback
  *
  * Each stat is scored 0–100 via percentile interpolation. Category score =
- * equal-weight average of its non-null scored stats. Overall score = equal-weight
- * average of the four category scores, plus a +5 win bonus (capped at 100).
+ * equal-weight average of its non-null scored stats. Overall score =
+ * weighted average of three category scores, plus a +5 win bonus (capped at 100).
  */
 
 import type { LiveGameStats } from "./store";
@@ -90,34 +96,24 @@ const INVERTED_STATS = new Set([
   "wavedash_miss_rate",
 ]);
 
-/**
- * Stats shown in the breakdown display but excluded from category scoring.
- *
- * l_cancel_ratio: the HuggingFace dataset l-cancel detection produces p50–p90
- *   all = 0.0 with only p95 = 1.0, so the scorer places 0% l-cancel at the
- *   90th-percentile threshold and scores it 90 (S) for everyone. Excluded until
- *   we have reliable community baseline data.
- */
+/** Stats shown in the breakdown display but not included in any category score. */
 export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>([
   "l_cancel_ratio",
+  "inputs_per_minute",
+  "wavedash_miss_rate",
 ]);
 
-/**
- * Per-stat scoring weights. Unlisted stats default to 1.0.
- * inputs_per_minute is half-weight — it measures real execution quality but has
- * low session variance for top players, so we don't want it dominating Execution.
- */
-const STAT_WEIGHTS: Partial<Record<keyof SetGrade["breakdown"], number>> = {
-  inputs_per_minute: 0.5,
-};
+/** Per-stat scoring weights within a category. Unlisted stats default to 1.0. */
+const STAT_WEIGHTS: Partial<Record<keyof SetGrade["breakdown"], number>> = {};
 
-/** Overall score weights per category. Punish and Neutral are highest because
- *  converting openings and winning neutral exchanges are the primary skill expression. */
+/** Overall score weights per category.
+ *  Execution is 0 — all its stats are display-only; the weighted average
+ *  auto-excludes null-scored categories so this is effectively 37/37/26. */
 const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
   punish:    0.35,
   neutral:   0.35,
   defense:   0.25,
-  execution: 0.05,
+  execution: 0,
 };
 
 /** Category definitions — stats listed in display order within each category.

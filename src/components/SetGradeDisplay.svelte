@@ -18,6 +18,11 @@
   }
 
   const CATEGORY_ORDER: CategoryKey[] = ["neutral", "punish", "defense", "execution"];
+
+  const NULL_CONTEXT: Partial<Record<keyof SetGrade["breakdown"], string>> = {
+    comeback_rate:         "never behind in stocks",
+    lead_maintenance_rate: "never had stock lead",
+  };
 </script>
 
 <div class="card" style="margin-bottom: 16px">
@@ -132,7 +137,12 @@
             <div>
               <div style="font-size: 11px; font-weight: 500">{stat.label}</div>
               <div style="font-size: 10px; color: var(--muted)">
-                {stat.formatted}{#if displayOnly}<span style="font-size: 9px; margin-left: 4px; opacity: 0.7">info only</span>{/if}
+                {#if stat.value === null && NULL_CONTEXT[statKey as keyof SetGrade["breakdown"]]}
+                  <span style="opacity: 0.6; font-style: italic">{NULL_CONTEXT[statKey as keyof SetGrade["breakdown"]]}</span>
+                {:else}
+                  {stat.formatted}
+                {/if}
+                {#if displayOnly}<span style="font-size: 9px; margin-left: 4px; opacity: 0.7">info only</span>{/if}
               </div>
             </div>
 
