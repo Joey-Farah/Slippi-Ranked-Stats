@@ -44,7 +44,7 @@ For each stat in a completed set, `percentileScore(value, thresholds, inverted)`
 1. ~~Low per-char sample sizes~~ **Resolved.** Full dataset parse covers all 25 characters with 26 having ≥50 samples, 283 matchup entries.
 2. ~~`inputs_per_minute` placeholder~~ **Resolved.** All stats except `wavedash_miss_rate` have real community baselines.
 3. **Full `--character ALL` rescan needed.** Three parser bugs were fixed (see "Stat fixes" below) that affect OPK, L-cancel, and IPM values in the current `grade_baselines.json`. Re-run `parse_hf_replays.py --character ALL` on the other machine to regenerate correct baselines. `wavedash_miss_rate` will also be populated by this run.
-4. **Grade history persistence — proposed, not built.** Add a `set_grades` SQL table keyed by `match_id` storing overall letter/score, per-category scores, per-stat values + scores, `baseline_version`, and `generated_at`. Insert from `watcher.ts` `handleRankedGame` when grading runs; optionally insert from the dev test panel too. Surfaces as a **premium-only** Grade History tab.
+4. **Grade history persistence — proposed, not built.** Full design sketch at [`docs/set_grades_persistence.md`](./set_grades_persistence.md): `set_grades` table keyed by `match_id`, baseline-version invalidation, hydration flow, open questions. **Discuss before implementing.**
 
 ### Stat fixes applied (match slippi-js exactly)
 
@@ -119,6 +119,15 @@ Reads `scripts/grade_baselines.json` and emits `src/lib/grade-benchmarks.ts`. Ru
 python3 scripts/regen_benchmarks.py
 ```
 
+### Ground-truth comparison scripts
+
+Used to audit our parser against `@slippi/slippi-js` (the same library Slippi Launcher uses). Only run on the Windows machine where the replay paths in `SETS` are valid.
+
+- **`scripts/compare_stats.cjs`** / **`scripts/compare_stats.mjs`** — same tool, CommonJS and ESM variants. Parses the hard-coded list of recent sets with `SlippiGame` and prints the stats slippi-js computes (OPK, L-cancel, IPM, NWR, damage-per-opening). Run: `node scripts/compare_stats.cjs`.
+- **`scripts/our_stats.cjs`** — self-contained Node port of `src/lib/slp_parser.ts` (UBJSON parser + all 18 stat helpers). Prints every graded stat so we can line them up next to slippi-js output. Run: `node scripts/our_stats.cjs`.
+
+Workflow: edit the `SETS` array in all three files with matching replay paths, run both, diff. Any stat slippi-js also emits must match within the tolerances listed under "Stat fixes applied" above. Stats only in `our_stats.cjs` (stage control, edgeguards, etc.) are custom — sanity-check values manually.
+
 ---
 
 ## Cross-machine workflow
@@ -129,7 +138,7 @@ Anything that needs to travel between machines must be in git. Per-machine state
 - App data (`~/Library/Application Support/Slippi Ranked Stats/data/{CONNECT_CODE}.db`)
 - `scripts/logs/` (gitignored)
 
-When picking up work on a different machine, this file plus `git log --oneline` is the source of truth.
+When picking up work on a different machine, this file plus `git log --oneline` is the source of truth. See also [`docs/session-log.md`](./session-log.md) for chronological session summaries (intent + decisions, not just diffs).
 
 ### Active rescan (as of 2026-04-17)
 

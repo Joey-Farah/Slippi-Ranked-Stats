@@ -20,6 +20,7 @@ A desktop app for tracking and analyzing your Slippi Ranked sets. Point it at yo
 - **All-time stats** — overall win rate, comeback rate, deciding game win %, and more
 - **Rating history** — track your rating over time with a set-by-set breakdown
 - **Live session tracking** — monitor your current session's stats, NOW PLAYING card, and rating delta in real time (Premium)
+- **Set grading** — every completed set scored across Neutral, Punish, Defense, and Execution against community baselines. Overall letter + strongest/weakest category are free; the full per-stat breakdown is Premium. See [how grading works](docs/grading_methodology.md).
 - **Auto-updates** — notified in-app when a new version is available; installs in one click, no manual download needed
 
 ---
@@ -63,7 +64,10 @@ Updates are cryptographically signed — the app will only install an update tha
 
 ## Premium
 
-Premium features (live session tracking, rating history) are available to [Patreon supporters](https://www.patreon.com/joeydonuts).
+Premium features are available to [Patreon supporters](https://www.patreon.com/joeydonuts):
+
+- **Live Session Tracking** — real-time per-game stats, NOW PLAYING card, and rating delta
+- **Full Set Grade Breakdown** — per-category scores, per-stat values and scores, and matchup-specific baselines. (The overall grade + strongest/weakest category are free for everyone.)
 
 After subscribing, join the Discord server (linked on the Patreon page), connect your Patreon account to Discord, then click **Connect Discord** in the app sidebar to verify your role.
 

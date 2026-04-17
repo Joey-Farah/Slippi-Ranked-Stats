@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { CATEGORY_DEFS, DISPLAY_ONLY_STATS, type SetGrade, type GradeLetter, type CategoryKey } from "../lib/grading";
 
-  let { grade }: { grade: SetGrade } = $props();
+  let { grade, detailed = true }: { grade: SetGrade; detailed?: boolean } = $props();
 
   const GRADE_COLORS: Record<GradeLetter, string> = {
     S: "#FFD700",   // gold
@@ -54,6 +55,52 @@
     </div>
   </div>
 
+  {#if !detailed}
+    {@const scoredCats = CATEGORY_ORDER
+      .map((k) => ({ key: k, ...grade.categories[k] }))
+      .filter((c) => c.score !== null)}
+    {@const sorted = [...scoredCats].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))}
+    {@const strongest = sorted[0]}
+    {@const weakest   = sorted[sorted.length - 1]}
+
+    {#if strongest && weakest && strongest.key !== weakest.key}
+      <div style="
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        background: var(--bg); border-radius: 8px; padding: 12px 14px;
+      ">
+        <div>
+          <div style="font-size: 10px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 3px">STRONGEST</div>
+          <div style="display: flex; align-items: baseline; gap: 6px">
+            <div style="font-size: 13px; font-weight: 600">{strongest.label}</div>
+            <div style="font-size: 13px; font-weight: 800; color: {gc(strongest.letter)}">{strongest.letter}</div>
+          </div>
+        </div>
+        <div style="text-align: right">
+          <div style="font-size: 10px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 3px">WEAKEST</div>
+          <div style="display: flex; align-items: baseline; gap: 6px; justify-content: flex-end">
+            <div style="font-size: 13px; font-weight: 600">{weakest.label}</div>
+            <div style="font-size: 13px; font-weight: 800; color: {gc(weakest.letter)}">{weakest.letter}</div>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <button
+      type="button"
+      onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
+      style="
+        width: 100%; margin-top: 12px; padding: 10px 14px;
+        background: linear-gradient(135deg, #7c3aed22, #FF424D22);
+        border: 1px solid #7c3aed55; border-radius: 8px;
+        color: var(--text); font-family: inherit; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        font-size: 12px; font-weight: 600;
+      "
+    >
+      <span style="font-size: 14px">🔒</span>
+      Unlock category breakdown + per-stat scores with Patreon
+    </button>
+  {:else}
   <!-- Category rows -->
   <div style="display: flex; flex-direction: column; gap: 10px">
     {#each CATEGORY_ORDER as catKey}
@@ -125,5 +172,6 @@
       </div>
     {/each}
   </div>
+  {/if}
 
 </div>

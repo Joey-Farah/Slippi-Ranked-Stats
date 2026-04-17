@@ -4,9 +4,9 @@
     gradeHistory, gradeHistoryBusy, gradeHistoryProgress,
     type GradeHistoryEntry, type LiveGameStats,
   } from "../../lib/store";
+  import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { CHARACTERS, parseSlpFile } from "../../lib/parser";
   import { gradeSet, scoreToGrade } from "../../lib/grading";
-  import PremiumGate from "../PremiumGate.svelte";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
 
   const GRADE_COLORS: Record<string, string> = {
@@ -34,6 +34,10 @@
   // Only sets not yet graded — shown in button label
   let ungradedSets = $derived(completedSets.filter((s) => !gradedIds.has(s.match_id)));
 
+  let selectedMatchId = $state<string | null>(null);
+  let filterLetter = $state<string | null>(null);
+  let sortMode = $state<"date-desc" | "date-asc" | "score-desc" | "score-asc">("date-desc");
+
   let sortedHistory = $derived((() => {
     let h = [...$gradeHistory];
     if (filterLetter !== null) h = h.filter((r) => r.grade?.letter === filterLetter);
@@ -45,10 +49,6 @@
     }
     return h;
   })());
-
-  let selectedMatchId = $state<string | null>(null);
-  let filterLetter = $state<string | null>(null);
-  let sortMode = $state<"date-desc" | "date-asc" | "score-desc" | "score-asc">("date-desc");
 
   async function gradeAllSets(force = false) {
     const code = $connectCode;
@@ -141,18 +141,49 @@
 </script>
 
 {#if !$isPremium}
-  <PremiumGate
-    featureName="Ranked Grades"
-    description="Performance grading — neutral win rate, punish efficiency, l-cancel accuracy, and more — is available to Patreon supporters. Sign up for any tier at patreon.com/joeydonuts to unlock access."
-  />
-{:else}
+  <!-- Free-tier upsell banner (non-blocking) -->
+  <button
+    type="button"
+    onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
+    style="
+      width: 100%; margin-bottom: 16px; padding: 10px 14px;
+      background: linear-gradient(135deg, #7c3aed22, #FF424D22);
+      border: 1px solid #7c3aed55; border-radius: 8px;
+      color: var(--text); font-family: inherit; cursor: pointer; text-align: left;
+      display: flex; align-items: center; gap: 10px;
+    "
+  >
+    <span style="font-size: 18px">🔒</span>
+    <div style="flex: 1">
+      <div style="font-size: 12px; font-weight: 700; margin-bottom: 2px">
+        Unlock the full breakdown
+      </div>
+      <div style="font-size: 11px; color: var(--muted); line-height: 1.4">
+        Free: overall grade + strongest/weakest category. Patreon: per-category scores, every stat, matchup baselines.
+      </div>
+    </div>
+    <div style="font-size: 11px; font-weight: 700; color: #7c3aed; white-space: nowrap">
+      Upgrade →
+    </div>
+  </button>
+{/if}
+
   <!-- Header -->
   <div class="card" style="margin-bottom: 16px">
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
       <div>
         <div class="section-title" style="margin-bottom: 3px">Ranked Grades</div>
         <div style="font-size: 11px; color: var(--muted)">
-          Scores each set across Neutral, Punish, Defense, and Execution against community baselines.
+          Scores each set across Neutral, Punish, Defense, and Execution against community baselines. A directional read, not a verdict.
+          <button
+            type="button"
+            onclick={() => openUrl("https://github.com/Joey-Farah/Slippi-Ranked-Stats/blob/main/docs/grading_methodology.md")}
+            style="
+              background: none; border: none; padding: 0; margin-left: 2px;
+              color: #7c3aed; font-family: inherit; font-size: inherit;
+              cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+            "
+          >How is this calculated?</button>
           {#if $gradeHistory.length > 0 && !$gradeHistoryBusy}
             <span style="color: var(--text)">{$gradeHistory.filter((r) => r.grade !== null).length} of {completedSets.length} sets graded.</span>
             {#if ungradedSets.length === 0}
@@ -367,7 +398,7 @@
           <!-- Inline expanded breakdown -->
           {#if isSelected && r.grade}
             <div style="padding: 0 14px 14px">
-              <SetGradeDisplay grade={r.grade} />
+              <SetGradeDisplay grade={r.grade} detailed={$isPremium} />
             </div>
           {/if}
         </div>
@@ -385,4 +416,3 @@
       Press "Grade All Sets" to score all {completedSets.length} completed sets.
     </div>
   {/if}
-{/if}
