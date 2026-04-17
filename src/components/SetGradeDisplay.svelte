@@ -60,27 +60,16 @@
       .map((k) => ({ key: k, ...grade.categories[k] }))
       .filter((c) => c.score !== null)}
     {@const sorted = [...scoredCats].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))}
-    {@const strongest = sorted[0]}
-    {@const weakest   = sorted[sorted.length - 1]}
+    {@const weakest = sorted[sorted.length - 1]}
 
-    {#if strongest && weakest && strongest.key !== weakest.key}
+    {#if weakest}
       <div style="
-        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
         background: var(--bg); border-radius: 8px; padding: 12px 14px;
       ">
-        <div>
-          <div style="font-size: 10px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 3px">STRONGEST</div>
-          <div style="display: flex; align-items: baseline; gap: 6px">
-            <div style="font-size: 13px; font-weight: 600">{strongest.label}</div>
-            <div style="font-size: 13px; font-weight: 800; color: {gc(strongest.letter)}">{strongest.letter}</div>
-          </div>
-        </div>
-        <div style="text-align: right">
-          <div style="font-size: 10px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 3px">WEAKEST</div>
-          <div style="display: flex; align-items: baseline; gap: 6px; justify-content: flex-end">
-            <div style="font-size: 13px; font-weight: 600">{weakest.label}</div>
-            <div style="font-size: 13px; font-weight: 800; color: {gc(weakest.letter)}">{weakest.letter}</div>
-          </div>
+        <div style="font-size: 10px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 3px">NEEDS WORK</div>
+        <div style="display: flex; align-items: baseline; gap: 6px">
+          <div style="font-size: 13px; font-weight: 600">{weakest.label}</div>
+          <div style="font-size: 13px; font-weight: 800; color: {gc(weakest.letter)}">{weakest.letter}</div>
         </div>
       </div>
     {/if}

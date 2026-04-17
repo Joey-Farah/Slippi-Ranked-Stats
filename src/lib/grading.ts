@@ -5,7 +5,8 @@
  *   Neutral   (neutral_win_ratio)
  *   Punish    (damage_per_opening, openings_per_kill, avg_kill_percent*)
  *   Defense   (avg_death_percent*)
- *   Execution (l_cancel_ratio, inputs_per_minute, wavedash_miss_rate)
+ *   Execution (inputs_per_minute, wavedash_miss_rate)
+ *             (l_cancel_ratio shown but not scored — benchmark data unreliable)
  *
  * counter_hit_rate and defensive_option_rate are shown in the breakdown but
  * excluded from scoring — they are confounded by opponent quality and do not
@@ -91,12 +92,15 @@ const INVERTED_STATS = new Set([
 
 /**
  * Stats shown in the breakdown display but excluded from category scoring.
- * These are too confounded by opponent quality to reliably measure individual skill:
- * - counter_hit_rate: can be LOWER against stronger opponents who probe more carefully
- * - defensive_option_rate: naturally higher when facing stronger pressure
+ *
+ * l_cancel_ratio: the HuggingFace dataset l-cancel detection produces p50–p90
+ *   all = 0.0 with only p95 = 1.0, so the scorer places 0% l-cancel at the
+ *   90th-percentile threshold and scores it 90 (S) for everyone. Excluded until
+ *   we have reliable community baseline data.
  */
-// Stats shown in the breakdown but excluded from category scoring.
-export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>();
+export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>([
+  "l_cancel_ratio",
+]);
 
 /**
  * Per-stat scoring weights. Unlisted stats default to 1.0.
