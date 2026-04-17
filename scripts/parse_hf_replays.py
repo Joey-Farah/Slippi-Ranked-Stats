@@ -92,6 +92,10 @@ STAT_KEYS = [
 MIN_MATCHUP_SAMPLES = 20
 DL_WORKERS = 8  # concurrent download threads (I/O-bound, threads are fine)
 
+# Lookup table: number of set bits for each 12-bit value (0–4095).
+# Used by the IPM Hamming-weight calculation to match slippi-js's buttonInputCount.
+_BIT_COUNT_12 = np.array([bin(i).count('1') for i in range(4096)], dtype=np.uint8)
+
 CHECKPOINT_FILE = "parse_hf_checkpoint.json"
 
 # All character directories in the HuggingFace dataset.
@@ -226,15 +230,17 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     o_stun = _make_in_stun_mask(o_state)
     p_stun = _make_in_stun_mask(p_state)
 
-    player_conv_count  = 0
-    player_conv_active = False
-    player_reset_ctr   = 0
-    conv_start_pct     = -1.0
-    conv_start_stocks  = -1
+    player_conv_count    = 0
+    player_neutral_wins  = 0
+    player_conv_active   = False
+    player_reset_ctr     = 0
+    conv_start_pct       = -1.0
+    conv_start_stocks    = -1
 
-    opp_conv_count  = 0
-    opp_conv_active = False
-    opp_reset_ctr   = 0
+    opp_conv_count   = 0
+    opp_neutral_wins = 0
+    opp_conv_active  = False
+    opp_reset_ctr    = 0
 
     opening_conv_count = 0
 
@@ -244,6 +250,8 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
             if not player_conv_active:
                 player_conv_active = True
                 player_conv_count += 1
+                if not opp_conv_active:    # neutral-win if opp wasn't punishing us
+                    player_neutral_wins += 1
                 conv_start_pct    = float(o_pct[i])
                 conv_start_stocks = int(o_stocks[i])
             player_reset_ctr = 0
@@ -266,11 +274,13 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
             conv_start_pct     = -1.0
             conv_start_stocks  = -1
 
-        # Opponent's conversion on us (for neutral_win_ratio denominator)
+        # Opponent's conversion on us
         if bool(p_stun[i]):
             if not opp_conv_active:
                 opp_conv_active = True
                 opp_conv_count += 1
+                if not player_conv_active:  # neutral-win for opp if we weren't punishing
+                    opp_neutral_wins += 1
             opp_reset_ctr = 0
         elif opp_conv_active:
             if p_ctrl[i] or opp_reset_ctr > 0:
@@ -287,23 +297,32 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     if player_conv_active:
         opening_conv_count += 1
 
-    nw            = player_conv_count
-    total_neutral = player_conv_count + opp_conv_count
+    nw_total = player_neutral_wins + opp_neutral_wins
 
     # ── L-cancel tracking ────────────────────────────────────────────────────
+    # Count once per new aerial-attack action (slippi-js isNewAction guard).
+    # States 65-74 = aerial attacks + landing-lag. l_cancel status is set on
+    # the first frame the player transitions into any of these states.
     lc_data = p_post.l_cancel
     lc_successes = lc_attempts = 0
     if lc_data is not None:
-        lc_arr       = np.array(lc_data, copy=False)
-        lc_successes = int(np.sum(lc_arr == 1))
-        lc_attempts  = lc_successes + int(np.sum(lc_arr == 2))
+        lc_arr  = np.array(lc_data, copy=False)
+        aerial  = (p_state >= 65) & (p_state <= 74)
+        new_aer = aerial & ~np.concatenate([[False], aerial[:-1]])
+        valid   = lc_arr[new_aer]
+        lc_successes = int(np.sum(valid == 1))
+        lc_attempts  = int(np.sum((valid == 1) | (valid == 2)))
 
     # ── Inputs per minute ────────────────────────────────────────────────────
+    # Match slippi-js digitalInputsPerMinute: Hamming weight of new button
+    # presses (rising edges) on the 12 digital buttons (bits 0-11, mask 0x0fff).
     ipm = None
     if p_pre is not None and p_pre.buttons_physical is not None:
         bp = np.array(p_pre.buttons_physical, copy=False)
         if len(bp) > 1:
-            input_changes = int(np.sum(np.diff(bp) != 0))
+            bp32       = bp.astype(np.int32)
+            new_presses = (~bp32[:-1] & bp32[1:]) & 0x0fff
+            input_changes = int(np.sum(_BIT_COUNT_12[new_presses]))
             if duration_min > 0:
                 ipm = input_changes / duration_min
 
@@ -457,9 +476,9 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
 
     # ── Assemble results ─────────────────────────────────────────────────────
     return {
-        "neutral_win_ratio":      nw / total_neutral if total_neutral > 0 else None,
-        "openings_per_kill":      nw / kills if kills > 0 else None,
-        "damage_per_opening":     total_damage / nw if nw > 0 else None,
+        "neutral_win_ratio":      player_neutral_wins / nw_total if nw_total > 0 else None,
+        "openings_per_kill":      player_conv_count / kills if kills > 0 else None,
+        "damage_per_opening":     total_damage / player_conv_count if player_conv_count > 0 else None,
         "avg_kill_percent":       sum(kill_percents) / kills if kills > 0 else None,
         "avg_death_percent":      sum(death_percents) / len(death_percents) if death_percents else None,
         "l_cancel_ratio":         lc_successes / lc_attempts if lc_attempts > 0 else None,
