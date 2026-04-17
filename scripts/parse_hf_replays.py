@@ -138,6 +138,23 @@ ATTACKING_RANGES = [
 
 DEFENSIVE_STATES = {29, 30, 31}  # roll fwd, roll bwd, spot dodge
 
+# Conversion detection (slippi-js: isDamaged || isGrabbed || isCommandGrabbed)
+# A conversion/opening starts when opponent enters any of these states.
+# RESET_FRAMES (45): frames of isInControl before the conversion ends.
+RESET_FRAMES = 45
+
+def _make_in_stun_mask(states_arr):
+    """Opponent is in hitstun/grabbed/command-grabbed — slippi-js conversion start condition."""
+    s = states_arr
+    return (
+        ((s >= 75) & (s <= 91)) |       # isDamaged: hitstun
+        (s == 38) |                      # DamageFall
+        (s == 185) | (s == 193) |        # JabResetUp, JabResetDown
+        ((s >= 223) & (s <= 232)) |      # isGrabbed: capture states
+        ((s >= 266) & (s <= 304) & (s != 293)) |  # isCommandGrabbed range 1
+        ((s >= 327) & (s <= 338))        # isCommandGrabbed range 2
+    )
+
 # ── Stat computation (vectorized with numpy) ─────────────────────────────────
 
 def _get_positions(post):
@@ -200,13 +217,78 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     p_vuln = _make_state_mask(p_state, VULNERABLE_RANGES)
     o_vuln = _make_state_mask(o_state, VULNERABLE_RANGES)
 
-    # ── Neutral win/loss (vectorized) ────────────────────────────────────────
-    neutral_wins   = np.sum(o_ctrl[:-1] & o_vuln[1:])
-    neutral_losses = np.sum(p_ctrl[:-1] & p_vuln[1:])
-    total_neutral  = int(neutral_wins + neutral_losses)
-    nw             = int(neutral_wins)
-
     duration_min = n_frames / 3600.0  # 60 fps × 60 sec
+
+    # ── Conversion detection (slippi-js methodology, 45f reset) ──────────────
+    # A conversion starts when opp enters isDamaged/isGrabbed/isCommandGrabbed.
+    # It ends when opp has been in isInControl for RESET_FRAMES consecutive frames.
+    # This matches Slippi Launcher's openings_per_kill and neutral_win_ratio.
+    o_stun = _make_in_stun_mask(o_state)
+    p_stun = _make_in_stun_mask(p_state)
+
+    player_conv_count  = 0
+    player_conv_active = False
+    player_reset_ctr   = 0
+    conv_start_pct     = -1.0
+    conv_start_stocks  = -1
+
+    opp_conv_count  = 0
+    opp_conv_active = False
+    opp_reset_ctr   = 0
+
+    opening_conv_count = 0
+
+    for i in range(n_frames):
+        # Our conversion on opponent
+        if bool(o_stun[i]):
+            if not player_conv_active:
+                player_conv_active = True
+                player_conv_count += 1
+                conv_start_pct    = float(o_pct[i])
+                conv_start_stocks = int(o_stocks[i])
+            player_reset_ctr = 0
+        elif player_conv_active:
+            if o_ctrl[i] or player_reset_ctr > 0:
+                player_reset_ctr += 1
+                if player_reset_ctr > RESET_FRAMES:
+                    if float(o_pct[i]) - conv_start_pct >= 20.0 or int(o_stocks[i]) < conv_start_stocks:
+                        opening_conv_count += 1
+                    player_conv_active = False
+                    player_reset_ctr   = 0
+                    conv_start_pct     = -1.0
+                    conv_start_stocks  = -1
+
+        # Stock loss ends our active conversion (kill)
+        if i > 0 and int(o_stocks[i]) < int(o_stocks[i - 1]) and player_conv_active:
+            opening_conv_count += 1
+            player_conv_active = False
+            player_reset_ctr   = 0
+            conv_start_pct     = -1.0
+            conv_start_stocks  = -1
+
+        # Opponent's conversion on us (for neutral_win_ratio denominator)
+        if bool(p_stun[i]):
+            if not opp_conv_active:
+                opp_conv_active = True
+                opp_conv_count += 1
+            opp_reset_ctr = 0
+        elif opp_conv_active:
+            if p_ctrl[i] or opp_reset_ctr > 0:
+                opp_reset_ctr += 1
+                if opp_reset_ctr > RESET_FRAMES:
+                    opp_conv_active = False
+                    opp_reset_ctr   = 0
+
+        if i > 0 and int(p_stocks[i]) < int(p_stocks[i - 1]) and opp_conv_active:
+            opp_conv_active = False
+            opp_reset_ctr   = 0
+
+    # Finalize any conversion still active at game end (typically the killing blow)
+    if player_conv_active:
+        opening_conv_count += 1
+
+    nw            = player_conv_count
+    total_neutral = player_conv_count + opp_conv_count
 
     # ── L-cancel tracking ────────────────────────────────────────────────────
     lc_data = p_post.l_cancel
@@ -240,19 +322,9 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     total_damage += float(o_pct[-1])
 
     # ── Opening conversion rate ──────────────────────────────────────────────
-    # Per neutral win: did opp take ≥20% damage OR lose a stock before recovering?
-    nw_frames = np.where(o_ctrl[:-1] & o_vuln[1:])[0] + 1
-    converted = 0
-    for fw in nw_frames:
-        sp = float(o_pct[fw]); ss = int(o_stocks[fw])
-        for fe in range(int(fw) + 1, min(int(fw) + 300, n_frames)):
-            if int(o_stocks[fe]) < ss:
-                converted += 1; break
-            if float(o_pct[fe]) - sp >= 20.0:
-                converted += 1; break
-            if o_ctrl[fe]:
-                break
-    opening_conversion_rate = converted / len(nw_frames) if len(nw_frames) > 0 else None
+    # Of all conversions (openings), what fraction dealt ≥20% or killed?
+    # opening_conv_count accumulated in the conversion loop above.
+    opening_conversion_rate = opening_conv_count / player_conv_count if player_conv_count > 0 else None
 
     # ── Stage control ratio ──────────────────────────────────────────────────
     stage_control_ratio = None

@@ -111,10 +111,19 @@ interface StreamResult {
 // ── Action-state helpers (mirrors slippi-js common.ts) ─────────────────────
 
 function isInControl(s: number): boolean {
-  return (s >= 14 && s <= 34)   // grounded control + controlled jump
-      || (s >= 39 && s <= 41)   // squat
-      || (s >= 44 && s <= 64)   // ground attack
-      || s === 0xB0 || s === 0xB1 || s === 0xB2; // special (B-moves)
+  // Matches slippi-js isInControl exactly: grounded control (14–24), squat, ground attack (>44), grab
+  return (s >= 14 && s <= 24)
+      || (s >= 39 && s <= 41)
+      || (s > 44 && s <= 64)    // note: 44 (jab1) excluded per slippi-js
+      || s === 212;              // GRAB
+}
+
+/** Opponent is "in a conversion" — slippi-js isDamaged || isGrabbed || isCommandGrabbed. */
+function isInStun(s: number): boolean {
+  return (s >= 75 && s <= 91)                                                           // hitstun
+      || s === 38 || s === 185 || s === 193                                              // DamageFall, JabReset states
+      || (s >= 223 && s <= 232)                                                         // grabbed
+      || (((s >= 266 && s <= 304) || (s >= 327 && s <= 338)) && s !== 293);            // command-grabbed
 }
 
 function isVulnerable(s: number): boolean {
@@ -139,14 +148,19 @@ function isKnockdown(s: number): boolean {
   return (s >= 183 && s <= 204); // down-bound, down-wait, tech, get-up family
 }
 
-/** Compute conversion-based stats from ordered action state frames. */
+/**
+ * Compute conversion-based stats using slippi-js's methodology.
+ *
+ * A "conversion" (opening) starts when opponent enters hitstun/grabbed/command-grabbed.
+ * It ends when: opponent has been in isInControl state for >45 consecutive frames (reset),
+ * or the game ends. This matches Slippi Launcher's OPK and neutral win ratio exactly.
+ */
 function computeConversionStats(
   playerPort: number,
   oppPort: number,
-  actionFrames: Record<number, [number, number][]>,
+  frameData: Record<number, FrameSnapshot[]>,
   totalDamageTaken: Record<number, number>,
   finalStocks: Record<number, number>,
-  frameData: Record<number, FrameSnapshot[]>,
 ): {
   openings_per_kill: number | null;
   neutral_win_ratio: number | null;
@@ -154,82 +168,89 @@ function computeConversionStats(
   counter_hit_rate: number | null;
   opening_conversion_rate: number | null;
 } {
-  const pFrames = actionFrames[playerPort] ?? [];
-  const oFrames = actionFrames[oppPort] ?? [];
+  const playerFrames = frameData[playerPort] ?? [];
+  const oppMap       = new Map<number, FrameSnapshot>();
+  for (const snap of frameData[oppPort] ?? []) oppMap.set(snap.frame, snap);
 
-  const oByFrame = new Map<number, number>();
-  for (const [f, s] of oFrames) oByFrame.set(f, s);
+  const NULL_RESULT = {
+    openings_per_kill: null, neutral_win_ratio: null, damage_per_opening: null,
+    counter_hit_rate: null, opening_conversion_rate: null,
+  };
+  if (playerFrames.length === 0) return NULL_RESULT;
 
-  // Build per-frame percent + stocks lookup from frameData for conversion tracking
-  const oppSnapByFrame = new Map<number, FrameSnapshot>();
-  for (const snap of frameData[oppPort] ?? []) oppSnapByFrame.set(snap.frame, snap);
+  const RESET_FRAMES = 45; // slippi-js PUNISH_RESET_FRAMES
 
-  let neutralWins = 0;
-  let neutralLosses = 0;
-  let counterHits = 0;
+  // Our conversion state (punishing opponent)
+  let playerConvActive = false;
+  let playerResetCtr   = 0;
+  let playerConvCount  = 0;
+  let openingConvCount = 0;
+  let convStartPct     = -1;
+  let convStartStocks  = -1;
 
-  // Opening conversion: track percent at opening start, compare when opp resets
-  const CONVERSION_DMG = 20;
-  let openingStartPercent = -1;
-  let openingStartStocks  = -1;
-  let openings    = 0;
-  let conversions = 0;
+  // Opponent's conversion state (punishing us) — denominator for neutral_win_ratio
+  let oppConvActive = false;
+  let oppResetCtr   = 0;
+  let oppConvCount  = 0;
 
-  let prevPlayerCtrl = false;
-  let prevOppCtrl    = false;
-  let prevOppState   = -1;
+  for (const snap of playerFrames) {
+    const opp = oppMap.get(snap.frame);
+    if (!opp) continue;
 
-  for (const [frame, playerState] of pFrames) {
-    const oppState = oByFrame.get(frame);
-    if (oppState === undefined) continue;
+    const oppInStun    = isInStun(opp.state);
+    const oppInCtrl    = isInControl(opp.state);
+    const playerInStun = isInStun(snap.state);
+    const playerInCtrl = isInControl(snap.state);
 
-    const playerCtrl = isInControl(playerState);
-    const oppCtrl    = isInControl(oppState);
-    const oppSnap    = oppSnapByFrame.get(frame);
-    const oppPct     = oppSnap?.percent ?? -1;
-    const oppStocks  = oppSnap?.stocks  ?? -1;
-
-    // Opponent transitions: was in control → now vulnerable = we opened them up
-    if (prevOppCtrl && isVulnerable(oppState)) {
-      neutralWins++;
-      if (isAttacking(prevOppState)) counterHits++;
-      openings++;
-      openingStartPercent = oppPct;
-      openingStartStocks  = oppStocks;
+    // ── Our conversion on opponent ────────────────────────────────────────
+    if (oppInStun) {
+      if (!playerConvActive) {
+        playerConvActive = true;
+        playerConvCount++;
+        convStartPct    = opp.percent;
+        convStartStocks = opp.stocks;
+      }
+      playerResetCtr = 0;
+    } else if (playerConvActive) {
+      // Reset timer runs when opp is in control; once started, continues through other states
+      if (oppInCtrl || playerResetCtr > 0) {
+        playerResetCtr++;
+        if (playerResetCtr > RESET_FRAMES) {
+          if (opp.percent - convStartPct >= 20 || opp.stocks < convStartStocks)
+            openingConvCount++;
+          playerConvActive = false;
+          playerResetCtr   = 0;
+          convStartPct     = -1;
+          convStartStocks  = -1;
+        }
+      }
     }
 
-    // Opponent back in control → opening ended, measure damage taken
-    if (openingStartPercent >= 0 && oppCtrl) {
-      const dmg = oppPct - openingStartPercent;
-      if (oppStocks < openingStartStocks || dmg >= CONVERSION_DMG) conversions++;
-      openingStartPercent = -1;
-      openingStartStocks  = -1;
+    // ── Opponent's conversion on us ───────────────────────────────────────
+    if (playerInStun) {
+      if (!oppConvActive) { oppConvActive = true; oppConvCount++; }
+      oppResetCtr = 0;
+    } else if (oppConvActive) {
+      if (playerInCtrl || oppResetCtr > 0) {
+        oppResetCtr++;
+        if (oppResetCtr > RESET_FRAMES) { oppConvActive = false; oppResetCtr = 0; }
+      }
     }
-
-    // Opponent died mid-opening (percent resets on respawn)
-    if (openingStartStocks >= 0 && oppStocks >= 0 && oppStocks < openingStartStocks) {
-      conversions++;
-      openingStartPercent = -1;
-      openingStartStocks  = -1;
-    }
-
-    if (prevPlayerCtrl && isVulnerable(playerState)) neutralLosses++;
-
-    prevPlayerCtrl = playerCtrl;
-    prevOppCtrl    = oppCtrl;
-    prevOppState   = oppState;
   }
 
-  const kills        = 4 - (finalStocks[oppPort] ?? 0);
-  const totalNeutral = neutralWins + neutralLosses;
-  const dmgDealt     = totalDamageTaken[oppPort] ?? 0;
+  // Finalize any active conversion at game end (typically the killing blow)
+  if (playerConvActive) openingConvCount++;
+
+  const kills      = 4 - (finalStocks[oppPort] ?? 0);
+  const totalConvs = playerConvCount + oppConvCount;
+  const dmgDealt   = totalDamageTaken[oppPort] ?? 0;
 
   return {
-    openings_per_kill:       kills > 0        ? neutralWins / kills        : null,
-    neutral_win_ratio:       totalNeutral > 0 ? neutralWins / totalNeutral : null,
-    damage_per_opening:      neutralWins > 0  ? dmgDealt    / neutralWins  : null,
-    counter_hit_rate:        neutralWins > 0  ? counterHits / neutralWins  : null,
-    opening_conversion_rate: openings > 0     ? conversions / openings     : null,
+    openings_per_kill:       kills > 0          ? playerConvCount / kills          : null,
+    neutral_win_ratio:       totalConvs > 0     ? playerConvCount / totalConvs     : null,
+    damage_per_opening:      playerConvCount > 0 ? dmgDealt / playerConvCount      : null,
+    counter_hit_rate:        null,
+    opening_conversion_rate: playerConvCount > 0 ? openingConvCount / playerConvCount : null,
   };
 }
 
@@ -263,7 +284,6 @@ function computeAdvancedStats(
   };
   if (playerFrames.length === 0) return NULL_RESULT;
 
-  const STAGE_CENTER   = 40;
   const OFFSTAGE_Y     = -5;
   const RETURN_Y       =  5;
   const EG_WINDOW      = 180; // 3 s
@@ -277,7 +297,8 @@ function computeAdvancedStats(
   const WD_DODGE_F     =   4;
   const WD_LAND_F      =   4;
 
-  let centerFrames = 0;
+  let centerFrames  = 0;
+  let onStageFrames = 0;
 
   let techSit = 0; let techHit = 0;
   let tcFrame = -1; let tcPct  = -1;
@@ -291,8 +312,10 @@ function computeAdvancedStats(
   let recFrame = -1; let recStocks = -1;
   let prevPY = 999;
 
-  let oppVulnFrames = 0;
-  let atkDuringVuln = 0;
+  let hitOpps      = 0;
+  let hitFollowups = 0;
+  let hitWindowEnd = -1;
+  let prevOppVuln  = false;
 
   const stockDurations: number[] = [];
   let stockStart    = playerFrames[0].frame;
@@ -312,8 +335,11 @@ function computeAdvancedStats(
   for (const snap of playerFrames) {
     const opp = oppByFrame.get(snap.frame);
 
-    // ── Stage control ──────────────────────────────────────────────────────
-    if (Math.abs(snap.x) < STAGE_CENTER) centerFrames++;
+    // ── Stage control: player closer to center than opponent, both on stage ──
+    if (opp && snap.y > OFFSTAGE_Y && opp.y > OFFSTAGE_Y) {
+      onStageFrames++;
+      if (Math.abs(snap.x) < Math.abs(opp.x)) centerFrames++;
+    }
 
     // ── Stock duration ─────────────────────────────────────────────────────
     if (snap.stocks < prevPStocks) {
@@ -327,11 +353,17 @@ function computeAdvancedStats(
       if (snap.stocks < opp.stocks) wasEverDown = true;
       if (snap.stocks > opp.stocks) wasEverUp   = true;
 
-      // ── Hit advantage rate ─────────────────────────────────────────────
-      if (isVulnerable(opp.state)) {
-        oppVulnFrames++;
-        if (isAttacking(snap.state)) atkDuringVuln++;
+      // ── Hit advantage rate: did player attack within 30f of each hit? ────
+      const oppVuln = isVulnerable(opp.state);
+      if (!prevOppVuln && oppVuln) {
+        hitOpps++;
+        hitWindowEnd = snap.frame + 30;
       }
+      if (hitWindowEnd >= 0) {
+        if (snap.frame <= hitWindowEnd && isAttacking(snap.state)) { hitFollowups++; hitWindowEnd = -1; }
+        else if (snap.frame > hitWindowEnd)                         {                 hitWindowEnd = -1; }
+      }
+      prevOppVuln = oppVuln;
 
       // ── Tech chase ─────────────────────────────────────────────────────
       const oppKD = isKnockdown(opp.state);
@@ -396,16 +428,16 @@ function computeAdvancedStats(
   }
 
   return {
-    stage_control_ratio:    centerFrames / playerFrames.length,
-    tech_chase_rate:        techSit      > 0 ? techHit      / techSit      : null,
-    edgeguard_success_rate: egSit        > 0 ? egSuccess    / egSit        : null,
-    recovery_success_rate:  recSit       > 0 ? recSuccess   / recSit       : null,
-    hit_advantage_rate:     oppVulnFrames > 0 ? atkDuringVuln / oppVulnFrames : null,
+    stage_control_ratio:    onStageFrames > 0 ? centerFrames / onStageFrames : null,
+    tech_chase_rate:        techSit       > 0 ? techHit      / techSit       : null,
+    edgeguard_success_rate: egSit         > 0 ? egSuccess    / egSit         : null,
+    recovery_success_rate:  recSit        > 0 ? recSuccess   / recSit        : null,
+    hit_advantage_rate:     hitOpps       > 0 ? hitFollowups / hitOpps       : null,
     avg_stock_duration:     stockDurations.reduce((a, b) => a + b, 0) / stockDurations.length,
-    respawn_defense_rate:   respawnSit   > 0 ? respawnSuccess / respawnSit : null,
+    respawn_defense_rate:   respawnSit    > 0 ? respawnSuccess / respawnSit  : null,
     comeback_rate:          wasEverDown ? (result === "win" ? 1 : 0) : null,
     lead_maintenance_rate:  wasEverUp   ? (result === "win" ? 1 : 0) : null,
-    wavedash_miss_rate:     wdAttempts   > 0 ? (wdAttempts - wdSuccesses) / wdAttempts : null,
+    wavedash_miss_rate:     wdAttempts    > 0 ? (wdAttempts - wdSuccesses) / wdAttempts : null,
   };
 }
 
@@ -536,13 +568,13 @@ function parseEventStream(data: Uint8Array): StreamResult {
       }
 
     } else if (cmd === 0x37) {
-      // PRE_FRAME: buttons pressed = uint16 at payload byte 10
-      // Count unique button-state changes as a proxy for inputs/min
-      if (size >= 12) {
+      // PRE_FRAME: physical_buttons = uint16 at 0x31 = 49 (spec v3.x)
+      // Count frames where physical button state changes — matches Python pipeline
+      if (size >= 51) {
         const port = data[ps + 4];
         const isFollower = data[ps + 5];
         if (!isFollower && port <= 3) {
-          const buttons = view.getUint16(ps + 10, false);
+          const buttons = view.getUint16(ps + 49, false);
           if (buttons !== (prevButtons[port] ?? -1)) {
             inputCounts[port] = (inputCounts[port] ?? 0) + 1;
             prevButtons[port] = buttons;
@@ -744,7 +776,7 @@ export function parseSlpBytes(
   const deaths = 4 - (stream.finalStocks[playerPort] ?? 0);
 
   const convStats = computeConversionStats(
-    playerPort, oppPort, stream.actionFrames, stream.totalDamageTaken, stream.finalStocks, stream.frameData
+    playerPort, oppPort, stream.frameData, stream.totalDamageTaken, stream.finalStocks
   );
   const winLoss: "win" | "loss" = (result === "win" || result === "lras_win") ? "win" : "loss";
   const advStats = computeAdvancedStats(playerPort, oppPort, stream.frameData, winLoss);
