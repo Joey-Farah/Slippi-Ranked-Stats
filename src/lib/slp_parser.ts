@@ -148,6 +148,14 @@ function isKnockdown(s: number): boolean {
   return (s >= 183 && s <= 204); // down-bound, down-wait, tech, get-up family
 }
 
+/** Hamming weight — counts set bits. Matches slippi-js countSetBits. */
+function countSetBits(x: number): number {
+  let bits = x;
+  let count = 0;
+  while (bits) { bits &= bits - 1; count++; }
+  return count;
+}
+
 /**
  * Compute conversion-based stats using slippi-js's methodology.
  *
@@ -181,17 +189,19 @@ function computeConversionStats(
   const RESET_FRAMES = 45; // slippi-js PUNISH_RESET_FRAMES
 
   // Our conversion state (punishing opponent)
-  let playerConvActive = false;
-  let playerResetCtr   = 0;
-  let playerConvCount  = 0;
-  let openingConvCount = 0;
-  let convStartPct     = -1;
-  let convStartStocks  = -1;
+  let playerConvActive  = false;
+  let playerResetCtr    = 0;
+  let playerConvCount   = 0;
+  let playerNeutralWins = 0;
+  let openingConvCount  = 0;
+  let convStartPct      = -1;
+  let convStartStocks   = -1;
 
-  // Opponent's conversion state (punishing us) — denominator for neutral_win_ratio
-  let oppConvActive = false;
-  let oppResetCtr   = 0;
-  let oppConvCount  = 0;
+  // Opponent's conversion state (punishing us)
+  let oppConvActive  = false;
+  let oppResetCtr    = 0;
+  let oppConvCount   = 0;
+  let oppNeutralWins = 0;
 
   for (const snap of playerFrames) {
     const opp = oppMap.get(snap.frame);
@@ -207,6 +217,7 @@ function computeConversionStats(
       if (!playerConvActive) {
         playerConvActive = true;
         playerConvCount++;
+        if (!oppConvActive) playerNeutralWins++; // neutral-win if opp wasn't already punishing us
         convStartPct    = opp.percent;
         convStartStocks = opp.stocks;
       }
@@ -228,7 +239,11 @@ function computeConversionStats(
 
     // ── Opponent's conversion on us ───────────────────────────────────────
     if (playerInStun) {
-      if (!oppConvActive) { oppConvActive = true; oppConvCount++; }
+      if (!oppConvActive) {
+        oppConvActive = true;
+        oppConvCount++;
+        if (!playerConvActive) oppNeutralWins++; // neutral-win for opp if we weren't punishing
+      }
       oppResetCtr = 0;
     } else if (oppConvActive) {
       if (playerInCtrl || oppResetCtr > 0) {
@@ -241,13 +256,13 @@ function computeConversionStats(
   // Finalize any active conversion at game end (typically the killing blow)
   if (playerConvActive) openingConvCount++;
 
-  const kills      = 4 - (finalStocks[oppPort] ?? 0);
-  const totalConvs = playerConvCount + oppConvCount;
-  const dmgDealt   = totalDamageTaken[oppPort] ?? 0;
+  const kills   = 4 - (finalStocks[oppPort] ?? 0);
+  const nwTotal = playerNeutralWins + oppNeutralWins;
+  const dmgDealt = totalDamageTaken[oppPort] ?? 0;
 
   return {
-    openings_per_kill:       kills > 0          ? playerConvCount / kills          : null,
-    neutral_win_ratio:       totalConvs > 0     ? playerConvCount / totalConvs     : null,
+    openings_per_kill:       kills > 0      ? playerConvCount   / kills      : null,
+    neutral_win_ratio:       nwTotal > 0    ? playerNeutralWins / nwTotal    : null,
     damage_per_opening:      playerConvCount > 0 ? dmgDealt / playerConvCount      : null,
     counter_hit_rate:        null,
     opening_conversion_rate: playerConvCount > 0 ? openingConvCount / playerConvCount : null,
@@ -484,6 +499,7 @@ function parseEventStream(data: Uint8Array): StreamResult {
   const prevPercentsTrack: Record<number, number> = {};
   const inputCounts: Record<number, number> = {};
   const prevButtons: Record<number, number> = {};
+  const maxPreFrame: Record<number, number> = {}; // rollback guard: skip already-seen frames
   const defensiveOptions: Record<number, number> = {};
   const prevActionState: Record<number, number> = {};
   const frameData: Record<number, FrameSnapshot[]> = {};
@@ -533,22 +549,24 @@ function parseEventStream(data: Uint8Array): StreamResult {
           if (!frameData[port]) frameData[port] = [];
           frameData[port].push({ frame: frameNum, state: actionState, x, y, percent, stocks });
 
-          // L-cancel status at offset 0x33 = 51 (added in replay spec v3.0.0)
-          // last_ground_id is uint16 at 0x30–0x31, jumps_remaining at 0x32, l_cancel at 0x33
-          // 0x01 = success, 0x02 = failure; 0x00 = no attempt this frame
-          if (size >= 52) {
-            const lcStatus = data[ps + 51];
-            if (lcStatus === 1 || lcStatus === 2) {
-              lCancelAttempts[port] = (lCancelAttempts[port] ?? 0) + 1;
-              if (lcStatus === 1) lCancelSuccesses[port] = (lCancelSuccesses[port] ?? 0) + 1;
-            }
-          }
-
           // Defensive option: count each new entry into a roll/spotdodge state.
-          // Detect transitions (not sustained frames) to avoid counting the full
-          // duration of a roll as multiple uses.
           if (DEFENSIVE_STATES.has(actionState) && !DEFENSIVE_STATES.has(prevActionState[port] ?? -1)) {
             defensiveOptions[port] = (defensiveOptions[port] ?? 0) + 1;
+          }
+
+          // L-cancel: count once per new aerial-attack action (matches slippi-js isNewAction guard).
+          // States 65-74 = aerial attacks (65-69) + landing-lag states (70-74).
+          // l_cancel_status is set on the first frame of the landing-lag transition.
+          // slpReader: lCancelStatus = readUint8(view, 0x33); view[0]=cmd byte, so ps offset = 0x33-1 = 0x32 = 50.
+          if (size >= 51 && actionState >= 65 && actionState <= 74
+              && actionState !== (prevActionState[port] ?? -1)) {
+            const lcStatus = data[ps + 50];
+            if (lcStatus === 1) {
+              lCancelSuccesses[port] = (lCancelSuccesses[port] ?? 0) + 1;
+              lCancelAttempts[port]  = (lCancelAttempts[port]  ?? 0) + 1;
+            } else if (lcStatus === 2) {
+              lCancelAttempts[port] = (lCancelAttempts[port] ?? 0) + 1;
+            }
           }
           prevActionState[port] = actionState;
 
@@ -568,16 +586,22 @@ function parseEventStream(data: Uint8Array): StreamResult {
       }
 
     } else if (cmd === 0x37) {
-      // PRE_FRAME: physical_buttons = uint16 at 0x31 = 49 (spec v3.x)
-      // Count frames where physical button state changes — matches Python pipeline
-      if (size >= 51) {
+      // PRE_FRAME: count new button presses via Hamming weight — matches slippi-js
+      // digitalInputsPerMinute which uses buttonInputCount (new presses only, not joystick/triggers).
+      // slpReader: physicalButtons = readUint16(view, 0x31); view[0]=cmd byte, so ps offset = 0x31-1 = 0x30 = 48.
+      // Rollback guard: skip frames already processed (frame# <= max seen) to avoid double-counting.
+      if (size >= 50) {
         const port = data[ps + 4];
         const isFollower = data[ps + 5];
         if (!isFollower && port <= 3) {
-          const buttons = view.getUint16(ps + 49, false);
-          if (buttons !== (prevButtons[port] ?? -1)) {
-            inputCounts[port] = (inputCounts[port] ?? 0) + 1;
-            prevButtons[port] = buttons;
+          const pf = view.getInt32(ps, false);
+          if (pf > (maxPreFrame[port] ?? -Infinity)) {
+            maxPreFrame[port] = pf;
+            const btns = view.getUint16(ps + 48, false);
+            if (prevButtons[port] !== undefined) {
+              inputCounts[port] = (inputCounts[port] ?? 0) + countSetBits((~prevButtons[port] & btns) & 0xfff);
+            }
+            prevButtons[port] = btns;
           }
         }
       }
