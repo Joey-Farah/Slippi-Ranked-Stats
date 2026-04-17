@@ -1,11 +1,12 @@
 <script lang="ts">
   import {
     isPremium, watcherActive, activeSet, liveSessionStartRating,
-    snapshots, liveGameStats, sets,
+    snapshots, liveGameStats, sets, lastSetGrade,
   } from "../../lib/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
+  import SetGradeDisplay from "../SetGradeDisplay.svelte";
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -231,6 +232,11 @@
 
       </div>
 
+      <!-- Post-set grade — rendered only when the set is complete and a grade exists.
+           Hides automatically when a new set starts (lastMatch becomes incomplete). -->
+      {#if complete && $lastSetGrade}
+        <SetGradeDisplay grade={$lastSetGrade} />
+      {/if}
     {/if}
 
     <!-- Session overview -->

@@ -38,3 +38,11 @@ Newest first.
 - No Claude attribution on any commits (per `CLAUDE.md`).
 - Grading feature remains gated (now `$isPremium`, not `import.meta.env.DEV`) — dev_notes.md reflects current state.
 - Did not touch `grade_baselines.json` or `grade-benchmarks.ts` during the rescan.
+
+### Follow-up work in the same session
+
+After the free/premium split landed (commit e092e00), three more items were completed:
+
+- **Live Session post-set grade card wired up.** `LiveRankedSession.svelte` now imports `lastSetGrade` from store and `SetGradeDisplay`, and renders the grade below the per-game rows when the current set is complete. Hides automatically when a new set starts (because `lastMatch` becomes incomplete). Closes the orphaned-`lastSetGrade` gap flagged above. No free/premium prop passed — the tab itself is premium-gated, so the grade is always rendered in full detail.
+- **`future-log.md` cleaned up.** The only entry was the original 2026-04-14 post-set letter grade idea, now shipped. File restructured with a `## Shipped` section; entry moved there with a link to `docs/grading_methodology.md`.
+- **Unit tests for `grading.ts`.** Added `vitest` as a dev dep, wired `test` + `test:watch` scripts, created `src/lib/grading.test.ts` with 14 tests covering `scoreToGrade` boundaries, `gradeSet` shape invariants (all 18 breakdown keys, 4 categories, score clamped to [0, 100], letter matches score), the +5 win bonus (including cap behavior), baseline-source fallback, and category definition sanity checks. All passing.

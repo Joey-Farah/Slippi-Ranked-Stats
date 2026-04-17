@@ -1,22 +1,14 @@
 # Future Feature Log
 
+Ideas noted for later. Move entries into a **Shipped** section when they land, with a link to the relevant doc or commit.
+
 ---
 
-## Post-Set Letter Grade (Live Session Tab)
+## Shipped
 
-**Date noted:** 2026-04-14
+### Post-Set Letter Grade
+**Noted:** 2026-04-14 · **Shipped:** 2026-04-17
 
-### Idea
-After a set finishes in the Live Session tab, generate a letter grade (F → S) for the player — similar to a post-level grade screen in a video game.
+Became the full Set Grading System — 18 stats across 4 categories (Neutral, Punish, Defense, Execution), scored against community baselines from 221,942 HuggingFace replays. Visible in the Set Grades tab (free/premium split) and as a post-set card in the Live Session tab (premium-only).
 
-### How it might work
-- Read the Slippi replay stats pulled from the set's games
-- Score the player across relevant stat categories (e.g. damage dealt, openings, conversion rate, neutral wins, self-destructs, etc.)
-- Combine into a weighted score and map to a letter grade: S, A, B, C, D, F
-- Display it prominently when the set ends — could be styled like a retro "Results" screen
-
-### Open questions
-- Which stats should factor into the grade, and how should they be weighted?
-- Should the grade account for win/loss outcome, or be purely performance-based?
-- Should it be per-game or per-set (or both)?
-- Is there a target character or is this character-agnostic?
+See [`docs/grading_methodology.md`](docs/grading_methodology.md) for how grading works and [`docs/dev_notes.md`](docs/dev_notes.md) for implementation state.
