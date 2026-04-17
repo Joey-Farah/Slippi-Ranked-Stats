@@ -203,9 +203,31 @@ function computeConversionStats(
   let oppConvCount   = 0;
   let oppNeutralWins = 0;
 
+  let prevOppStocks    = -1;
+  let prevPlayerStocks = -1;
+
   for (const snap of playerFrames) {
     const opp = oppMap.get(snap.frame);
     if (!opp) continue;
+
+    // Terminate conversions immediately on stock loss (matches slippi-js behavior).
+    // Without this, the dying state (0-10) is neither stun nor control, so the
+    // reset counter never starts and playerConvActive stays true through respawn,
+    // causing the next conversion on the fresh stock to be missed.
+    if (prevOppStocks >= 0 && opp.stocks < prevOppStocks && playerConvActive) {
+      if (opp.percent - convStartPct >= 20 || convStartStocks > opp.stocks)
+        openingConvCount++;
+      playerConvActive = false;
+      playerResetCtr   = 0;
+      convStartPct     = -1;
+      convStartStocks  = -1;
+    }
+    if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks && oppConvActive) {
+      oppConvActive = false;
+      oppResetCtr   = 0;
+    }
+    prevOppStocks    = opp.stocks;
+    prevPlayerStocks = snap.stocks;
 
     const oppInStun    = isInStun(opp.state);
     const oppInCtrl    = isInControl(opp.state);
@@ -621,6 +643,15 @@ function parseEventStream(data: Uint8Array): StreamResult {
   // game ended (timeout / LRAS on a fresh stock yields 0, which is a no-op).
   for (const port of Object.keys(damageThisStock).map(Number)) {
     totalDamageTaken[port] = (totalDamageTaken[port] ?? 0) + (damageThisStock[port] ?? 0);
+  }
+
+  // De-duplicate frameData: keep last occurrence of each frame number (handles rollback).
+  // slippi-js stores frames in a Map keyed by frame number so rollback events naturally
+  // overwrite earlier ones — replicate that here to keep conversion tracking in sync.
+  for (const port of Object.keys(frameData).map(Number)) {
+    const seen = new Map<number, FrameSnapshot>();
+    for (const snap of frameData[port]) seen.set(snap.frame, snap);
+    frameData[port] = Array.from(seen.values()).sort((a, b) => a.frame - b.frame);
   }
 
   return { matchId, stageId, gameEndMethod, lrasInitiator, finalStocks, totalDamageTaken, durationFrames, actionFrames, frameData, lCancelSuccesses, lCancelAttempts, stockPercents, inputCounts, defensiveOptions };

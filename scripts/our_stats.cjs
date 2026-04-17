@@ -221,6 +221,14 @@ function parseGame(filepath, connectCode) {
     totalDameTaken[port] = (totalDameTaken[port] || 0) + (damageThisStock[port] || 0);
   }
 
+  // De-duplicate frameData: keep last occurrence of each frame number (handles rollback).
+  // Mirrors slippi-js frames Map behavior where rollback events overwrite earlier ones.
+  for (const port of Object.keys(frameData).map(Number)) {
+    const seen = new Map();
+    for (const snap of frameData[port]) seen.set(snap.frame, snap);
+    frameData[port] = Array.from(seen.values()).sort((a, b) => a.frame - b.frame);
+  }
+
   const rawLen2 = view.getInt32(11, false);
   const metaStart = 15 + rawLen2 + 10;
   let meta = {};
@@ -272,10 +280,22 @@ function parseGame(filepath, connectCode) {
   let playerConvActive=false, playerResetCtr=0, playerConvCount=0, playerNeutralWins=0;
   let openingConvCount=0, convStartPct=-1, convStartStocks=-1;
   let oppConvActive=false, oppResetCtr=0, oppConvCount=0, oppNeutralWins=0;
+  let prevOppStocks=-1, prevPlayerStocks=-1;
 
   for (const snap of playerFrames) {
     const opp = oppMap.get(snap.frame);
     if (!opp) continue;
+
+    // Terminate conversions immediately on stock loss (matches slippi-js).
+    if (prevOppStocks >= 0 && opp.stocks < prevOppStocks && playerConvActive) {
+      if (opp.percent - convStartPct >= 20 || convStartStocks > opp.stocks) openingConvCount++;
+      playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1;
+    }
+    if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks && oppConvActive) {
+      oppConvActive=false; oppResetCtr=0;
+    }
+    prevOppStocks    = opp.stocks;
+    prevPlayerStocks = snap.stocks;
 
     const oppStun    = isInStun(opp.state);
     const oppCtrl    = isInControl(opp.state);
