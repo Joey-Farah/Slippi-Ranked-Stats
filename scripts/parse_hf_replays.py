@@ -243,36 +243,47 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     opp_reset_ctr    = 0
 
     opening_conv_count = 0
+    conv_hit_count     = 0
+    prev_o_stun        = False
 
     for i in range(n_frames):
         # Our conversion on opponent
-        if bool(o_stun[i]):
+        cur_o_stun = bool(o_stun[i])
+        if cur_o_stun:
             if not player_conv_active:
                 player_conv_active = True
                 player_conv_count += 1
+                conv_hit_count    = 1
                 if not opp_conv_active:    # neutral-win if opp wasn't punishing us
                     player_neutral_wins += 1
                 conv_start_pct    = float(o_pct[i])
                 conv_start_stocks = int(o_stocks[i])
+            elif not prev_o_stun:
+                conv_hit_count += 1  # opponent re-entered stun = new hit connected
             player_reset_ctr = 0
         elif player_conv_active:
             if o_ctrl[i] or player_reset_ctr > 0:
                 player_reset_ctr += 1
                 if player_reset_ctr > RESET_FRAMES:
-                    if float(o_pct[i]) - conv_start_pct >= 20.0 or int(o_stocks[i]) < conv_start_stocks:
+                    if conv_hit_count >= 2:
                         opening_conv_count += 1
                     player_conv_active = False
                     player_reset_ctr   = 0
                     conv_start_pct     = -1.0
                     conv_start_stocks  = -1
+                    conv_hit_count     = 0
 
         # Stock loss ends our active conversion (kill)
         if i > 0 and int(o_stocks[i]) < int(o_stocks[i - 1]) and player_conv_active:
-            opening_conv_count += 1
+            if conv_hit_count >= 2:
+                opening_conv_count += 1
             player_conv_active = False
             player_reset_ctr   = 0
             conv_start_pct     = -1.0
             conv_start_stocks  = -1
+            conv_hit_count     = 0
+
+        prev_o_stun = cur_o_stun
 
         # Opponent's conversion on us
         if bool(p_stun[i]):
@@ -294,7 +305,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
             opp_reset_ctr   = 0
 
     # Finalize any conversion still active at game end (typically the killing blow)
-    if player_conv_active:
+    if player_conv_active and conv_hit_count >= 2:
         opening_conv_count += 1
 
     nw_total = player_neutral_wins + opp_neutral_wins

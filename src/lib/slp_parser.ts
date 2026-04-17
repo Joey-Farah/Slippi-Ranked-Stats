@@ -194,6 +194,11 @@ function computeConversionStats(
   let playerConvCount   = 0;
   let playerNeutralWins = 0;
   let openingConvCount  = 0;
+  // convHitCount tracks distinct stun-entry events per conversion.
+  // Successful = 2+ hits, matching slippi-js successfulConversions (moves.length > 1).
+  // Note: multi-hit moves (drill, shine) appear as continuous hitstun in frame data,
+  // so we undercount by ~1 vs slippi-js in games with many multi-hit moves (~5-10%).
+  let convHitCount      = 0;
   let convStartPct      = -1;
   let convStartStocks   = -1;
 
@@ -205,6 +210,7 @@ function computeConversionStats(
 
   let prevOppStocks    = -1;
   let prevPlayerStocks = -1;
+  let prevOppInStun    = false;
 
   for (const snap of playerFrames) {
     const opp = oppMap.get(snap.frame);
@@ -215,12 +221,12 @@ function computeConversionStats(
     // reset counter never starts and playerConvActive stays true through respawn,
     // causing the next conversion on the fresh stock to be missed.
     if (prevOppStocks >= 0 && opp.stocks < prevOppStocks && playerConvActive) {
-      if (opp.percent - convStartPct >= 20 || convStartStocks > opp.stocks)
-        openingConvCount++;
+      if (convHitCount >= 2) openingConvCount++;
       playerConvActive = false;
       playerResetCtr   = 0;
       convStartPct     = -1;
       convStartStocks  = -1;
+      convHitCount     = 0;
     }
     if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks && oppConvActive) {
       oppConvActive = false;
@@ -239,9 +245,12 @@ function computeConversionStats(
       if (!playerConvActive) {
         playerConvActive = true;
         playerConvCount++;
+        convHitCount = 1;
         if (!oppConvActive) playerNeutralWins++; // neutral-win if opp wasn't already punishing us
         convStartPct    = opp.percent;
         convStartStocks = opp.stocks;
+      } else if (!prevOppInStun) {
+        convHitCount++; // opponent re-entered stun = new hit connected within conversion
       }
       playerResetCtr = 0;
     } else if (playerConvActive) {
@@ -249,12 +258,12 @@ function computeConversionStats(
       if (oppInCtrl || playerResetCtr > 0) {
         playerResetCtr++;
         if (playerResetCtr > RESET_FRAMES) {
-          if (opp.percent - convStartPct >= 20 || opp.stocks < convStartStocks)
-            openingConvCount++;
+          if (convHitCount >= 2) openingConvCount++;
           playerConvActive = false;
           playerResetCtr   = 0;
           convStartPct     = -1;
           convStartStocks  = -1;
+          convHitCount     = 0;
         }
       }
     }
@@ -273,10 +282,12 @@ function computeConversionStats(
         if (oppResetCtr > RESET_FRAMES) { oppConvActive = false; oppResetCtr = 0; }
       }
     }
+
+    prevOppInStun = oppInStun;
   }
 
   // Finalize any active conversion at game end (typically the killing blow)
-  if (playerConvActive) openingConvCount++;
+  if (playerConvActive && convHitCount >= 2) openingConvCount++;
 
   const kills   = 4 - (finalStocks[oppPort] ?? 0);
   const nwTotal = playerNeutralWins + oppNeutralWins;

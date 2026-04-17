@@ -96,11 +96,17 @@ const INVERTED_STATS = new Set([
   "wavedash_miss_rate",
 ]);
 
-/** Stats shown in the breakdown display but not included in any category score. */
+/**
+ * Stats shown in the breakdown display but not included in any category score.
+ * opening_conversion_rate: definition changed to match slippi-js (2+ hits per
+ *   conversion instead of ≥20% damage). Benchmarks must be regenerated before
+ *   re-enabling scoring — move back to CATEGORY_DEFS once rescan completes.
+ */
 export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>([
   "l_cancel_ratio",
   "inputs_per_minute",
   "wavedash_miss_rate",
+  "opening_conversion_rate",
 ]);
 
 /** Per-stat scoring weights within a category. Unlisted stats default to 1.0. */

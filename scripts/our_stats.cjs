@@ -385,17 +385,17 @@ function parseGame(filepath, connectCode) {
 
   const RESET = 45;
   let playerConvActive=false, playerResetCtr=0, playerConvCount=0, playerNeutralWins=0;
-  let openingConvCount=0, convStartPct=-1, convStartStocks=-1;
+  let openingConvCount=0, convHitCount=0, convStartPct=-1, convStartStocks=-1;
   let oppConvActive=false, oppResetCtr=0, oppConvCount=0, oppNeutralWins=0;
-  let prevOppStocks=-1, prevPlayerStocks=-1;
+  let prevOppStocks=-1, prevPlayerStocks=-1, prevOppStun=false;
 
   for (const snap of playerFrames) {
     const opp = oppMap.get(snap.frame);
     if (!opp) continue;
 
     if (prevOppStocks >= 0 && opp.stocks < prevOppStocks && playerConvActive) {
-      if (opp.percent - convStartPct >= 20 || convStartStocks > opp.stocks) openingConvCount++;
-      playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1;
+      if (convHitCount >= 2) openingConvCount++;
+      playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1; convHitCount=0;
     }
     if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks && oppConvActive) {
       oppConvActive=false; oppResetCtr=0;
@@ -407,12 +407,21 @@ function parseGame(filepath, connectCode) {
     const playerStun=isInStun(snap.state), playerCtrl=isInControl(snap.state);
 
     if (oppStun) {
-      if (!playerConvActive) { playerConvActive=true; playerConvCount++; if (!oppConvActive) playerNeutralWins++; convStartPct=opp.percent; convStartStocks=opp.stocks; }
+      if (!playerConvActive) {
+        playerConvActive=true; playerConvCount++; convHitCount=1;
+        if (!oppConvActive) playerNeutralWins++;
+        convStartPct=opp.percent; convStartStocks=opp.stocks;
+      } else if (!prevOppStun) {
+        convHitCount++;  // opponent re-enters stun = new hit connected
+      }
       playerResetCtr=0;
     } else if (playerConvActive) {
       if (oppCtrl || playerResetCtr > 0) {
         playerResetCtr++;
-        if (playerResetCtr > RESET) { if (opp.percent-convStartPct>=20||opp.stocks<convStartStocks) openingConvCount++; playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1; }
+        if (playerResetCtr > RESET) {
+          if (convHitCount >= 2) openingConvCount++;
+          playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1; convHitCount=0;
+        }
       }
     }
     if (playerStun) {
@@ -421,8 +430,9 @@ function parseGame(filepath, connectCode) {
     } else if (oppConvActive) {
       if (playerCtrl || oppResetCtr > 0) { oppResetCtr++; if (oppResetCtr > RESET) { oppConvActive=false; oppResetCtr=0; } }
     }
+    prevOppStun = oppStun;
   }
-  if (playerConvActive) openingConvCount++;
+  if (playerConvActive && convHitCount >= 2) openingConvCount++;
 
   const nwTotal  = playerNeutralWins + oppNeutralWins;
   const dmgDealt = totalDameTaken[oppPort] ?? 0;
