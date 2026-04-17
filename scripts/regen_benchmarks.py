@@ -87,24 +87,24 @@ export interface StatThresholds {{
 }}
 
 export interface CharacterBenchmarks {{
-  neutral_win_ratio:       StatThresholds;
-  openings_per_kill:       StatThresholds;  // inverted: lower = better
-  damage_per_opening:      StatThresholds;
-  avg_kill_percent:        StatThresholds;  // inverted: lower = better (killing early)
-  avg_death_percent:       StatThresholds;
-  l_cancel_ratio:          StatThresholds;
-  inputs_per_minute:       StatThresholds;
-  opening_conversion_rate: StatThresholds;
-  stage_control_ratio:     StatThresholds;
-  lead_maintenance_rate:   StatThresholds;
-  tech_chase_rate:         StatThresholds;
-  edgeguard_success_rate:  StatThresholds;
-  hit_advantage_rate:      StatThresholds;
-  recovery_success_rate:   StatThresholds;
-  avg_stock_duration:      StatThresholds;
-  respawn_defense_rate:    StatThresholds;
-  comeback_rate:           StatThresholds;
-  wavedash_miss_rate?:     StatThresholds;  // inverted: lower = better (optional — pending detection fix)
+  neutral_win_ratio?:       StatThresholds;
+  openings_per_kill?:       StatThresholds;  // inverted: lower = better
+  damage_per_opening?:      StatThresholds;
+  avg_kill_percent?:        StatThresholds;  // inverted: lower = better (killing early)
+  avg_death_percent?:       StatThresholds;
+  l_cancel_ratio?:          StatThresholds;
+  inputs_per_minute?:       StatThresholds;
+  opening_conversion_rate?: StatThresholds;
+  stage_control_ratio?:     StatThresholds;
+  lead_maintenance_rate?:   StatThresholds;
+  tech_chase_rate?:         StatThresholds;
+  edgeguard_success_rate?:  StatThresholds;
+  hit_advantage_rate?:      StatThresholds;
+  recovery_success_rate?:   StatThresholds;
+  avg_stock_duration?:      StatThresholds;
+  respawn_defense_rate?:    StatThresholds;
+  comeback_rate?:           StatThresholds;
+  wavedash_miss_rate?:      StatThresholds;  // inverted: lower = better
 }}
 
 export interface Benchmarks {{
@@ -135,6 +135,7 @@ def main():
     overall_n = by_player["_overall"].get("sample_size", 0)
     source = data.get("source", "?")
     replay_count = data.get("replay_count", 0)
+    generated_at = data.get("generated_at", "unknown")
     print(f"Source: {source} · {replay_count} replays")
     print(f"Overall sample_size: {overall_n}")
 
@@ -178,6 +179,8 @@ def main():
     parts.append("  },")
 
     parts.append("};")
+    parts.append("")
+    parts.append(f'export const BENCHMARKS_VERSION = "{generated_at}";')
     parts.append("")
     output = "\n".join(parts)
 

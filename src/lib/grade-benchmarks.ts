@@ -19,24 +19,24 @@ export interface StatThresholds {
 }
 
 export interface CharacterBenchmarks {
-  neutral_win_ratio:       StatThresholds;
-  openings_per_kill:       StatThresholds;  // inverted: lower = better
-  damage_per_opening:      StatThresholds;
-  avg_kill_percent:        StatThresholds;  // inverted: lower = better (killing early)
-  avg_death_percent:       StatThresholds;
-  l_cancel_ratio:          StatThresholds;
-  inputs_per_minute:       StatThresholds;
-  opening_conversion_rate: StatThresholds;
-  stage_control_ratio:     StatThresholds;
-  lead_maintenance_rate:   StatThresholds;
-  tech_chase_rate:         StatThresholds;
-  edgeguard_success_rate:  StatThresholds;
-  hit_advantage_rate:      StatThresholds;
-  recovery_success_rate:   StatThresholds;
-  avg_stock_duration:      StatThresholds;
-  respawn_defense_rate:    StatThresholds;
-  comeback_rate:           StatThresholds;
-  wavedash_miss_rate?:     StatThresholds;  // inverted: lower = better (optional — pending detection fix)
+  neutral_win_ratio?:       StatThresholds;
+  openings_per_kill?:       StatThresholds;  // inverted: lower = better
+  damage_per_opening?:      StatThresholds;
+  avg_kill_percent?:        StatThresholds;  // inverted: lower = better (killing early)
+  avg_death_percent?:       StatThresholds;
+  l_cancel_ratio?:          StatThresholds;
+  inputs_per_minute?:       StatThresholds;
+  opening_conversion_rate?: StatThresholds;
+  stage_control_ratio?:     StatThresholds;
+  lead_maintenance_rate?:   StatThresholds;
+  tech_chase_rate?:         StatThresholds;
+  edgeguard_success_rate?:  StatThresholds;
+  hit_advantage_rate?:      StatThresholds;
+  recovery_success_rate?:   StatThresholds;
+  avg_stock_duration?:      StatThresholds;
+  respawn_defense_rate?:    StatThresholds;
+  comeback_rate?:           StatThresholds;
+  wavedash_miss_rate?:      StatThresholds;  // inverted: lower = better
 }
 
 export interface Benchmarks {
@@ -6114,3 +6114,5 @@ export const BENCHMARKS: Benchmarks = {
     },
   },
 };
+
+export const BENCHMARKS_VERSION = "2026-04-17T21:33:41.314397+00:00";

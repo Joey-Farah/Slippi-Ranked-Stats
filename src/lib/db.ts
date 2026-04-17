@@ -97,6 +97,33 @@ async function initSchema(db: Database) {
       UNIQUE(connect_code, season_id)
     )
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS set_grades (
+      match_id         TEXT PRIMARY KEY,
+      generated_at     TEXT NOT NULL,
+      set_timestamp    TEXT NOT NULL,
+      baseline_version TEXT NOT NULL,
+      player_char      TEXT NOT NULL,
+      opponent_char    TEXT NOT NULL,
+      opponent_code    TEXT NOT NULL,
+      baseline_source  TEXT NOT NULL,
+      set_result       TEXT NOT NULL,
+      wins             INTEGER NOT NULL,
+      losses           INTEGER NOT NULL,
+      overall_letter   TEXT NOT NULL,
+      overall_score    REAL NOT NULL,
+      neutral_score    REAL,
+      neutral_letter   TEXT,
+      punish_score     REAL,
+      punish_letter    TEXT,
+      defense_score    REAL,
+      defense_letter   TEXT,
+      execution_score  REAL,
+      execution_letter TEXT,
+      breakdown_json   TEXT NOT NULL
+    )
+  `);
 }
 
 // ── Games ──────────────────────────────────────────────────────────────────
@@ -302,4 +329,66 @@ export async function markFilesScanned(filenames: string[]): Promise<void> {
       chunk
     );
   }
+}
+
+// ── Set grades ─────────────────────────────────────────────────────────────
+
+export interface SetGradeRow {
+  match_id:         string;
+  generated_at:     string;
+  set_timestamp:    string;
+  baseline_version: string;
+  player_char:      string;
+  opponent_char:    string;
+  opponent_code:    string;
+  baseline_source:  string;
+  set_result:       string;
+  wins:             number;
+  losses:           number;
+  overall_letter:   string;
+  overall_score:    number;
+  neutral_score:    number | null;
+  neutral_letter:   string | null;
+  punish_score:     number | null;
+  punish_letter:    string | null;
+  defense_score:    number | null;
+  defense_letter:   string | null;
+  execution_score:  number | null;
+  execution_letter: string | null;
+  breakdown_json:   string;
+}
+
+export async function saveSetGrade(db: Database, row: SetGradeRow): Promise<void> {
+  await db.execute(
+    `INSERT OR REPLACE INTO set_grades
+      (match_id, generated_at, set_timestamp, baseline_version,
+       player_char, opponent_char, opponent_code, baseline_source,
+       set_result, wins, losses,
+       overall_letter, overall_score,
+       neutral_score, neutral_letter, punish_score, punish_letter,
+       defense_score, defense_letter, execution_score, execution_letter,
+       breakdown_json)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+    [
+      row.match_id, row.generated_at, row.set_timestamp, row.baseline_version,
+      row.player_char, row.opponent_char, row.opponent_code, row.baseline_source,
+      row.set_result, row.wins, row.losses,
+      row.overall_letter, row.overall_score,
+      row.neutral_score ?? null, row.neutral_letter ?? null,
+      row.punish_score ?? null, row.punish_letter ?? null,
+      row.defense_score ?? null, row.defense_letter ?? null,
+      row.execution_score ?? null, row.execution_letter ?? null,
+      row.breakdown_json,
+    ]
+  );
+}
+
+export async function getAllSetGrades(db: Database): Promise<SetGradeRow[]> {
+  return db.select<SetGradeRow[]>(
+    `SELECT * FROM set_grades ORDER BY set_timestamp DESC`
+  );
+}
+
+export async function deleteSetGrade(db: Database, matchId: string): Promise<void> {
+  await db.execute(`DELETE FROM set_grades WHERE match_id = $1`, [matchId]);
 }

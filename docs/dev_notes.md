@@ -16,7 +16,7 @@ Wired end-to-end and gated behind `$isPremium`. Visible to all premium users in 
 - **`src/lib/grade-benchmarks.ts`** — Generated from `scripts/grade_baselines.json`. Three-tier benchmark structure: `by_matchup[playerChar][oppChar]` → `by_player_char[playerChar]` → `by_player_char["_overall"]`. Characters with fewer than 20 samples fall back to the next tier.
 - **`src/components/SetGradeDisplay.svelte`** — Renders the overall grade card + category rows. Iterates `CATEGORY_DEFS` from grading.ts so display always matches the grading logic. Shows "matchup baseline" / "overall baseline" annotation when applicable.
 - **Watcher integration** (`src/lib/watcher.ts`, `handleRankedGame`) — When a set completes during a live watcher session, calls `gradeSet` against in-memory `liveGameStats` and writes the result to `lastSetGrade`. Shown in Live Session tab for premium users.
-- **Set Grades tab** (`src/components/tabs/GradeHistory.svelte`) — "Grade Recent Sets" button re-parses last 100 completed sets, shows a compact table (Date / Opponent / Result / Score / Grade letter), distribution summary, and expandable `SetGradeDisplay` on click. Premium-gated.
+- **Set Grades tab** (`src/components/tabs/GradeHistory.svelte`) — "Grade New Sets" button re-parses ungraded completed sets, shows a compact table (Date / Opponent / Result / Score / Grade letter), distribution summary, and expandable `SetGradeDisplay` on click. Filters: grade letter, W/L result, player char (shown when player uses multiple chars), opponent char. Sort: date or score. Grades are persisted to DB and hydrated on mount. Stale grades (old baseline version) show an orange indicator and a "Regrade stale (N)" button.
 
 ### How grading works
 
@@ -44,7 +44,7 @@ For each stat in a completed set, `percentileScore(value, thresholds, inverted)`
 1. ~~Low per-char sample sizes~~ **Resolved.** Full dataset parse covers all 25 characters with 26 having ≥50 samples, 283 matchup entries.
 2. ~~`inputs_per_minute` placeholder~~ **Resolved.** All 18 stats have real community baselines.
 3. ~~**Full `--character ALL` rescan needed.**~~ **Resolved.** Rescan completed 2026-04-17 (221,603 replays, 430k samples). All parser bug fixes (OPK, L-cancel, IPM, DEFENSIVE_STATES, wavedash state IDs) are reflected in current baselines.
-4. **Grade history persistence — proposed, not built.** Full design sketch at [`docs/set_grades_persistence.md`](./set_grades_persistence.md): `set_grades` table keyed by `match_id`, baseline-version invalidation, hydration flow, open questions. **Discuss before implementing.**
+4. **Grade history persistence — built.** `set_grades` table in the per-connect-code SQLite DB. Grades are saved on every successful grade in `GradeHistory.svelte` and from the live watcher (DEV only). On mount, `GradeHistory.svelte` hydrates the store from DB. Stale grades (different `baseline_version`) show an orange ⟳ indicator and a "Regrade stale (N)" button. Design notes at [`docs/set_grades_persistence.md`](./set_grades_persistence.md) are still accurate as reference.
 
 ### Stat fixes applied (match slippi-js exactly)
 

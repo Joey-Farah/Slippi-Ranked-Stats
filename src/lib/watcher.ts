@@ -30,6 +30,8 @@ import {
 } from "./store";
 import { CHARACTERS } from "./parser";
 import { gradeSet } from "./grading";
+import { saveSetGrade } from "./db";
+import { BENCHMARKS_VERSION } from "./grade-benchmarks";
 
 let _unwatch: UnwatchFn | null = null;
 let _snapshotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -327,6 +329,32 @@ async function handleRankedGame(
       try {
         const grade = gradeSet(setStats, playerChar, opponentChar, setResult, wins, losses);
         lastSetGrade.set(grade);
+        try {
+          await saveSetGrade(db, {
+            match_id:         g.match_id,
+            generated_at:     new Date().toISOString(),
+            set_timestamp:    g.timestamp,
+            baseline_version: BENCHMARKS_VERSION,
+            player_char:      playerChar,
+            opponent_char:    opponentChar,
+            opponent_code:    g.opponent_code,
+            baseline_source:  grade.baselineSource,
+            set_result:       grade.setResult,
+            wins:             grade.wins,
+            losses:           grade.losses,
+            overall_letter:   grade.letter,
+            overall_score:    grade.score,
+            neutral_score:    grade.categories.neutral.score,
+            neutral_letter:   grade.categories.neutral.letter,
+            punish_score:     grade.categories.punish.score,
+            punish_letter:    grade.categories.punish.letter,
+            defense_score:    grade.categories.defense.score,
+            defense_letter:   grade.categories.defense.letter,
+            execution_score:  grade.categories.execution.score,
+            execution_letter: grade.categories.execution.letter,
+            breakdown_json:   JSON.stringify(grade.breakdown),
+          });
+        } catch { /* don't fail live session on DB write error */ }
       } catch {
         lastSetGrade.set(null);
       }

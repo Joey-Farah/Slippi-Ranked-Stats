@@ -104,17 +104,18 @@ export const lastSetGrade = writable<SetGrade | null>(null);
 // ── Grade history (persists for the app session, reset on reload) ──────────
 
 export interface GradeHistoryEntry {
-  matchId:      string;
-  timestamp:    string;   // ISO string from the set, used for sort order
-  date:         string;
-  opponentCode: string;
-  opponentChar: string;
-  playerChar:   string;
-  result:       "win" | "loss";
-  wins:         number;
-  losses:       number;
-  grade:        SetGrade | null;
-  error:        string | null;
+  matchId:         string;
+  timestamp:       string;   // ISO string from the set, used for sort order
+  date:            string;
+  opponentCode:    string;
+  opponentChar:    string;
+  playerChar:      string;
+  result:          "win" | "loss";
+  wins:            number;
+  losses:          number;
+  grade:           SetGrade | null;
+  error:           string | null;
+  baselineVersion: string | null;  // null = not yet persisted or loaded from old DB
 }
 
 export const gradeHistory         = writable<GradeHistoryEntry[]>([]);
