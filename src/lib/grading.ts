@@ -5,7 +5,7 @@
  *   Neutral   (neutral_win_ratio)
  *   Punish    (damage_per_opening, openings_per_kill, avg_kill_percent*)
  *   Defense   (avg_death_percent*)
- *   Execution (l_cancel_ratio, inputs_per_minute)
+ *   Execution (l_cancel_ratio, inputs_per_minute, wavedash_miss_rate)
  *
  * counter_hit_rate and defensive_option_rate are shown in the breakdown but
  * excluded from scoring — they are confounded by opponent quality and do not
@@ -96,10 +96,7 @@ const INVERTED_STATS = new Set([
  * - defensive_option_rate: naturally higher when facing stronger pressure
  */
 // Stats shown in the breakdown but excluded from category scoring.
-// wavedash_miss_rate: detection bug in parser — 0 samples in baselines (pending fix).
-export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>([
-  "wavedash_miss_rate",
-]);
+export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>();
 
 /**
  * Per-stat scoring weights. Unlisted stats default to 1.0.
