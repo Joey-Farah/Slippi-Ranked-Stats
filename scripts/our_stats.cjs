@@ -385,7 +385,7 @@ function parseGame(filepath, connectCode) {
 
   const RESET = 45;
   let playerConvActive=false, playerResetCtr=0, playerConvCount=0, playerNeutralWins=0;
-  let openingConvCount=0, convHitCount=0, convStartPct=-1, convStartStocks=-1;
+  let openingConvCount=0, convHitCount=0, convLastOppPercent=-1, convStartPct=-1, convStartStocks=-1;
   let oppConvActive=false, oppResetCtr=0, oppConvCount=0, oppNeutralWins=0;
   let prevOppStocks=-1, prevPlayerStocks=-1, prevOppStun=false;
 
@@ -395,7 +395,7 @@ function parseGame(filepath, connectCode) {
 
     if (prevOppStocks >= 0 && opp.stocks < prevOppStocks && playerConvActive) {
       if (convHitCount >= 2) openingConvCount++;
-      playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1; convHitCount=0;
+      playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1; convHitCount=0; convLastOppPercent=-1;
     }
     if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks && oppConvActive) {
       oppConvActive=false; oppResetCtr=0;
@@ -408,11 +408,13 @@ function parseGame(filepath, connectCode) {
 
     if (oppStun) {
       if (!playerConvActive) {
-        playerConvActive=true; playerConvCount++; convHitCount=1;
+        playerConvActive=true; playerConvCount++; convHitCount=1; convLastOppPercent=opp.percent;
         if (!oppConvActive) playerNeutralWins++;
         convStartPct=opp.percent; convStartStocks=opp.stocks;
       } else if (!prevOppStun) {
-        convHitCount++;  // opponent re-enters stun = new hit connected
+        convHitCount++; convLastOppPercent=opp.percent;  // re-entered stun = new hit
+      } else if (opp.percent > convLastOppPercent + 0.5) {
+        convHitCount++; convLastOppPercent=opp.percent;  // damage while already in stun = multi-hit
       }
       playerResetCtr=0;
     } else if (playerConvActive) {
@@ -420,7 +422,7 @@ function parseGame(filepath, connectCode) {
         playerResetCtr++;
         if (playerResetCtr > RESET) {
           if (convHitCount >= 2) openingConvCount++;
-          playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1; convHitCount=0;
+          playerConvActive=false; playerResetCtr=0; convStartPct=-1; convStartStocks=-1; convHitCount=0; convLastOppPercent=-1;
         }
       }
     }

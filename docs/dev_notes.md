@@ -58,8 +58,21 @@ All fixes are committed. Live parser (`slp_parser.ts`) and Python pipeline (`par
 | NWR | Used `oppConvActive` state flag (approximate) | Now tracks `playerNeutralWins/oppNeutralWins` — neutral-win iff opponent wasn't actively converting when conversion started |
 | OPK | Dying state (0–10) is neither stun nor control; conversion lingered through respawn, causing next conversion to be missed | Terminate conversion immediately on stock loss (detects `opp.stocks < prev`), matching slippi-js |
 | Conversion data | Rollback post-frame duplicates in `frameData` inflated conversion counts | Deduplicate `frameData` per port by keeping last occurrence of each frame number |
+| OCR (first fix) | Used ≥20% damage threshold to define "successful conversion" | Changed to `convHitCount >= 2` (re-entries into hitstun), matching slippi-js `moves.length > 1` |
+| OCR (second fix) | Multi-hit moves (Falco dair, shine repeats) appear as continuous hitstun in frame data — re-entry check missed them | Added percent-increase check: if `opp.percent > convLastOppPercent + 0.5` while already in stun, count as new hit |
 
 Accuracy vs slippi-js on 5 test sets: OPK ✓ exact, L-C ✓ exact, IPM ±2, NWR ±2%, D/O ±1 (methodological: we use peak-pct-per-stock; slippi-js uses per-conversion move damage — consistent across benchmark and live parser so grading percentiles are valid).
+
+OCR accuracy after both fixes: **10/12 games exact, avg gap 0.7%, max gap 5.3%** vs slippi-js `successfulConversions.ratio`. Remaining gap is from edge cases where multi-hit timing in frame data doesn't align exactly with slippi-js's `lastAttackLanded` events.
+
+### Pending: OCR benchmark rescan
+
+`opening_conversion_rate` is in `DISPLAY_ONLY_STATS` because current benchmarks were generated with the old ≥20% definition. Both OCR fixes are already applied to all three parsers. To re-enable OCR scoring:
+
+1. Run full rescan: `python3 scripts/parse_hf_replays.py --character ALL --batch-size 500 --dl-workers 8` (~6.5 hours)
+2. Run `python3 scripts/regen_benchmarks.py`
+3. Remove `"opening_conversion_rate"` from `DISPLAY_ONLY_STATS` in `src/lib/grading.ts`
+4. Commit and regrade all sets (stale baseline version will trigger the orange indicator)
 
 ---
 

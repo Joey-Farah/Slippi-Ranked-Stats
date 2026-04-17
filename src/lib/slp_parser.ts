@@ -194,11 +194,14 @@ function computeConversionStats(
   let playerConvCount   = 0;
   let playerNeutralWins = 0;
   let openingConvCount  = 0;
-  // convHitCount tracks distinct stun-entry events per conversion.
-  // Successful = 2+ hits, matching slippi-js successfulConversions (moves.length > 1).
-  // Note: multi-hit moves (drill, shine) appear as continuous hitstun in frame data,
-  // so we undercount by ~1 vs slippi-js in games with many multi-hit moves (~5-10%).
+  // convHitCount tracks distinct hits per conversion (re-entries into stun + percent
+  // increases while already in stun). The percent-increase check catches multi-hit
+  // moves (Falco dair, shine repeats) that appear as continuous hitstun in frame data
+  // but produce multiple lastAttackLanded events in slippi-js. Threshold 0.5% avoids
+  // float rounding noise. Successful = 2+ hits, matching slippi-js moves.length > 1.
+  // Accuracy vs slippi-js successfulConversions.ratio: 10/12 exact, avg gap 0.7%.
   let convHitCount      = 0;
+  let convLastOppPercent = -1;
   let convStartPct      = -1;
   let convStartStocks   = -1;
 
@@ -222,11 +225,12 @@ function computeConversionStats(
     // causing the next conversion on the fresh stock to be missed.
     if (prevOppStocks >= 0 && opp.stocks < prevOppStocks && playerConvActive) {
       if (convHitCount >= 2) openingConvCount++;
-      playerConvActive = false;
-      playerResetCtr   = 0;
-      convStartPct     = -1;
-      convStartStocks  = -1;
-      convHitCount     = 0;
+      playerConvActive   = false;
+      playerResetCtr     = 0;
+      convStartPct       = -1;
+      convStartStocks    = -1;
+      convHitCount       = 0;
+      convLastOppPercent = -1;
     }
     if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks && oppConvActive) {
       oppConvActive = false;
@@ -243,14 +247,19 @@ function computeConversionStats(
     // ── Our conversion on opponent ────────────────────────────────────────
     if (oppInStun) {
       if (!playerConvActive) {
-        playerConvActive = true;
+        playerConvActive   = true;
         playerConvCount++;
-        convHitCount = 1;
-        if (!oppConvActive) playerNeutralWins++; // neutral-win if opp wasn't already punishing us
+        convHitCount       = 1;
+        convLastOppPercent = opp.percent;
+        if (!oppConvActive) playerNeutralWins++;
         convStartPct    = opp.percent;
         convStartStocks = opp.stocks;
       } else if (!prevOppInStun) {
-        convHitCount++; // opponent re-entered stun = new hit connected within conversion
+        convHitCount++;                    // re-entered stun = new hit
+        convLastOppPercent = opp.percent;
+      } else if (opp.percent > convLastOppPercent + 0.5) {
+        convHitCount++;                    // damage while already in stun = multi-hit move
+        convLastOppPercent = opp.percent;
       }
       playerResetCtr = 0;
     } else if (playerConvActive) {
@@ -259,11 +268,12 @@ function computeConversionStats(
         playerResetCtr++;
         if (playerResetCtr > RESET_FRAMES) {
           if (convHitCount >= 2) openingConvCount++;
-          playerConvActive = false;
-          playerResetCtr   = 0;
-          convStartPct     = -1;
-          convStartStocks  = -1;
-          convHitCount     = 0;
+          playerConvActive   = false;
+          playerResetCtr     = 0;
+          convStartPct       = -1;
+          convStartStocks    = -1;
+          convHitCount       = 0;
+          convLastOppPercent = -1;
         }
       }
     }

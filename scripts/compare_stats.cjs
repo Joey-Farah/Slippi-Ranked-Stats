@@ -67,16 +67,18 @@ for (const set of SETS) {
     'OPK'.padStart(5),
     'D/O'.padStart(6),
     'NWR%'.padStart(6),
+    'OCR%'.padStart(6),
     'L-C%'.padStart(6),
     'DigIPM'.padStart(7),
     'AvgKill%'.padStart(9),
     'Kills'.padStart(6),
   );
-  console.log('-'.repeat(76));
+  console.log('-'.repeat(82));
 
   const rowsOPK  = [];
   const rowsDPO  = [];
   const rowsNWR  = [];
+  const rowsOCR  = [];
   const rowsLC   = [];
   const rowsIPM  = [];
   const rowsKPct = [];
@@ -118,6 +120,9 @@ for (const set of SETS) {
     const lcTot  = lcSucc + lcFail;
     const lc     = lcTot > 0 ? lcSucc / lcTot : null;
 
+    // successfulConversions ratio — use slippi-js pre-computed value (player's overall)
+    const ocr = pO && pO.successfulConversions ? pO.successfulConversions.ratio : null;
+
     // avg kill % from conversions that killed, hit by us
     const convs = stats && stats.conversions ? stats.conversions : [];
     const ourKills = convs.filter(c => c.didKill && c.lastHitBy === playerIdx);
@@ -127,6 +132,7 @@ for (const set of SETS) {
     if (opk  != null) rowsOPK.push(opk);
     if (dpo  != null) rowsDPO.push(dpo);
     if (nwr  != null) rowsNWR.push(nwr);
+    if (ocr  != null) rowsOCR.push(ocr);
     if (lc   != null) rowsLC.push(lc);
     if (dipm != null) rowsIPM.push(dipm);
     if (avgKillPct != null) rowsKPct.push(avgKillPct);
@@ -136,6 +142,7 @@ for (const set of SETS) {
       n2(opk).padStart(5),
       n1(dpo).padStart(6),
       pct(nwr).padStart(6),
+      pct(ocr).padStart(6),
       pct(lc).padStart(6),
       (dipm != null ? Math.round(dipm).toString() : '—').padStart(7),
       (avgKillPct != null ? avgKillPct.toFixed(0) + '%' : '—').padStart(9),
@@ -145,12 +152,13 @@ for (const set of SETS) {
 
   if (rowsOPK.length > 1) {
     const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
-    console.log('-'.repeat(76));
+    console.log('-'.repeat(82));
     console.log(
       'SET AVG'.padEnd(36),
       n2(rowsOPK.length ? avg(rowsOPK) : null).padStart(5),
       n1(rowsDPO.length ? avg(rowsDPO) : null).padStart(6),
       pct(rowsNWR.length ? avg(rowsNWR) : null).padStart(6),
+      pct(rowsOCR.length ? avg(rowsOCR) : null).padStart(6),
       pct(rowsLC.length  ? avg(rowsLC)  : null).padStart(6),
       (rowsIPM.length ? Math.round(avg(rowsIPM)).toString() : '—').padStart(7),
       (rowsKPct.length ? avg(rowsKPct).toFixed(0) + '%' : '—').padStart(9),

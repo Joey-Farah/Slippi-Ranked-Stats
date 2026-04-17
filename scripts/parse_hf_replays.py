@@ -242,24 +242,31 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     opp_conv_active  = False
     opp_reset_ctr    = 0
 
-    opening_conv_count = 0
-    conv_hit_count     = 0
-    prev_o_stun        = False
+    opening_conv_count  = 0
+    conv_hit_count      = 0
+    conv_last_opp_pct   = -1.0
+    prev_o_stun         = False
 
     for i in range(n_frames):
         # Our conversion on opponent
         cur_o_stun = bool(o_stun[i])
+        cur_o_pct  = float(o_pct[i])
         if cur_o_stun:
             if not player_conv_active:
-                player_conv_active = True
-                player_conv_count += 1
-                conv_hit_count    = 1
-                if not opp_conv_active:    # neutral-win if opp wasn't punishing us
+                player_conv_active  = True
+                player_conv_count  += 1
+                conv_hit_count      = 1
+                conv_last_opp_pct   = cur_o_pct
+                if not opp_conv_active:
                     player_neutral_wins += 1
-                conv_start_pct    = float(o_pct[i])
+                conv_start_pct    = cur_o_pct
                 conv_start_stocks = int(o_stocks[i])
             elif not prev_o_stun:
-                conv_hit_count += 1  # opponent re-entered stun = new hit connected
+                conv_hit_count     += 1      # re-entered stun = new hit
+                conv_last_opp_pct   = cur_o_pct
+            elif cur_o_pct > conv_last_opp_pct + 0.5:
+                conv_hit_count     += 1      # damage while already in stun = multi-hit
+                conv_last_opp_pct   = cur_o_pct
             player_reset_ctr = 0
         elif player_conv_active:
             if o_ctrl[i] or player_reset_ctr > 0:
@@ -272,6 +279,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                     conv_start_pct     = -1.0
                     conv_start_stocks  = -1
                     conv_hit_count     = 0
+                    conv_last_opp_pct  = -1.0
 
         # Stock loss ends our active conversion (kill)
         if i > 0 and int(o_stocks[i]) < int(o_stocks[i - 1]) and player_conv_active:
@@ -282,6 +290,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
             conv_start_pct     = -1.0
             conv_start_stocks  = -1
             conv_hit_count     = 0
+            conv_last_opp_pct  = -1.0
 
         prev_o_stun = cur_o_stun
 
