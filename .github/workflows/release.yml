@@ -79,9 +79,14 @@ jobs:
           Write-Host "=== latest.json ==="
           Write-Host $json
 
+          $isPreRelease = $tag -match '-beta'
+          $title = if ($isPreRelease) { "Beta: Slippi Ranked Stats $tag" } else { "Slippi Ranked Stats $tag" }
+          $preReleaseFlag = if ($isPreRelease) { "--prerelease" } else { "" }
+
           gh release delete $tag --yes 2>$null
           gh release create $tag `
-            --title "Slippi Ranked Stats $tag" `
+            --title $title `
             --notes-file release-notes.md `
+            $(if ($isPreRelease) { "--prerelease" }) `
             "$exePath" `
             latest.json

@@ -1,18 +1,21 @@
-## What's New
+## What's New in v1.4.0
 
-### Last Session tab overhaul
-- Added **Game W/L**, **Game Win %**, and **Game Wins / Hour** stat cards
-- New **Session Breakdown** card showing score distribution (2-0 / 2-1 / 1-2 / 0-2), Game 1 win rate, and Deciding Game win rate
-- Sets This Session and Session Breakdown now sit side by side
-- Stage Win % is now calculated per game (was per set)
-- Replaced Characters Faced chart with the Momentum chart — characters are already visible in the sets table
-- Momentum chart now has labelled axes
+### 📝 Grading tab (new)
+Every completed ranked set now gets a letter grade — **S through F** — based on how your stats compare to community baselines built from 220,000+ Slippi replays.
+
+- **Three scored categories**: Neutral (40%), Punish (40%), Defense (20%)
+- **14 individual stats** with per-stat weights — Damage/Opening and Openings/Kill carry the most weight in Punish
+- **Matchup-specific baselines** when enough data exists for your character vs. opponent character, falling back to character-wide or overall baselines
+- **Win bonus**: +5 to your overall score for winning the set
+- Grade history persists across sessions; stale grades (from old baselines) are flagged with a one-click regrade button
+- Filter by grade letter, W/L result, character matchup; sort by date or score
 
 ### Other improvements
-- App now starts at 125% zoom by default
-- Rating History tab is now free for all users — only the Live Session tab requires Patreon support
-- Premium gate now clearly states that **any Patreon tier** unlocks the Live Session tab
+- **Tab renamed and reordered**: Live Session moved to the end; Grading is now tab 5
+- **Connect code switching**: Switching your connect code now correctly reloads grade history for the new code
 
 ---
 
-Download the installer below to get started. Once installed, future updates are delivered automatically through the app.
+> **This is a beta build.** Grades and weights may change as we gather feedback. Please report any issues or suggestions.
+
+Download the installer below. Once installed, future stable updates are delivered automatically through the app.
