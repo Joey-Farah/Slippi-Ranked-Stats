@@ -81,18 +81,18 @@
 
     <button
       type="button"
-      onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
+      onclick={() => openUrl("https://ko-fi.com/joeydonuts")}
       style="
         width: 100%; margin-top: 12px; padding: 10px 14px;
-        background: linear-gradient(135deg, #7c3aed22, #FF424D22);
-        border: 1px solid #7c3aed55; border-radius: 8px;
+        background: linear-gradient(135deg, #29ABE022, #7c3aed22);
+        border: 1px solid #29ABE055; border-radius: 8px;
         color: var(--text); font-family: inherit; cursor: pointer;
         display: flex; align-items: center; justify-content: center; gap: 8px;
         font-size: 12px; font-weight: 600;
       "
     >
       <span style="font-size: 14px">🔒</span>
-      Unlock category breakdown + per-stat scores with Patreon
+      Unlock category breakdown + per-stat scores
     </button>
   {:else}
   <!-- Category rows -->

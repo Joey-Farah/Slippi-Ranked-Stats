@@ -8,6 +8,9 @@
     discordToken, discordUsername,
   } from "../lib/store";
   import { startDiscordAuth, verifyPatronRole, disconnectDiscord } from "../lib/discord";
+
+  const KOFI_URL    = "https://ko-fi.com/joeydonuts";
+  const PATREON_URL = "https://www.patreon.com/joeydonuts";
   import { getDb } from "../lib/db";
   import { getRankTier } from "../lib/parser";
   import { scanDirectory, cancelScan } from "../lib/parser";
@@ -249,17 +252,27 @@
         {/if}
       </div>
       <button
-        onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
+        onclick={() => openUrl(KOFI_URL)}
         style="
           display:flex; align-items:center; justify-content:center; gap:7px;
           width:100%; padding:9px;
-          background:#FF424D; color:#fff;
+          background:#29ABE0; color:#fff;
           border:none; border-radius:6px;
-          font-size:12px; font-weight:700; cursor:pointer;
+          font-size:12px; font-weight:700; cursor:pointer; margin-bottom:4px;
+        "
+      >☕ Ko-fi</button>
+      <button
+        onclick={() => openUrl(PATREON_URL)}
+        style="
+          display:flex; align-items:center; justify-content:center; gap:7px;
+          width:100%; padding:9px;
+          background:var(--card); color:var(--muted);
+          border:1px solid var(--border); border-radius:6px;
+          font-size:12px; font-weight:600; cursor:pointer;
         "
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M14.82 2.41C11.25 2.41 8.35 5.31 8.35 8.88c0 3.56 2.9 6.46 6.47 6.46 3.56 0 6.46-2.9 6.46-6.46 0-3.57-2.9-6.47-6.46-6.47zM3.19 21.59h2.52V2.41H3.19v19.18z"/></svg>
-        Support on Patreon
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M14.82 2.41C11.25 2.41 8.35 5.31 8.35 8.88c0 3.56 2.9 6.46 6.47 6.46 3.56 0 6.46-2.9 6.46-6.46 0-3.57-2.9-6.47-6.46-6.47zM3.19 21.59h2.52V2.41H3.19v19.18z"/></svg>
+        Patreon
       </button>
 
     {:else}
@@ -278,24 +291,30 @@
           ">1</div>
           <div style="flex:1">
             <button
-              onclick={() => openUrl("https://www.patreon.com/joeydonuts")}
+              onclick={() => openUrl(KOFI_URL)}
               style="
                 display:flex; align-items:center; gap:6px;
                 width:100%; padding:7px 10px;
-                background:#FF424D; color:#fff;
+                background:#29ABE0; color:#fff;
                 border:none; border-radius:6px;
-                font-size:12px; font-weight:700; cursor:pointer; text-align:left;
+                font-size:12px; font-weight:700; cursor:pointer; text-align:left; margin-bottom:4px;
+              "
+            >☕ Ko-fi</button>
+            <button
+              onclick={() => openUrl(PATREON_URL)}
+              style="
+                display:flex; align-items:center; gap:6px;
+                width:100%; padding:7px 10px;
+                background:var(--card); color:var(--muted);
+                border:1px solid var(--border); border-radius:6px;
+                font-size:12px; font-weight:600; cursor:pointer; text-align:left;
               "
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M14.82 2.41C11.25 2.41 8.35 5.31 8.35 8.88c0 3.56 2.9 6.46 6.47 6.46 3.56 0 6.46-2.9 6.46-6.46 0-3.57-2.9-6.47-6.46-6.47zM3.19 21.59h2.52V2.41H3.19v19.18z"/></svg>
-              Support on Patreon
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M14.82 2.41C11.25 2.41 8.35 5.31 8.35 8.88c0 3.56 2.9 6.46 6.47 6.46 3.56 0 6.46-2.9 6.46-6.46 0-3.57-2.9-6.47-6.46-6.47zM3.19 21.59h2.52V2.41H3.19v19.18z"/></svg>
+              Patreon
             </button>
             <div style="font-size:10px; color:var(--muted); margin-top:3px; padding-left:2px; line-height:1.4">
-              Any tier unlocks the Live Session tab. Then join the Discord server (link on the Patreon page) and
-              <button
-                onclick={() => openUrl("https://support.patreon.com/hc/en-us/articles/212052266-Getting-Discord-access")}
-                style="background:none; border:none; color:var(--muted); font-size:10px; cursor:pointer; text-decoration:underline; padding:0"
-              >connect your Patreon to Discord</button>.
+              Any tier unlocks premium. Then connect your Discord to verify.
             </div>
           </div>
         </div>
@@ -317,7 +336,7 @@
               Connect Discord
             </button>
             <div style="font-size:10px; color:var(--muted); margin-top:3px; padding-left:2px">
-              Verify your patron role to unlock premium features.
+              Verify your supporter role to unlock premium features.
             </div>
           </div>
         </div>

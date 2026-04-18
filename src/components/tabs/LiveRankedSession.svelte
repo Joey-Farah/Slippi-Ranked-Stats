@@ -85,7 +85,7 @@
 {#if !$isPremium}
   <PremiumGate
     featureName="Live Session Tracking"
-    description="NOW PLAYING, per-game stats (openings/kill, neutral win rate), and session rating delta are available to Patreon supporters. Sign up for any tier at patreon.com/joeydonuts to unlock access."
+    description="NOW PLAYING, per-game stats (openings/kill, neutral win rate), and session rating delta are premium features. Support on Ko-fi or Patreon to unlock access."
   />
 
 {:else}
