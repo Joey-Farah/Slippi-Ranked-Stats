@@ -77,7 +77,7 @@
         {isConnecting ? "Opening Discord…" : "Connect Discord"}
       </button>
       <div style="font-size:11px; color:var(--muted); text-align:center; line-height:1.6">
-        Make sure your membership is linked to Discord first:<br/>
+        Having trouble connecting with Discord? Check out these support articles:<br/>
         <button onclick={() => openUrl("https://support.patreon.com/hc/en-us/articles/212052266")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Patreon → Discord</button>
         &nbsp;·&nbsp;
         <button onclick={() => openUrl("https://help.ko-fi.com/hc/en-us/articles/8664701197073-How-do-supporters-join-my-Discord-server#how-do-supporters-join-my-discord-server--0-0")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Ko-fi → Discord</button>
@@ -135,7 +135,7 @@
         "
       >{isRechecking ? "Checking…" : "Re-check Discord role"}</button>
       <div style="font-size:11px; color:var(--muted); text-align:center; line-height:1.6">
-        Make sure your membership is linked to Discord:<br/>
+        Having trouble connecting with Discord? Check out these support articles:<br/>
         <button onclick={() => openUrl("https://support.patreon.com/hc/en-us/articles/212052266")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Patreon → Discord</button>
         &nbsp;·&nbsp;
         <button onclick={() => openUrl("https://help.ko-fi.com/hc/en-us/articles/8664701197073-How-do-supporters-join-my-Discord-server#how-do-supporters-join-my-discord-server--0-0")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Ko-fi → Discord</button>
