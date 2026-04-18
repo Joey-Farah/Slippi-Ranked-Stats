@@ -285,7 +285,7 @@
 
 {#if !$isPremium}
   <div class="card" style="margin-bottom: 16px; border-color: #7c3aed44">
-    <div style="display: flex; align-items: center; gap: 24px">
+    <div style="display: flex; align-items: flex-start; gap: 24px">
 
       <!-- Left: text -->
       <div style="flex: 1; min-width: 0">
