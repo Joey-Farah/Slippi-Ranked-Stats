@@ -281,7 +281,7 @@
         Make sure your membership is linked to Discord:<br/>
         <button onclick={() => openUrl("https://support.patreon.com/hc/en-us/articles/212052266")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Patreon → Discord</button>
         &nbsp;·&nbsp;
-        <button onclick={() => openUrl("https://help.ko-fi.com/hc/en-us/articles/8664701838737")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Ko-fi → Discord</button>
+        <button onclick={() => openUrl("https://help.ko-fi.com/hc/en-us/articles/360020363857-Setting-up-Discord-rewards-with-Ko-fi")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Ko-fi → Discord</button>
       </div>
 
     {:else}
@@ -351,7 +351,7 @@
               Link your membership to Discord first:<br/>
               <button onclick={() => openUrl("https://support.patreon.com/hc/en-us/articles/212052266")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Patreon → Discord</button>
               &nbsp;·&nbsp;
-              <button onclick={() => openUrl("https://help.ko-fi.com/hc/en-us/articles/8664701838737")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Ko-fi → Discord</button>
+              <button onclick={() => openUrl("https://help.ko-fi.com/hc/en-us/articles/360020363857-Setting-up-Discord-rewards-with-Ko-fi")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Ko-fi → Discord</button>
             </div>
           </div>
         </div>
