@@ -285,22 +285,16 @@
 
 {#if !$isPremium}
   <div class="card" style="margin-bottom: 16px; border-color: #7c3aed44">
-    <div style="display: flex; align-items: flex-start; gap: 24px">
-
-      <!-- Left: text -->
+    <div style="display: flex; align-items: flex-start; gap: 10px">
+      <span style="font-size: 22px; line-height: 1; margin-top: 1px">🔒</span>
       <div style="flex: 1; min-width: 0">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px">
-          <span style="font-size: 22px; line-height: 1">🔒</span>
-          <div style="font-size: 14px; font-weight: 700">Unlock the full grade breakdown</div>
-        </div>
-        <div style="font-size: 12px; color: var(--muted); line-height: 1.6">
+        <div style="font-size: 14px; font-weight: 700; margin-bottom: 4px">Unlock the full grade breakdown</div>
+        <div style="font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 12px">
           You're seeing the overall letter and weakest category. Premium adds per-category scores,
           the full 14-stat breakdown, and matchup-specific baselines.
         </div>
-      </div>
 
-      <!-- Right: buttons -->
-      <div style="flex: 0 0 220px; display: flex; flex-direction: column; gap: 7px">
+        <div style="display: flex; flex-direction: column; gap: 7px; max-width: 260px">
         {#if !$discordToken}
           <button
             type="button"
@@ -408,6 +402,7 @@
             <button onclick={() => openUrl("https://help.ko-fi.com/hc/en-us/articles/8664701197073-How-do-supporters-join-my-Discord-server#how-do-supporters-join-my-discord-server--0-0")} style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-family:inherit">Ko-fi → Discord</button>
           </div>
         {/if}
+        </div>
       </div>
     </div>
   </div>
