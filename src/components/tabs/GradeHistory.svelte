@@ -287,14 +287,14 @@
   <div class="card" style="margin-bottom: 16px; border-color: #7c3aed44">
     <div style="display: flex; align-items: flex-start; gap: 10px">
       <span style="font-size: 22px; line-height: 1; margin-top: 1px">🔒</span>
-      <div style="flex: 1; min-width: 0">
+      <div style="max-width: 420px">
         <div style="font-size: 14px; font-weight: 700; margin-bottom: 4px">Unlock the full grade breakdown</div>
         <div style="font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 12px">
           You're seeing the overall letter and weakest category. Premium adds per-category scores,
           the full 14-stat breakdown, and matchup-specific baselines.
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 7px; max-width: 260px">
+        <div style="display: flex; flex-direction: column; gap: 7px;">
         {#if !$discordToken}
           <button
             type="button"
