@@ -286,8 +286,11 @@
 
     {:else}
       <!-- Not connected — show the 2-step unlock flow -->
-      <div style="font-size:11px; font-weight:700; color:var(--muted); letter-spacing:0.05em; margin-bottom:10px; text-transform:uppercase">
+      <div style="font-size:11px; font-weight:700; color:var(--muted); letter-spacing:0.05em; margin-bottom:4px; text-transform:uppercase">
         Unlock Premium
+      </div>
+      <div style="font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:10px">
+        Live session tracking, set grades with per-category breakdown, and matchup-specific baselines.
       </div>
       <div style="display:flex; flex-direction:column; gap:7px">
         <!-- Step 1 -->

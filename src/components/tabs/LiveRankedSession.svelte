@@ -85,7 +85,7 @@
 {#if !$isPremium}
   <PremiumGate
     featureName="Live Session Tracking"
-    description="NOW PLAYING, per-game stats (openings/kill, neutral win rate), and session rating delta are premium features. Support on Ko-fi or Patreon to unlock access."
+    description="Live session tracking includes NOW PLAYING, per-game stats (openings/kill, neutral win rate), and session rating delta. Premium also unlocks in-depth set grades with per-category scores and a full 14-stat breakdown in the Grading tab. Support on Ko-fi or Patreon to unlock access."
   />
 
 {:else}
