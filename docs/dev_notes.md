@@ -6,46 +6,47 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## Set Grading System (in progress, dev-only)
+## Set Grading System
 
-Wired end-to-end and gated behind `$isPremium`. Visible to all premium users in production.
+Wired end-to-end, gated behind `$isPremium`. Visible to all premium users in production.
 
 ### What's built
 
-- **`src/lib/grading.ts`** — `gradeSet(games, playerChar, opponentChar, setResult, wins, losses)` returns a `SetGrade` with overall letter/score, four category grades (Neutral, Punish, Defense, Execution), and per-stat breakdowns. Categories are equally weighted; stats within a category are equally weighted.
+- **`src/lib/grading.ts`** — `gradeSet(games, playerChar, opponentChar, setResult, wins, losses)` returns a `SetGrade` with overall letter/score, three category grades (Neutral, Punish, Defense), and per-stat breakdowns.
 - **`src/lib/grade-benchmarks.ts`** — Generated from `scripts/grade_baselines.json`. Three-tier benchmark structure: `by_matchup[playerChar][oppChar]` → `by_player_char[playerChar]` → `by_player_char["_overall"]`. Characters with fewer than 20 samples fall back to the next tier.
-- **`src/components/SetGradeDisplay.svelte`** — Renders the overall grade card + category rows. Iterates `CATEGORY_DEFS` from grading.ts so display always matches the grading logic. Shows "matchup baseline" / "overall baseline" annotation when applicable.
-- **Watcher integration** (`src/lib/watcher.ts`, `handleRankedGame`) — When a set completes during a live watcher session, calls `gradeSet` against in-memory `liveGameStats` and writes the result to `lastSetGrade`. Shown in Live Session tab for premium users.
-- **Set Grades tab** (`src/components/tabs/GradeHistory.svelte`) — "Grade New Sets" button re-parses ungraded completed sets, shows a compact table (Date / Opponent / Result / Score / Grade letter), distribution summary, and expandable `SetGradeDisplay` on click. Filters: grade letter, W/L result, player char (shown when player uses multiple chars), opponent char. Sort: date or score. Grades are persisted to DB and hydrated on mount. Stale grades (old baseline version) show an orange indicator and a "Regrade stale (N)" button.
+- **`src/components/SetGradeDisplay.svelte`** — Renders the overall grade card + category rows. Shows "matchup baseline" / "overall baseline" annotation when applicable.
+- **Watcher integration** (`src/lib/watcher.ts`, `handleRankedGame`) — When a set completes during a live watcher session, calls `gradeSet` and writes the result to `lastSetGrade`. Shown in Live Session tab for premium users.
+- **Grading tab** (`src/components/tabs/GradeHistory.svelte`) — "Grade New Sets" button re-parses ungraded completed sets. Filters: grade letter, W/L result, player char, opponent char. Sort: date or score. Grades persisted to DB, hydrated on mount without eager clear (no tab-switch flash). Stale grades show an orange ⟳ indicator and a "Regrade stale (N)" button.
 
 ### How grading works
 
-For each stat in a completed set, `percentileScore(value, thresholds, inverted)` linearly interpolates between bench percentiles to produce a 0–100 score. Letter grade thresholds: S ≥ 95, A ≥ 90, B ≥ 75, C ≥ 50, D ≥ 25, F < 25.
+For each stat, `percentileScore(value, thresholds, inverted)` linearly interpolates between bench percentiles to produce a 0–100 score. Letter grade thresholds: S ≥ 95, A ≥ 90, B ≥ 75, C ≥ 50, D ≥ 25, F < 25.
 
-**Algorithm details (as of current session):**
+**Algorithm details:**
 - `INVERTED_STATS`: `openings_per_kill`, `avg_kill_percent`, `wavedash_miss_rate` (lower = better)
-- `avg_kill_percent` and `avg_death_percent` are **skipped** when `baselineSource === "overall"` — the `_overall` bucket has identical values for both by symmetric pooling, making scores misleading. Only scored with character-specific data.
-- **Win bonus**: +5 added to the composite score for a set win (capped at 100). Winning a set reflects adaptability and reads not captured by raw metrics.
-- **Benchmark lookup**: matchup (player × opp) → player char → `_overall`. The display shows which tier was used.
-- **Category weights**: Neutral 40%, Punish 40%, Defense 20%. Execution category removed — its three stats are display-only and not scored.
-- **Per-stat weights**: D/O 30%, OPK 30%, Edgeguard 15%, Kill% 15%, Tech Chase 5%, Hit Advantage 5% (Punish); NWR 30%, OCR 30%, Stage Control 15%, Lead Maintenance 15%, Comeback 10% (Neutral); Recovery 35%, Death% 30%, Stock Duration 20%, Respawn Defense 15% (Defense).
+- `avg_kill_percent` and `avg_death_percent` skipped when `baselineSource === "overall"` (symmetric pooling makes scores misleading)
+- **Win bonus**: +5 to composite score for a set win (capped at 100)
+- **Benchmark lookup**: matchup (player × opp) → player char → `_overall`
+- **Category weights**: Neutral 35%, Punish 35%, Defense 25%, Execution 5% (execution stats are display-only, not scored)
+- **Per-stat weights (Neutral)**: NWR 30%, OCR 30%, Stage Control 15%, Lead Maintenance 15%, Comeback 10%
+- **Per-stat weights (Punish)**: D/O 30%, OPK 30%, Edgeguard 15%, Kill% 15%, Tech Chase 5%, Hit Advantage 5%
+- **Per-stat weights (Defense)**: Recovery 35%, Death% 30%, Stock Duration 20%, Respawn Defense 15%
 
 **Stats by category (18 total):**
-| Category  | Stats                                                                                                 |
-|-----------|-------------------------------------------------------------------------------------------------------|
+| Category  | Stats |
+|-----------|-------|
 | Neutral   | `neutral_win_ratio`, `opening_conversion_rate`, `stage_control_ratio`, `lead_maintenance_rate`, `comeback_rate` |
 | Punish    | `damage_per_opening`, `openings_per_kill`, `avg_kill_percent`, `edgeguard_success_rate`, `tech_chase_rate`, `hit_advantage_rate` |
-| Defense   | `avg_death_percent`, `recovery_success_rate`, `avg_stock_duration`, `respawn_defense_rate`             |
-| Execution | `l_cancel_ratio`, `inputs_per_minute`, `wavedash_miss_rate`                                           |
+| Defense   | `avg_death_percent`, `recovery_success_rate`, `avg_stock_duration`, `respawn_defense_rate` |
+| Execution | `l_cancel_ratio`, `inputs_per_minute`, `wavedash_miss_rate` (display-only) |
 
-**All-character baselines** generated from full HuggingFace dataset (221,603 replays across all 25 characters, 430k samples). All 18 stats have real benchmarks including `wavedash_miss_rate` (state ID bugs fixed and rescan completed 2026-04-17).
+**Baselines (as of 2026-04-18):** Full HuggingFace rescan completed — 177,538 replays, 345,012 samples, 26 characters, 183 matchup entries. Uses `lastHitBy` kill attribution and both OCR fixes. Validated against slippi-js on 256 games: OPK/Kill%/L-cancel 99%+ exact, D/O 96% ≤1 dmg, NWR 88% ≤3pp, OCR 81% ≤3pp.
 
-### Open issues before shipping
+### Premium gating
 
-1. ~~Low per-char sample sizes~~ **Resolved.** Full dataset parse covers all 25 characters with 26 having ≥50 samples, 283 matchup entries.
-2. ~~`inputs_per_minute` placeholder~~ **Resolved.** All 18 stats have real community baselines.
-3. ~~**Full `--character ALL` rescan needed.**~~ **Resolved.** Rescan completed 2026-04-17 (221,603 replays, 430k samples). All parser bug fixes (OPK, L-cancel, IPM, DEFENSIVE_STATES, wavedash state IDs) are reflected in current baselines.
-4. **Grade history persistence — built.** `set_grades` table in the per-connect-code SQLite DB. Grades are saved on every successful grade in `GradeHistory.svelte` and from the live watcher (DEV only). On mount, `GradeHistory.svelte` hydrates the store from DB. Stale grades (different `baseline_version`) show an orange ⟳ indicator and a "Regrade stale (N)" button. Design notes at [`docs/set_grades_persistence.md`](./set_grades_persistence.md) are still accurate as reference.
+- Ko-fi (`ko-fi.com/joeydonuts`) and Patreon (`patreon.com/joeydonuts`) both supported, Patreon listed first everywhere
+- Discord role verified via OAuth (`src/lib/discord.ts`)
+- Sidebar, PremiumGate, GradeHistory, LiveRankedSession all updated with consistent Ko-fi + Patreon buttons and Discord help links
 
 ### Stat fixes applied (match slippi-js exactly)
 
@@ -62,34 +63,7 @@ All fixes are committed. Live parser (`slp_parser.ts`) and Python pipeline (`par
 | OCR (first fix) | Used ≥20% damage threshold to define "successful conversion" | Changed to `convHitCount >= 2` (re-entries into hitstun), matching slippi-js `moves.length > 1` |
 | OCR (second fix) | Multi-hit moves (Falco dair, shine repeats) appear as continuous hitstun in frame data — re-entry check missed them | Added percent-increase check: if `opp.percent > convLastOppPercent + 0.5` while already in stun, count as new hit |
 
-**Bulk validation (256 games):**
-- L-cancel 100% exact, IPM 100% within 2/min ✓
-- D/O 96% within 1 dmg (avg +0.39 overcount; methodological difference — consistent between benchmark and live) ✓
-- NWR 88% within 3pp, OCR 81% within 3pp (slight systematic overcount) ✓
-- OPK 99% within 0.10/kill, Kill% 99% within 1pp (after `lastHitBy` fix below) ✓
-
-| Stat | Bug | Fix |
-|------|-----|-----|
-| L-cancel | Counted every frame in aerial state (inflated) | Now counts once per new aerial-action transition (states 65–74), matching slippi-js `isNewAction` guard |
-| IPM | Counted button state-changes (`diff != 0`) | Now Hamming weight of rising edges on 12 digital buttons (`(~prev & cur) & 0xfff`), matching `buttonInputCount` |
-| IPM (rollback) | Rollback frames caused duplicate pre-frame events, inflating count | `maxPreFrame` guard: skip pre-frame events for already-seen frame numbers |
-| NWR | Used `oppConvActive` state flag (approximate) | Now tracks `playerNeutralWins/oppNeutralWins` — neutral-win iff opponent wasn't actively converting when conversion started |
-| OPK | Dying state (0–10) is neither stun nor control; conversion lingered through respawn, causing next conversion to be missed | Terminate conversion immediately on stock loss (detects `opp.stocks < prev`), matching slippi-js |
-| OPK/Kill%/Death% | Used `4 - finalStocks` for kill count and all stock losses for Kill% — included opponent SDs | Now uses `lastHitBy` from post-frame byte 31: stock loss attributed as player kill only when `opp.lastHitBy === playerPort`, matching slippi-js exactly |
-| Conversion data | Rollback post-frame duplicates in `frameData` inflated conversion counts | Deduplicate `frameData` per port by keeping last occurrence of each frame number |
-| OCR (first fix) | Used ≥20% damage threshold to define "successful conversion" | Changed to `convHitCount >= 2` (re-entries into hitstun), matching slippi-js `moves.length > 1` |
-| OCR (second fix) | Multi-hit moves (Falco dair, shine repeats) appear as continuous hitstun in frame data — re-entry check missed them | Added percent-increase check: if `opp.percent > convLastOppPercent + 0.5` while already in stun, count as new hit |
-
-OCR accuracy after both fixes: **10/12 games exact, avg gap 0.7%, max gap 5.3%** vs slippi-js `successfulConversions.ratio`.
-
-### Pending: full benchmark rescan (next scheduled run)
-
-Current benchmarks used the old kill definition (`4 - finalStocks`, includes SDs). Live parser now uses `lastHitBy` attribution. OCR is already scored (no longer in `DISPLAY_ONLY_STATS`). Steps when ready to rescan:
-
-1. Run full rescan: `python3 scripts/parse_hf_replays.py --character ALL --batch-size 500 --dl-workers 8` (~6.5 hours)
-2. Run `python3 scripts/regen_benchmarks.py`
-3. Commit updated `scripts/grade_baselines.json` and `src/lib/grade-benchmarks.ts`
-4. Push — stale indicator in-app triggers regrade for all users on next open
+~~**Pending: full benchmark rescan**~~ **Resolved 2026-04-18.** Rescan completed with `lastHitBy` kill attribution and both OCR fixes reflected in benchmarks.
 
 ---
 
