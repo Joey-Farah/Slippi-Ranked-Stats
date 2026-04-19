@@ -6,6 +6,40 @@ Newest first.
 
 ---
 
+## 2026-04-18/19 — Ko-fi, benchmark rescan, UI polish, beta.2 release (v1.4.0-beta.2)
+
+**Machine:** Windows
+
+### Product decisions made
+
+- **Ko-fi added as a premium payment option.** Patreon listed first everywhere (red), Ko-fi second (blue). Discord role verification works for both. Help links point to platform-specific support articles (Patreon: support.patreon.com/…/212052266, Ko-fi: help.ko-fi.com/…/8664701197073).
+- **Category weights adjusted to 35/35/25.** Neutral 35%, Punish 35%, Defense 25% (was 40/40/20). Better reflects that defense is meaningful but slightly secondary.
+- **Benchmark rescan completed.** Full HuggingFace rescan with corrected `lastHitBy` kill attribution and both OCR fixes: 177,538 replays, 345,012 samples, 26 characters, 183 matchup entries. `opening_conversion_rate` is now benchmark-accurate and fully scored (removed from display-only list).
+- **OCR accuracy ceiling acknowledged.** 81% of games ≤3pp vs slippi-js. Frame-level vs move-level data is the hard limit — no code change will close this gap without access to slippi-js move data. Acceptable for grading purposes.
+- **Tab-switch flash fixed at the store level.** Root cause: `gradeHistory.set([])` at effect start caused blank render on remount. Removed the eager clear; store persists across tab switches, data hydrates from DB on mount without wiping first.
+
+### Changes made
+
+- **`src/components/tabs/GradeHistory.svelte`** — Connected/no-role state: Patreon first (red #FF424D), Ko-fi second (#29ABE0), Discord help links added. Unlock card redesigned to 3-column horizontal layout (text | support buttons | Discord links). Removed eager `gradeHistory.set([])` to fix tab-switch flash. Description updated to mention Live Session tab.
+- **`src/components/Sidebar.svelte`** — Connected/no-role state: Patreon first, Ko-fi second, help links added. Unlock flow: Patreon first, Ko-fi second in Step 1. Button text centered (added `justify-content: center`). Added feature summary under "UNLOCK PREMIUM" heading. "Patron" → "Premium" in connected state display.
+- **`src/components/PremiumGate.svelte`** — Ko-fi URL corrected (supporter-facing article). Help text updated to "Having trouble connecting with Discord? Check out these support articles:".
+- **`src/components/tabs/LiveRankedSession.svelte`** — PremiumGate description updated to cross-mention Grading tab set breakdown.
+- **`src/lib/grading.ts`** — `CATEGORY_WEIGHTS` updated to `{ neutral: 0.35, punish: 0.35, defense: 0.25 }`. `opening_conversion_rate` removed from `DISPLAY_ONLY_STATS`.
+- **`src/lib/grade-benchmarks.ts`** — Regenerated from rescan (177k replays, both OCR fixes, `lastHitBy` attribution).
+- **`scripts/grade_baselines.json`** — Updated by rescan.
+- **`CLAUDE.md`** — Added Security section: never read `.env`, `*.pem`, `*.key`, `credentials.*`, etc.
+- **`docs/dev_notes.md`** — Updated category weights, per-stat weights, baseline counts; marked rescan resolved; added premium gating section; cleaned up stat-fixes table.
+- **`release-notes.md`** — Updated for v1.4.0-beta.2 (correct weights, Ko-fi, 18 stats, UI polish).
+
+### Commits this session
+- `df2a9f6` — Update dev_notes: reflect rescan completion, Ko-fi addition, current state
+- `20d5026` — Update release-notes.md for v1.4.0-beta.2
+
+### Release
+- Tag `v1.4.0-beta.2` pushed; GitHub Actions built and signed the installer; release notes patched via `gh release edit` after workflow completed.
+
+---
+
 ## 2026-04-18 — Grading overhaul, UI polish, beta release (v1.4.0-beta.1)
 
 **Machine:** Windows
