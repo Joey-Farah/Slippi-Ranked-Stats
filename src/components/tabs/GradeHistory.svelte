@@ -50,13 +50,12 @@
 
   $effect(() => {
     const code = $connectCode;
-    gradeHistory.set([]);
-    if (!code) return;
+    if (!code) { gradeHistory.set([]); return; }
     (async () => {
       try {
         const db = await getDb(code);
         const rows = await getAllSetGrades(db);
-        if (rows.length > 0) gradeHistory.set(rows.map(rowToEntry));
+        gradeHistory.set(rows.map(rowToEntry));
       } catch { /* DB not ready yet — will populate on first grade */ }
     })();
   });
