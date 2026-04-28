@@ -270,6 +270,12 @@
     </div>
   {/if}
 
+  {#if $statusMessage}
+    <div class="sidebar-section" style="font-size:11px; color:var(--muted); word-break:break-word">
+      {$statusMessage}
+    </div>
+  {/if}
+
 
 
 

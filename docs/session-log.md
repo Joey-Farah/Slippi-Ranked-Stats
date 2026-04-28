@@ -6,6 +6,47 @@ Newest first.
 
 ---
 
+## 2026-04-28 — Mac dev environment + multi-code scan bug diagnosed
+
+**Machine:** Mac
+
+### What happened
+
+- Set up Tauri dev environment on Mac (`npm install` + `npm run tauri dev`). App launches, Discord premium verifies, Get Current Rating works, scan path works after the fix below. Compile took 2m 30s on first build; subsequent launches are fast.
+- HMR can leave Tauri ↔ Rust callback state stale across hot reloads — fixed by Cmd+R in the app window. Not a code bug, just a dev-mode quirk to remember.
+- Tester reported "ranked replays in folder, app misses some." Reproduced on Mac with their 10 test `.slp` files.
+
+### Bug found: multi-code scanning
+
+Scan only ingests for `$connectCode` (primary). Linked codes are unioned at display time but never at ingest. Compounded by `scanned_files` table being keyed on filename only — files dropped under primary-only logic are stuck on the "already scanned" list and never re-tried after adding a linked code.
+
+**Full diagnosis trail and fix design lives in [`docs/multi-code-scan-fix.md`](multi-code-scan-fix.md).** That doc is the working spec — pick it up there to implement on Windows.
+
+### Side fix shipped this session
+
+`statusMessage` writable was being `.set()` from five places in `Sidebar.svelte` but never rendered anywhere — every scan/rescan/rating-fetch result was silent. Added a one-line render below the scan progress bar so the message actually shows. This was the only thing masking the multi-code bug for so long.
+
+### Untracked: `TestingSLPFiles/`
+
+Tester's 10 test `.slp` files. Added to `.gitignore`. Stay on local disk; not committed.
+
+### Other small things
+
+- `future-log.md`: added Mac distribution to Ideas; moved multi-code profiles + richer session history to Shipped (both shipped in v1.4.0).
+- `package-lock.json` and `Cargo.lock` resynced to match `package.json` / `tauri.conf.json` (was a pre-existing version drift).
+- New `src-tauri/gen/schemas/macOS-schema.json` (Tauri-generated, sibling to the already-tracked `windows-schema.json`).
+
+### Commits this session
+- `c01bc0b` — Mac dev setup: resync lockfiles, log Mac distribution as future feature
+- (next) — Show statusMessage in Sidebar; gitignore TestingSLPFiles; add multi-code scan fix design doc
+
+### Hand-off
+
+- Mac stays as a dev environment going forward. Joey will copy `.slp` files over for proper feature testing later.
+- Multi-code scan fix is **not started**. Work picks up on Windows from `docs/multi-code-scan-fix.md`. After implementation, cut a new release.
+
+---
+
 ## 2026-04-18/19 — Ko-fi, benchmark rescan, UI polish, beta.2 release (v1.4.0-beta.2)
 
 **Machine:** Windows
