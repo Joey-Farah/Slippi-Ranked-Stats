@@ -11,6 +11,7 @@ const PREMIUM_ROLE_IDS = new Set([
   "1195042365849731142",
   "1195043524463312917",
   "1195043810263175302",
+  "1495188057396219904", // Slippi Ranked Stats — auto-assigned to both Patreon and Ko-fi supporters
 ]);
 const REDIRECT_URI = "http://localhost:14523";
 

@@ -1,3 +1,11 @@
+## What's New in v1.4.3
+
+### Bug fixes
+
+- **Premium access for Ko-fi supporters**: Ko-fi supporters who connected their Discord weren't getting premium features unlocked, even though Discord correctly granted them the **Slippi Ranked Stats** role. The app's role check was only looking at the Patreon-specific tier roles, which Ko-fi supporters don't have. The check now recognizes the Slippi Ranked Stats role itself, so anyone the supporter bots have flagged as a supporter (Patreon or Ko-fi) gets premium access. Existing Patreon premium users are unaffected.
+
+---
+
 ## What's New in v1.4.2
 
 ### Bug fixes
