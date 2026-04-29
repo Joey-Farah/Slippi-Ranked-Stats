@@ -366,7 +366,7 @@
         Unlock Premium
       </div>
       <div style="font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:10px">
-        Live session tracking, set grades with per-category breakdown, and matchup-specific baselines.
+        Live session tracking, set grades with per-category breakdown, matchup grade averages, and matchup-specific baselines.
       </div>
       <div style="display:flex; flex-direction:column; gap:7px">
         <!-- Step 1 -->

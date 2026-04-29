@@ -196,7 +196,7 @@ export function scoreToGrade(score: number): GradeLetter {
   return "F";
 }
 
-function formatStatValue(key: string, value: number | null): string {
+export function formatStatValue(key: string, value: number | null): string {
   if (value === null) return "—";
   const PCT_STATS = new Set([
     "neutral_win_ratio", "l_cancel_ratio",

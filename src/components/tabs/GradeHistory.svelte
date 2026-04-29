@@ -8,10 +8,9 @@
   import { startDiscordAuth, verifyPatronRole } from "../../lib/discord";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { CHARACTERS, parseSlpFile } from "../../lib/parser";
-  import { gradeSet, scoreToGrade, type GradeLetter } from "../../lib/grading";
+  import { gradeSet, scoreToGrade, formatStatValue, CATEGORY_DEFS, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, type SetGradeRow } from "../../lib/db";
   import { BENCHMARKS_VERSION } from "../../lib/grade-benchmarks";
-  import type { SetGrade } from "../../lib/grading";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
 
   function rowToEntry(row: SetGradeRow): GradeHistoryEntry {
@@ -144,6 +143,81 @@
       case "score-asc":  h.sort((a, b) => (a.grade?.score ?? 101) - (b.grade?.score ?? 101)); break;
     }
     return h;
+  })());
+
+  // ── By Matchup view ────────────────────────────────────────────────────────
+
+  let viewMode = $state<"history" | "matchups">("history");
+  let selectedMatchupKey = $state<string | null>(null);
+
+  const CATEGORY_ORDER: CategoryKey[] = ["neutral", "punish", "defense"];
+
+  function avgCategoryScores(
+    entries: GradeHistoryEntry[],
+    key: CategoryKey
+  ): { avgScore: number | null; letter: GradeLetter | null } {
+    const scores = entries
+      .map((r) => r.grade!.categories[key].score)
+      .filter((s): s is number => s !== null);
+    if (scores.length === 0) return { avgScore: null, letter: null };
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    return { avgScore: avg, letter: scoreToGrade(avg) };
+  }
+
+  let matchupSummaries = $derived((() => {
+    const graded = activeHistory.filter((r) => r.grade !== null);
+    const groups = new Map<string, GradeHistoryEntry[]>();
+    for (const r of graded) {
+      const k = `${r.playerChar}::${r.opponentChar}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(r);
+    }
+
+    return [...groups.entries()].map(([key, entries]) => {
+      const [playerChar, opponentChar] = key.split("::");
+      const wins = entries.filter((r) => r.result === "win").length;
+      const rawAvg = entries.reduce((s, r) => s + r.grade!.score, 0) / entries.length;
+
+      const categories = {
+        neutral: avgCategoryScores(entries, "neutral"),
+        punish:  avgCategoryScores(entries, "punish"),
+        defense: avgCategoryScores(entries, "defense"),
+      };
+
+      const allStatKeys = CATEGORY_ORDER.flatMap((c) => CATEGORY_DEFS[c].stats) as (keyof SetGrade["breakdown"])[];
+
+      const statAvgs = new Map<
+        keyof SetGrade["breakdown"],
+        { avgValue: number | null; avgScore: number | null; letter: GradeLetter | null; label: string }
+      >();
+      for (const k of allStatKeys) {
+        const first = entries[0]?.grade?.breakdown[k];
+        if (!first) continue;
+        const scores = entries.map((r) => r.grade!.breakdown[k].score).filter((s): s is number => s !== null);
+        const values = entries.map((r) => r.grade!.breakdown[k].value).filter((v): v is number => v !== null);
+        const avgSc = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+        const avgVl = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+        statAvgs.set(k, {
+          avgValue: avgVl,
+          avgScore: avgSc,
+          letter: avgSc !== null ? scoreToGrade(avgSc) : null,
+          label: first.label,
+        });
+      }
+
+      return {
+        key,
+        playerChar,
+        opponentChar,
+        setCount: entries.length,
+        wins,
+        losses: entries.length - wins,
+        avgScore: Math.round(rawAvg * 10) / 10,
+        avgLetter: scoreToGrade(rawAvg),
+        categories,
+        statAvgs,
+      };
+    }).sort((a, b) => b.setCount - a.setCount);
   })());
 
   async function gradeAllSets(force = false) {
@@ -322,7 +396,7 @@
             <span style="color: #e74c3c; font-weight: 600">{$discordUsername ?? "Your account"}</span>
             {" "}isn't showing a supporter role. Just subscribed? Roles can take a few minutes to sync.
           {:else}
-            Premium adds per-category scores, the full 14-stat breakdown, matchup-specific baselines, and unlocks the Live Session tab.
+            Premium adds per-category scores, the full 14-stat breakdown, matchup grade averages, matchup-specific baselines, and unlocks the Live Session tab.
           {/if}
         </div>
       </div>
@@ -493,6 +567,149 @@
       </div>
     {/if}
   </div>
+
+  <!-- View toggle (premium + has graded data + not busy) -->
+  {#if $isPremium && activeHistory.filter((r) => r.grade !== null).length > 0 && !$gradeHistoryBusy}
+    <div style="display: flex; gap: 4px; margin-bottom: 12px">
+      {#each [["history", "History"], ["matchups", "By Matchup"]] as [mode, label]}
+        <button
+          type="button"
+          onclick={() => { viewMode = mode as "history" | "matchups"; selectedMatchupKey = null; }}
+          style="
+            padding: 6px 16px; font-size: 12px; font-weight: 700; border-radius: 6px;
+            border: 1px solid {viewMode === mode ? '#7c3aed' : 'var(--border)'};
+            background: {viewMode === mode ? '#7c3aed22' : 'transparent'};
+            color: {viewMode === mode ? '#7c3aed' : 'var(--muted)'};
+            cursor: pointer; font-family: inherit;
+          "
+        >{label}</button>
+      {/each}
+    </div>
+  {/if}
+
+  <!-- By Matchup view -->
+  {#if viewMode === "matchups" && $isPremium}
+    {#if matchupSummaries.length === 0}
+      <div style="text-align: center; padding: 48px 24px; color: var(--muted); font-size: 13px">
+        Grade some sets first to see matchup averages.
+      </div>
+    {:else}
+      <div class="card" style="padding: 0; overflow: hidden">
+
+        <!-- Column headers -->
+        <div style="
+          display: grid; grid-template-columns: 1fr 54px 72px 80px 48px 48px 48px 20px;
+          gap: 8px; padding: 10px 16px;
+          font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em;
+          border-bottom: 1px solid var(--border);
+        ">
+          <div>MATCHUP</div>
+          <div style="text-align: center">SETS</div>
+          <div>RECORD</div>
+          <div style="text-align: center">GRADE</div>
+          <div style="text-align: center">NEU</div>
+          <div style="text-align: center">PUN</div>
+          <div style="text-align: center">DEF</div>
+          <div></div>
+        </div>
+
+        {#each matchupSummaries as m (m.key)}
+          {@const isOpen = selectedMatchupKey === m.key}
+          <div style="border-bottom: 1px solid var(--border)">
+            <button
+              type="button"
+              onclick={() => { selectedMatchupKey = isOpen ? null : m.key; }}
+              style="
+                width: 100%; text-align: left; background: none; border: none;
+                display: grid; grid-template-columns: 1fr 54px 72px 80px 48px 48px 48px 20px;
+                align-items: center; gap: 8px; padding: 12px 16px;
+                border-left: 3px solid {isOpen ? gc(m.avgLetter) : 'transparent'};
+                background: {isOpen ? `${gc(m.avgLetter)}0d` : 'transparent'};
+                cursor: pointer; font-family: inherit; color: var(--text);
+              "
+            >
+              <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+                {m.playerChar} <span style="color: var(--muted); font-weight: 400">vs</span> {m.opponentChar}
+              </div>
+              <div style="font-size: 13px; color: var(--muted); text-align: center">{m.setCount}</div>
+              <div style="font-size: 13px; font-weight: 600">
+                <span style="color: #2ecc71">{m.wins}W</span>
+                <span style="color: var(--muted)">–</span>
+                <span style="color: #e74c3c">{m.losses}L</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 1px">
+                <div style="
+                  font-size: 18px; font-weight: 800; line-height: 1; color: {gc(m.avgLetter)};
+                  {m.avgLetter === 'S' ? `text-shadow: 0 0 8px ${gc(m.avgLetter)}aa;` : ''}
+                ">{m.avgLetter}</div>
+                <div style="font-size: 10px; color: var(--muted)">{m.avgScore.toFixed(0)}</div>
+              </div>
+              {#each CATEGORY_ORDER as cat}
+                {@const c = m.categories[cat]}
+                <div style="
+                  font-size: 14px; font-weight: 800; text-align: center;
+                  color: {c.letter ? gc(c.letter) : 'var(--muted)'};
+                ">{c.letter ?? "—"}</div>
+              {/each}
+              <div style="font-size: 11px; color: var(--muted); text-align: right; transition: transform 0.15s; transform: rotate({isOpen ? 180 : 0}deg)">▾</div>
+            </button>
+
+            <!-- Expanded per-stat breakdown -->
+            {#if isOpen}
+              <div style="padding: 4px 16px 16px">
+                {#each CATEGORY_ORDER as catKey}
+                  {@const catDef = CATEGORY_DEFS[catKey]}
+                  {@const catAvg = m.categories[catKey]}
+                  <div style="margin-bottom: 12px">
+                    <!-- Category header -->
+                    <div style="
+                      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+                      padding: 6px 0; border-bottom: 1px solid var(--border);
+                    ">
+                      <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: var(--text)">{catDef.label.toUpperCase()}</div>
+                      {#if catAvg.letter !== null}
+                        <div style="
+                          font-size: 12px; font-weight: 700; color: {gc(catAvg.letter)};
+                          background: {gc(catAvg.letter)}1a; border-radius: 4px; padding: 1px 7px;
+                        ">{catAvg.letter}</div>
+                        <div style="font-size: 12px; color: var(--muted)">{catAvg.avgScore?.toFixed(0)}</div>
+                      {/if}
+                    </div>
+                    <!-- Stat rows -->
+                    {#each catDef.stats as statKey}
+                      {@const stat = m.statAvgs.get(statKey)}
+                      {#if stat}
+                        <div style="
+                          display: grid; grid-template-columns: 1fr 80px 48px 28px;
+                          align-items: center; gap: 10px;
+                          background: var(--bg); border-radius: 6px; padding: 8px 12px; margin-bottom: 3px;
+                        ">
+                          <div>
+                            <div style="font-size: 13px; font-weight: 600">{stat.label}</div>
+                            <div style="font-size: 12px; color: var(--muted)">{formatStatValue(statKey, stat.avgValue)}</div>
+                          </div>
+                          <div style="height: 5px; background: var(--border); border-radius: 3px; overflow: hidden">
+                            {#if stat.avgScore !== null}
+                              <div style="height: 100%; border-radius: 3px; width: {stat.avgScore}%; background: {stat.letter ? gc(stat.letter) : 'var(--muted)'}"></div>
+                            {/if}
+                          </div>
+                          <div style="font-size: 12px; color: var(--muted); text-align: right">{stat.avgScore !== null ? stat.avgScore.toFixed(0) : "—"}</div>
+                          <div style="font-size: 14px; font-weight: 700; text-align: center; color: {stat.letter ? gc(stat.letter) : 'var(--muted)'}">{stat.letter ?? "—"}</div>
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
+                {/each}
+
+              </div>
+            {/if}
+
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+  {:else}
 
   {#if activeHistory.length > 0}
     <!-- Distribution summary -->
@@ -773,3 +990,5 @@
       Press "Grade All Sets" to score all {completedSets.length} completed sets.
     </div>
   {/if}
+
+  {/if}<!-- end {:else} history view -->

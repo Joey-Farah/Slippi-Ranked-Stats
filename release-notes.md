@@ -1,3 +1,11 @@
+## What's New in v1.4.4
+
+### New feature (Premium)
+
+- **Grading tab — By Matchup view**: A new "By Matchup" toggle in the Grading tab lets you see your average grade for every character matchup you've played. Each row shows your record, overall average grade, and average scores for Neutral, Punish, and Defense. Click any matchup to expand a full per-stat breakdown with average values and letter grades for all 15 scored stats.
+
+---
+
 ## What's New in v1.4.3
 
 ### Bug fixes
