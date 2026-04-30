@@ -6,7 +6,7 @@
     type GradeHistoryEntry, type LiveGameStats,
   } from "../../lib/store";
   import { startDiscordAuth, verifyPatronRole } from "../../lib/discord";
-  import { open as openUrl } from "@tauri-apps/plugin-shell";
+  import { invoke } from "@tauri-apps/api/core";
   import { CHARACTERS, parseSlpFile } from "../../lib/parser";
   import { gradeSet, scoreToGrade, formatStatValue, CATEGORY_DEFS, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, type SetGradeRow } from "../../lib/db";
@@ -971,7 +971,27 @@
 
           <!-- Inline expanded breakdown -->
           {#if isSelected && r.grade}
+            {@const setGames = $sets.find((s) => s.match_id === r.matchId)?.games ?? []}
             <div style="padding: 0 14px 14px">
+              {#if setGames.some((g) => g.filepath)}
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
+                  {#each setGames.filter((g) => g.filepath) as g, i}
+                    <button
+                      onclick={() => invoke("show_in_folder", { path: g.filepath! })}
+                      style="
+                        background: var(--card); border: 1px solid var(--border);
+                        border-radius: 5px; padding: 4px 10px;
+                        font-size: 11px; color: var(--muted); cursor: pointer;
+                        font-family: inherit;
+                      "
+                      onmouseenter={(e) => (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)'}
+                      onmouseleave={(e) => (e.currentTarget as HTMLButtonElement).style.color = 'var(--muted)'}
+                    >
+                      📂 Game {i + 1}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
               <SetGradeDisplay grade={r.grade} detailed={$isPremium} />
             </div>
           {/if}

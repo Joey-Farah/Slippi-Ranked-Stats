@@ -2,7 +2,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import {
-    connectCode, replayDir, dateRange,
+    connectCode, replayDirs, dateRange,
     games, snapshots, seasons,
     isScanning, isFetchingSnapshot, scanProgress, statusMessage, sidebarOpen, isPremium,
     discordToken, discordUsername, linkedCodes,
@@ -17,7 +17,6 @@
   import { fetchRatingSnapshot } from "../lib/api";
   import { insertSnapshot, insertSeason, getGames, getSnapshots, getSeasons, clearScannedFiles } from "../lib/db";
 
-  let dirInput = $state($replayDir);
   let isVerifying = $state(false);
 
   // Unified code list
@@ -56,12 +55,15 @@
     isVerifying = false;
   }
 
-  async function browseFolder() {
+  async function addFolder() {
     const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") {
-      dirInput = selected;
-      replayDir.set(selected);
+    if (typeof selected === "string" && !$replayDirs.includes(selected)) {
+      replayDirs.update((prev) => [...prev, selected]);
     }
+  }
+
+  function removeFolder(dir: string) {
+    replayDirs.update((prev) => prev.filter((d) => d !== dir));
   }
 
   async function buildDbsByCode() {
@@ -81,18 +83,18 @@
   }
 
   async function handleScan() {
-    if (allCodes.length === 0 || !dirInput) {
+    const dirs = $replayDirs.filter(Boolean);
+    if (allCodes.length === 0 || dirs.length === 0) {
       statusMessage.set("Add a connect code and folder first.");
       return;
     }
-    replayDir.set(dirInput);
     isScanning.set(true);
     scanProgress.set(null);
     statusMessage.set("");
 
     try {
       const dbsByCode = await buildDbsByCode();
-      const { filesScanned, gamesInserted } = await scanDirectory(dirInput, allCodes, dbsByCode, (p) => scanProgress.set(p));
+      const { filesScanned, gamesInserted } = await scanDirectory(dirs, allCodes, dbsByCode, (p) => scanProgress.set(p));
       const loaded = await loadMergedGames(dbsByCode);
       games.set(loaded);
       statusMessage.set(`Scan complete — ${filesScanned} files, ${gamesInserted} ranked replays found (${loaded.length} total in DB).`);
@@ -105,18 +107,18 @@
   }
 
   async function handleForceRescan() {
-    if (allCodes.length === 0 || !dirInput) {
+    const dirs = $replayDirs.filter(Boolean);
+    if (allCodes.length === 0 || dirs.length === 0) {
       statusMessage.set("Add a connect code and folder first.");
       return;
     }
-    replayDir.set(dirInput);
     isScanning.set(true);
     scanProgress.set(null);
     statusMessage.set("Clearing scan history…");
     try {
       await clearScannedFiles();
       const dbsByCode = await buildDbsByCode();
-      const { filesScanned, gamesInserted, totalSlpFound, debugPath, firstError } = await scanDirectory(dirInput, allCodes, dbsByCode, (p) => scanProgress.set(p));
+      const { filesScanned, gamesInserted, totalSlpFound, debugPath, firstError } = await scanDirectory(dirs, allCodes, dbsByCode, (p) => scanProgress.set(p));
       const loaded = await loadMergedGames(dbsByCode);
       games.set(loaded);
       statusMessage.set(`path:"${debugPath}" | ${totalSlpFound} .slp | ${filesScanned} new | ${gamesInserted} ranked | ${loaded.length} in DB${firstError ? ` | err: ${firstError}` : ""}`);
@@ -214,11 +216,22 @@
     </button>
   </div>
 
-  <!-- Replay Folder -->
+  <!-- Replay Folders -->
   <div class="sidebar-section">
-    <span class="sidebar-label">Replay Folder</span>
-    <input type="text" placeholder="C:/Users/.../Slippi" bind:value={dirInput} />
-    <button class="btn btn-secondary" onclick={browseFolder}>Browse…</button>
+    <span class="sidebar-label">Replay Folders</span>
+    {#each $replayDirs as dir}
+      <div style="display:flex; align-items:center; gap:6px; padding:3px 0">
+        <span style="flex:1; font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title={dir}>{dir}</span>
+        <button
+          onclick={() => removeFolder(dir)}
+          title="Remove"
+          style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; padding:0 2px; line-height:1; flex-shrink:0"
+          onmouseenter={(e) => (e.currentTarget as HTMLButtonElement).style.color = '#e74c3c'}
+          onmouseleave={(e) => (e.currentTarget as HTMLButtonElement).style.color = 'var(--muted)'}
+        >×</button>
+      </div>
+    {/each}
+    <button class="btn btn-secondary" onclick={addFolder} style="margin-top:4px">+ Add Folder…</button>
   </div>
 
   <!-- Date Range -->

@@ -33,7 +33,7 @@ import { gradeSet } from "./grading";
 import { saveSetGrade } from "./db";
 import { BENCHMARKS_VERSION } from "./grade-benchmarks";
 
-let _unwatch: UnwatchFn | null = null;
+let _unwatchers: UnwatchFn[] = [];
 let _snapshotTimer: ReturnType<typeof setTimeout> | null = null;
 let _pendingMatchId: string | null = null;
 
@@ -54,11 +54,11 @@ const _sessionOpponents = new Set<string>();
 const _completedMatchIds = new Set<string>();
 
 export async function startWatcher(
-  dir: string,
+  dirs: string | string[],
   connectCode: string,
   db: Database
 ): Promise<void> {
-  if (_unwatch) return; // already running
+  if (_unwatchers.length > 0) return; // already running
 
   // Initialize session state from current store contents
   _knownMatchIds.clear();
@@ -106,35 +106,29 @@ export async function startWatcher(
     // Non-fatal — watcher still starts even if recovery fails
   }
 
-  _unwatch = await watch(
-    dir,
-    (event) => {
-      const typeStr = typeof event.type === "string" ? event.type : JSON.stringify(event.type);
-      const slpPaths = event.paths.filter((p) => p.endsWith(".slp"));
+  const watchDirs = Array.isArray(dirs) ? dirs : [dirs];
+  const handler = (event: Parameters<Parameters<typeof watch>[1]>[0]) => {
+    const slpPaths = event.paths.filter((p) => p.endsWith(".slp"));
+    if (typeof event.type === "string") return;
+    const isCreate = "create" in event.type;
+    const isModify = "modify" in event.type;
+    if (!isCreate && !isModify) return;
+    if (slpPaths.length === 0) return;
+    for (const filepath of slpPaths) {
+      scheduleFileParse(filepath, connectCode, db);
+    }
+  };
 
-      if (typeof event.type === "string") return;
-
-      const isCreate = "create" in event.type;
-      const isModify = "modify" in event.type;
-      if (!isCreate && !isModify) return;
-
-      if (slpPaths.length === 0) return;
-
-      for (const filepath of slpPaths) {
-        scheduleFileParse(filepath, connectCode, db);
-      }
-    },
-    { recursive: true }
+  _unwatchers = await Promise.all(
+    watchDirs.map((dir) => watch(dir, handler, { recursive: true }))
   );
 
   watcherActive.set(true);
 }
 
 export async function stopWatcher(): Promise<void> {
-  if (_unwatch) {
-    _unwatch();
-    _unwatch = null;
-  }
+  for (const uw of _unwatchers) uw();
+  _unwatchers = [];
   if (_snapshotTimer) {
     clearTimeout(_snapshotTimer);
     _snapshotTimer = null;
