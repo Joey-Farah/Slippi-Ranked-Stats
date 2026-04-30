@@ -15,9 +15,42 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![wait_for_oauth_callback])
+        .invoke_handler(tauri::generate_handler![wait_for_oauth_callback, show_in_folder])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Opens the system file manager with the given file selected (cross-platform).
+#[tauri::command]
+fn show_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let normalized = path.replace('/', "\\");
+        std::process::Command::new("explorer")
+            .args(["/select,", &normalized])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // Open the parent folder; most Linux file managers don't support file selection
+        let parent = std::path::Path::new(&path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or(path);
+        std::process::Command::new("xdg-open")
+            .arg(&parent)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Binds a one-shot local HTTP server on port 14523, waits for Discord's

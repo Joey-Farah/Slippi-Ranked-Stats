@@ -7,7 +7,7 @@
   import LiveRankedSession from "./components/tabs/LiveRankedSession.svelte";
   import AllTimeStats from "./components/tabs/AllTimeStats.svelte";
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
-  import { activeTab, connectCode, replayDir, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId } from "./lib/store";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
   import { verifyPatronRole } from "./lib/discord";
@@ -107,10 +107,10 @@
         seasons.set(loadedSeasons);
 
         // Watcher on primary code only
-        const dir = get(replayDir);
-        if (dir) {
+        const dirs = get(replayDirs).filter(Boolean);
+        if (dirs.length > 0) {
           await stopWatcher();
-          startWatcher(dir, primary, primaryDb).catch(() => {});
+          startWatcher(dirs, primary, primaryDb).catch(() => {});
         }
       } catch {
         games.set([]);
