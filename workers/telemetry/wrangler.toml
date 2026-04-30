@@ -5,4 +5,4 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "srs-telemetry"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "3905d5a3-41a6-4f0e-bb9b-a1bb6d6bad23"
