@@ -63,8 +63,15 @@ jobs:
           $url     = "https://github.com/$repo/releases/download/$tag/$encoded"
           $pubDate = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
 
+          # Extract the latest release section (everything before the first ---)
+          $notesRaw = Get-Content release-notes.md -Raw
+          $notes = ($notesRaw -split "`r?`n---")[0].Trim()
+          # Strip the "## What's New in vX.X.X" heading line
+          $notes = ($notes -split "`r?`n", 2)[1].Trim()
+
           $json = [ordered]@{
             version  = $version
+            notes    = $notes
             pub_date = $pubDate
             platforms = [ordered]@{
               "windows-x86_64" = [ordered]@{

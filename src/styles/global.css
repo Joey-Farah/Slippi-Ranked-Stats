@@ -35,14 +35,12 @@ html, body, #app {
 }
 
 .sidebar {
-  width: 240px;
-  min-width: 240px;
+  width: 264px;
+  min-width: 264px;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
-  gap: 12px;
   overflow: hidden;
 }
 
@@ -53,6 +51,21 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 16px 16px 16px 16px;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 .main {

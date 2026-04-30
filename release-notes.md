@@ -1,3 +1,12 @@
+## What's New in v1.4.5
+
+### Improvements
+
+- **Feedback & bug reports**: A new section at the bottom of the sidebar lets you send suggestions or report bugs directly from the app. They go straight to the developer.
+- **Update banner**: When a new version is available, the banner now shows a "What's new" toggle so you can see the release notes before installing.
+
+---
+
 ## What's New in v1.4.4
 
 ### New feature (Premium)

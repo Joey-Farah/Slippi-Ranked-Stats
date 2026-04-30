@@ -7,7 +7,7 @@
   import LiveRankedSession from "./components/tabs/LiveRankedSession.svelte";
   import AllTimeStats from "./components/tabs/AllTimeStats.svelte";
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
-  import { activeTab, connectCode, replayDir, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode } from "./lib/store";
+  import { activeTab, connectCode, replayDir, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId } from "./lib/store";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
   import { verifyPatronRole } from "./lib/discord";
@@ -26,11 +26,23 @@
   });
   import { check } from "@tauri-apps/plugin-updater";
   import { relaunch } from "@tauri-apps/plugin-process";
+  import { fetch } from "@tauri-apps/plugin-http";
+  import { getVersion } from "@tauri-apps/api/app";
 
   let updateAvailable = $state(false);
   let updateVersion = $state("");
+  let updateNotes = $state("");
+  let showUpdateNotes = $state(false);
   let isUpdating = $state(false);
   let updateError = $state("");
+
+  function stripMarkdown(md: string): string {
+    return md
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/\*(.*?)\*/g, "$1")
+      .trim();
+  }
 
   onMount(async () => {
     // Register deep link scheme (needed in dev; installer handles production)
@@ -45,11 +57,22 @@
     if (token) verifyPatronRole(token).catch(() => {});
     else isPremium.set(false);
 
+    // Telemetry ping — fire and forget, silently ignore failures
+    try {
+      const version = await getVersion();
+      fetch("https://srs-telemetry.joeyfarah.workers.dev/ping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ install_id: get(installId), event: "open", version }),
+      }).catch(() => {});
+    } catch { /* ignore */ }
+
     try {
       const update = await check();
       if (update?.available) {
         updateAvailable = true;
         updateVersion = update.version;
+        updateNotes = update.body ? stripMarkdown(update.body) : "";
       }
     } catch {
       // Silently ignore — no network or no release yet
@@ -190,17 +213,33 @@
 
   <div class="main" style="position:relative">
     {#if updateAvailable}
-      <div style="background:#f39c12; color:#000; padding:8px 16px; display:flex; align-items:center; gap:12px; font-size:13px; font-weight:600">
-        <span>Update available: v{updateVersion}</span>
-        <button
-          onclick={installUpdate}
-          disabled={isUpdating}
-          style="background:#000; color:#f39c12; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-weight:700; font-size:12px"
-        >
-          {isUpdating ? "Installing…" : "Install & Restart"}
-        </button>
-        {#if updateError}
-          <span style="color:#c0392b">{updateError}</span>
+      <div style="background:#f39c12; color:#000; font-size:13px; font-weight:600">
+        <div style="padding:8px 16px; display:flex; align-items:center; gap:12px">
+          <span>Update available: v{updateVersion}</span>
+          <button
+            onclick={installUpdate}
+            disabled={isUpdating}
+            style="background:#000; color:#f39c12; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-weight:700; font-size:12px; font-family:inherit"
+          >{isUpdating ? "Installing…" : "Install & Restart"}</button>
+          {#if updateNotes}
+            <button
+              onclick={() => showUpdateNotes = !showUpdateNotes}
+              style="background:none; border:none; padding:0; cursor:pointer; font-size:12px; font-weight:600; color:#000; opacity:0.6; font-family:inherit; margin-left:auto"
+            >What's new {showUpdateNotes ? "▴" : "▾"}</button>
+          {/if}
+          {#if updateError}
+            <span style="color:#c0392b">{updateError}</span>
+          {/if}
+        </div>
+        {#if showUpdateNotes && updateNotes}
+          <div style="
+            padding: 10px 16px 12px;
+            border-top: 1px solid rgba(0,0,0,0.15);
+            background: rgba(0,0,0,0.08);
+            font-size: 12px; font-weight: 400;
+            white-space: pre-line; line-height: 1.6;
+            max-height: 200px; overflow-y: auto;
+          ">{updateNotes}</div>
         {/if}
       </div>
     {/if}

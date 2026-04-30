@@ -42,6 +42,10 @@
     {
       "identifier": "http:allow-fetch",
       "allow": [{ "url": "https://discord.com/**" }]
+    },
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [{ "url": "https://*.workers.dev/**" }]
     }
   ]
 }

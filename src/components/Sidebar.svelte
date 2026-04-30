@@ -1,6 +1,7 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-dialog";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
+  import { fetch } from "@tauri-apps/plugin-http";
   import {
     connectCode, replayDir, dateRange,
     games, snapshots, seasons,
@@ -19,6 +20,44 @@
 
   let dirInput = $state($replayDir);
   let isVerifying = $state(false);
+
+  // Feedback form
+  const FEEDBACK_WORKER_URL = "https://srs-feedback.joeyfarah.workers.dev";
+  let feedbackOpen = $state(false);
+  let feedbackType = $state<"feedback" | "bug">("feedback");
+  let feedbackName = $state("");
+  let feedbackMessage = $state("");
+  let feedbackStatus = $state<"idle" | "sending" | "sent" | "error">("idle");
+  let feedbackError = $state("");
+
+  async function submitFeedback() {
+    if (!feedbackMessage.trim() || !feedbackName.trim()) return;
+    feedbackStatus = "sending";
+    feedbackError = "";
+    try {
+      const res = await fetch(FEEDBACK_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: feedbackName.trim(), message: feedbackMessage.trim(), type: feedbackType }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      feedbackStatus = "sent";
+      feedbackMessage = "";
+      feedbackName = "";
+    } catch (e: any) {
+      feedbackStatus = "error";
+      feedbackError = e?.message ?? "Unknown error";
+    }
+  }
+
+  function openFeedback(type: "feedback" | "bug") {
+    feedbackType = type;
+    feedbackOpen = true;
+    feedbackStatus = "idle";
+    feedbackMessage = "";
+    feedbackName = "";
+    feedbackError = "";
+  }
 
   // Unified code list
   let addInput = $state("");
@@ -435,6 +474,75 @@
           </div>
         </div>
       </div>
+    {/if}
+  </div>
+
+  <!-- Feedback / Bug Report -->
+  <div style="padding-top: 8px; border-top: 1px solid var(--border); margin-top: 4px">
+    {#if !feedbackOpen}
+      <div style="display:flex; gap:6px">
+        <button
+          onclick={() => openFeedback("feedback")}
+          style="flex:1; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.4); border-radius:6px; color:#a78bfa; font-size:12px; font-weight:600; padding:8px 4px; cursor:pointer; font-family:inherit; transition:background 0.15s, border-color 0.15s, color 0.15s"
+          onmouseenter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background='rgba(124,58,237,0.25)'; b.style.borderColor='rgba(124,58,237,0.7)'; b.style.color='#c4b5fd'; }}
+          onmouseleave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background='rgba(124,58,237,0.12)'; b.style.borderColor='rgba(124,58,237,0.4)'; b.style.color='#a78bfa'; }}
+        >💡 Suggestion</button>
+        <button
+          onclick={() => openFeedback("bug")}
+          style="flex:1; background:rgba(231,76,60,0.12); border:1px solid rgba(231,76,60,0.4); border-radius:6px; color:#f87171; font-size:12px; font-weight:600; padding:8px 4px; cursor:pointer; font-family:inherit; transition:background 0.15s, border-color 0.15s, color 0.15s"
+          onmouseenter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background='rgba(231,76,60,0.25)'; b.style.borderColor='rgba(231,76,60,0.7)'; b.style.color='#fca5a5'; }}
+          onmouseleave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background='rgba(231,76,60,0.12)'; b.style.borderColor='rgba(231,76,60,0.4)'; b.style.color='#f87171'; }}
+        >🐛 Report Bug</button>
+      </div>
+    {:else}
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+        <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em">
+          {feedbackType === "bug" ? "Report a Bug" : "Send a Suggestion"}
+        </span>
+        <button
+          onclick={() => { feedbackOpen = false; feedbackStatus = "idle"; }}
+          style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0 2px; line-height:1"
+        >×</button>
+      </div>
+
+      {#if feedbackStatus === "sent"}
+        <div style="font-size:12px; color:#2ecc71; text-align:center; padding:12px 0">
+          ✓ Sent — thanks!
+        </div>
+        <button
+          onclick={() => { feedbackOpen = false; feedbackStatus = "idle"; }}
+          style="width:100%; background:none; border:1px solid var(--border); border-radius:6px; color:var(--muted); font-size:11px; padding:6px; cursor:pointer; font-family:inherit; margin-top:4px"
+        >Close</button>
+      {:else}
+        <input
+          type="text"
+          placeholder="Name or gamertag"
+          bind:value={feedbackName}
+          maxlength={100}
+          style="font-size:11px; width:100%; margin-bottom:6px"
+        />
+        <textarea
+          placeholder={feedbackType === "bug" ? "Describe the bug — what happened, what you expected…" : "What would you like to see?"}
+          bind:value={feedbackMessage}
+          maxlength={2000}
+          rows={4}
+          style="font-size:11px; width:100%; resize:vertical; background:var(--card); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:6px 8px; font-family:inherit; box-sizing:border-box; margin-bottom:6px"
+        ></textarea>
+        {#if feedbackStatus === "error"}
+          <div style="font-size:11px; color:#e74c3c; margin-bottom:6px">{feedbackError}</div>
+        {/if}
+        <div style="display:flex; gap:6px">
+          <button
+            onclick={() => { feedbackOpen = false; feedbackStatus = "idle"; }}
+            style="flex:1; background:none; border:1px solid var(--border); border-radius:6px; color:var(--muted); font-size:11px; padding:6px; cursor:pointer; font-family:inherit"
+          >Cancel</button>
+          <button
+            onclick={submitFeedback}
+            disabled={!feedbackMessage.trim() || !feedbackName.trim() || feedbackStatus === "sending"}
+            style="flex:2; background:{feedbackType === 'bug' ? '#e74c3c' : '#7c3aed'}; color:#fff; border:none; border-radius:6px; font-size:11px; padding:6px; cursor:pointer; font-family:inherit; font-weight:600; opacity:{!feedbackMessage.trim() || !feedbackName.trim() || feedbackStatus === 'sending' ? 0.5 : 1}"
+          >{feedbackStatus === "sending" ? "Sending…" : "Send"}</button>
+        </div>
+      {/if}
     {/if}
   </div>
 

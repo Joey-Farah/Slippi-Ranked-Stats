@@ -1,0 +1,8 @@
+name = "srs-telemetry"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "srs-telemetry"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

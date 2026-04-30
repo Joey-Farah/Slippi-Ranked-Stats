@@ -11,6 +11,14 @@ function persisted<T>(key: string, initial: T) {
   return store;
 }
 
+function randomId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export const installId = persisted<string>("srs_installId", randomId());
+
 export const connectCode = persisted<string>("srs_connectCode", "");
 export const replayDir = persisted<string>("srs_replayDir", "");
 
