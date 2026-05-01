@@ -2,7 +2,7 @@ import { fetch } from "@tauri-apps/plugin-http";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
-import { isPremium, discordToken, discordUsername } from "./store";
+import { isPremium, discordToken, discordUsername, installId } from "./store";
 
 const CLIENT_ID = "1489690383171719188";
 const GUILD_ID = "703857185570029628";
@@ -134,6 +134,13 @@ export async function verifyPatronRole(token?: string): Promise<boolean> {
     const roles: string[] = member.roles ?? [];
     const hasPremium = roles.some((r) => PREMIUM_ROLE_IDS.has(r));
     isPremium.set(hasPremium);
+    if (hasPremium) {
+      fetch("https://srs-telemetry.joeyfarah.workers.dev/ping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ install_id: get(installId), event: "premium" }),
+      }).catch(() => {});
+    }
     return hasPremium;
   } catch {
     isPremium.set(false);

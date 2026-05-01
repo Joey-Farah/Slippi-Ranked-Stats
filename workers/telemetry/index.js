@@ -84,7 +84,7 @@ function readSnapshotCookie(header) {
 }
 
 async function buildDashboard(db, previous) {
-  const [totalInstalls, totalEvents, dailyActive, versionBreakdown, eventBreakdown, recentActivity] =
+  const [totalInstalls, totalEvents, dailyActive, premiumUsers, versionBreakdown, eventBreakdown, recentActivity] =
     await Promise.all([
       db.prepare("SELECT COUNT(DISTINCT install_id) AS n FROM events").first(),
       db.prepare("SELECT COUNT(*) AS n FROM events").first(),
@@ -92,6 +92,7 @@ async function buildDashboard(db, previous) {
         SELECT COUNT(DISTINCT install_id) AS n FROM events
         WHERE ts > ?
       `).bind(Date.now() - 86400000).first(),
+      db.prepare("SELECT COUNT(DISTINCT install_id) AS n FROM events WHERE event = 'premium'").first(),
       db.prepare(`
         SELECT version, COUNT(DISTINCT install_id) AS installs
         FROM events WHERE version != ''
@@ -114,6 +115,7 @@ async function buildDashboard(db, previous) {
       installs: totalInstalls?.n ?? 0,
       events: totalEvents?.n ?? 0,
       dau: dailyActive?.n ?? 0,
+      premium: premiumUsers?.n ?? 0,
     },
     versions: Object.fromEntries((versionBreakdown.results ?? []).map(r => [r.version, r.installs])),
     events: Object.fromEntries((eventBreakdown.results ?? []).map(r => [r.event, r.n])),
@@ -151,7 +153,8 @@ async function buildDashboard(db, previous) {
   .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 18px 24px; min-width: 180px; flex: 1; }
   .card-val { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
   .card-label { font-size: 14px; color: #888; margin-top: 6px; }
-  .card-delta { font-size: 14px; margin-top: 8px; }
+  .card-delta { font-size: 14px; margin-top: 10px; }
+  .delta-num { font-size: 20px; font-weight: 700; }
   h2 { font-size: 16px; color: #888; letter-spacing: 0.05em; text-transform: uppercase; margin: 28px 0 10px; }
   table { border-collapse: collapse; width: 100%; font-size: 15px; }
   th { text-align: left; color: #666; padding: 6px 14px 6px 0; border-bottom: 1px solid #222; font-size: 14px; }
@@ -162,10 +165,16 @@ async function buildDashboard(db, previous) {
   .d-zero { color: #555; }
   .d-new { color: #6cb8e0; font-style: italic; }
   @media (max-width: 500px) {
-    body { padding: 16px; font-size: 15px; }
-    h1 { font-size: 24px; }
+    body { padding: 16px; font-size: 17px; }
+    h1 { font-size: 26px; }
+    .since { font-size: 17px; }
     .card { min-width: 100%; padding: 14px 18px; }
-    .card-val { font-size: 32px; }
+    .card-val { font-size: 38px; }
+    .card-label { font-size: 16px; }
+    .card-delta { font-size: 16px; }
+    .delta-num { font-size: 22px; }
+    table { font-size: 16px; }
+    th { font-size: 15px; }
   }
 </style>
 </head>
@@ -176,18 +185,23 @@ ${sinceLine}
 <div class="cards">
   <div class="card">
     <div class="card-val">${snapshot.totals.installs}</div>
-    <div class="card-label">Total installs</div>
+    <div class="card-label">Unique users (all time)</div>
     ${cardDelta(snapshot.totals.installs, previous?.totals?.installs)}
   </div>
   <div class="card">
     <div class="card-val">${snapshot.totals.dau}</div>
-    <div class="card-label">Active last 24h</div>
+    <div class="card-label">Opened app today</div>
     ${cardDelta(snapshot.totals.dau, previous?.totals?.dau)}
   </div>
   <div class="card">
     <div class="card-val">${snapshot.totals.events}</div>
-    <div class="card-label">Total events</div>
+    <div class="card-label">Total app launches</div>
     ${cardDelta(snapshot.totals.events, previous?.totals?.events)}
+  </div>
+  <div class="card">
+    <div class="card-val">${snapshot.totals.premium}</div>
+    <div class="card-label">Premium users</div>
+    ${cardDelta(snapshot.totals.premium, previous?.totals?.premium)}
   </div>
 </div>
 
@@ -207,10 +221,10 @@ ${sinceLine}
 function cardDelta(curr, prev) {
   if (prev === undefined || prev === null) return "";
   const d = curr - prev;
-  if (d === 0) return `<div class="card-delta d-zero">no change (was ${prev})</div>`;
+  if (d === 0) return `<div class="card-delta d-zero"><span class="delta-num">±0</span> since last visit</div>`;
   const sign = d > 0 ? "+" : "";
   const cls = d > 0 ? "d-up" : "d-down";
-  return `<div class="card-delta ${cls}">${sign}${d} (was ${prev})</div>`;
+  return `<div class="card-delta ${cls}"><span class="delta-num">${sign}${d}</span> since last visit</div>`;
 }
 
 function rowDelta(curr, prev) {
