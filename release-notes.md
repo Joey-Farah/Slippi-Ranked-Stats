@@ -1,3 +1,12 @@
+## What's New in v1.4.6
+
+### Multi-folder replay scanning + open replays in Explorer (contributed by @customjack)
+
+- **Multiple replay folders**: the sidebar now lets you add more than one replay folder — useful if your replays are spread across drives or directories. All folders are scanned together as one unified set. Existing installs migrate automatically with no data loss.
+- **Open game files from Grade History**: expand any graded set and click a **Game 1 / Game 2 / …** button to open that replay's location directly in Explorer (or Finder on Mac).
+
+---
+
 ## What's New in v1.4.5
 
 ### Improvements
