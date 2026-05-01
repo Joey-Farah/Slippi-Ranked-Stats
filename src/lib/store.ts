@@ -20,7 +20,17 @@ function randomId(): string {
 export const installId = persisted<string>("srs_installId", randomId());
 
 export const connectCode = persisted<string>("srs_connectCode", "");
-export const replayDir = persisted<string>("srs_replayDir", "");
+
+// Migrate single-folder key to multi-folder key (one-time, self-cleaning)
+{
+  const _old = localStorage.getItem("srs_replayDir");
+  if (_old) {
+    const _parsed: string = JSON.parse(_old);
+    if (_parsed) localStorage.setItem("srs_replayDirs", JSON.stringify([_parsed]));
+    localStorage.removeItem("srs_replayDir");
+  }
+}
+export const replayDirs = persisted<string[]>("srs_replayDirs", []);
 
 // ── Multi-code support ─────────────────────────────────────────────────────
 

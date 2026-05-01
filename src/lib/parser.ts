@@ -93,14 +93,22 @@ let _scanCancelled = false;
 export function cancelScan() { _scanCancelled = true; }
 
 export async function scanDirectory(
-  dirPath: string,
+  dirPaths: string | string[],
   codes: string[],
   dbsByCode: Record<string, Database>,
   onProgress?: (p: ScanProgress) => void
 ): Promise<ScanResult> {
   _scanCancelled = false;
 
-  const slpFiles = await collectSlpFiles(dirPath);
+  const dirs = Array.isArray(dirPaths) ? dirPaths : [dirPaths];
+  const fileArrays = await Promise.all(dirs.map((d) => collectSlpFiles(d)));
+  const seen = new Set<string>();
+  const slpFiles: FileEntry[] = [];
+  for (const arr of fileArrays) {
+    for (const f of arr) {
+      if (!seen.has(f.path)) { seen.add(f.path); slpFiles.push(f); }
+    }
+  }
 
   // Load already-scanned sets per code, then find files needing work for any code.
   const alreadyByCode: Record<string, Set<string>> = {};
@@ -112,7 +120,7 @@ export async function scanDirectory(
   let gamesInserted = 0;
   const newlyScannedByCode: Record<string, string[]> = {};
   for (const c of codes) newlyScannedByCode[c] = [];
-  const debugPath = dirPath;
+  const debugPath = dirs.join(", ");
   let firstError: string | null = null;
 
   // Process in batches — keep concurrency low to avoid flooding the Rust IPC
