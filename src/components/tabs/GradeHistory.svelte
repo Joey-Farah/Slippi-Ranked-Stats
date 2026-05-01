@@ -973,7 +973,7 @@
           <!-- Inline expanded breakdown -->
           {#if isSelected && r.grade}
             {@const setGames = $sets.find((s) => s.match_id === r.matchId)?.games ?? []}
-            <div style="padding: 0 14px 14px">
+            <div style="padding: 10px 14px 14px">
               {#if setGames.some((g) => g.filepath)}
                 <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
                   {#each setGames.filter((g) => g.filepath) as g, i}
