@@ -103,7 +103,7 @@ async function buildDashboard(db, previous) {
         GROUP BY event ORDER BY n DESC
       `).all(),
       db.prepare(`
-        SELECT date(ts/1000, 'unixepoch') AS day, COUNT(DISTINCT install_id) AS dau
+        SELECT date(ts/1000, 'unixepoch', '-6 hours') AS day, COUNT(DISTINCT install_id) AS dau
         FROM events WHERE ts > ?
         GROUP BY day ORDER BY day DESC LIMIT 30
       `).bind(Date.now() - 30 * 86400000).all(),
@@ -180,7 +180,7 @@ async function buildDashboard(db, previous) {
 </head>
 <body>
 <h1>Slippi Ranked Stats — Telemetry</h1>
-<div class="sub">Generated ${new Date().toUTCString()}</div>
+<div class="sub">Generated ${new Date().toLocaleString("en-US", { timeZone: "America/Chicago", dateStyle: "medium", timeStyle: "short" })} CST</div>
 ${sinceLine}
 <div class="cards">
   <div class="card">
