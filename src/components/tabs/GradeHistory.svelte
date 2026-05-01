@@ -6,6 +6,7 @@
     type GradeHistoryEntry, type LiveGameStats,
   } from "../../lib/store";
   import { startDiscordAuth, verifyPatronRole } from "../../lib/discord";
+  import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { invoke } from "@tauri-apps/api/core";
   import { CHARACTERS, parseSlpFile } from "../../lib/parser";
   import { gradeSet, scoreToGrade, formatStatValue, CATEGORY_DEFS, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
