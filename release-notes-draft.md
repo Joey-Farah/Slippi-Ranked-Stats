@@ -24,6 +24,11 @@ Under the hood, the replay parser was rewritten to match Slippi Launcher's own m
 
 These fixes also apply retroactively to your existing stats — re-scanning your replays after this update will produce slightly different numbers for the affected stats, matching what Slippi Launcher would show for the same games.
 
+### Multi-folder replay scanning + open replays in Explorer (contributed by @customjack)
+
+- **Multiple replay folders**: the sidebar now lets you add more than one replay folder — useful if your replays are spread across drives or directories. All folders are scanned together as one unified set. Existing installs migrate automatically with no data loss.
+- **Open game files from Grade History**: expand any graded set and click a **Game 1 / Game 2 / …** button to open that replay's location directly in Explorer (or Finder on Mac).
+
 ### Other improvements
 
 - Set Grades tab header links directly to the grading methodology doc
