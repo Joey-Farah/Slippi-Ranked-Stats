@@ -1,3 +1,13 @@
+## What's New in v1.4.7
+
+### Bug fixes
+
+- **Scan history preserved across updates**: A previous migration could wipe your scan cache when updating, forcing a full rescan of your entire replay folder. This no longer happens — scan history is carried forward through updates.
+- **Multi-folder duplicate filename fix**: If two replay folders contained files with the same filename, one would be silently skipped during scanning. Files are now tracked by their full path, so replays in different folders are always treated as distinct.
+- **Export CSV confirmation**: Clicking "Export CSV" now briefly shows a "✓ Saved to Downloads" confirmation so it's clear the file was downloaded.
+
+---
+
 ## What's New in v1.4.6
 
 ### Multi-folder replay scanning + open replays in Explorer (contributed by @customjack)

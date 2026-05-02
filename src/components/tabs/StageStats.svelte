@@ -32,6 +32,8 @@
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
+  let csvFlash = $state(false);
+
   function downloadCSV(data: any[], name: string) {
     const keys = Object.keys(data[0] ?? {});
     const rows = [keys.join(","), ...data.map((r) => keys.map((k) => r[k]).join(","))];
@@ -40,6 +42,8 @@
     a.href = URL.createObjectURL(blob);
     a.download = name;
     a.click();
+    csvFlash = true;
+    setTimeout(() => { csvFlash = false; }, 2000);
   }
 </script>
 
@@ -90,6 +94,9 @@
   >
     Export CSV
   </button>
+  {#if csvFlash}
+    <span style="font-size:11px; color:var(--win)">✓ Saved to Downloads</span>
+  {/if}
 </div>
 <div class="card" style="padding:0; overflow:hidden; max-height:520px; overflow-y:auto">
   <table>

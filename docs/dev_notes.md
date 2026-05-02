@@ -6,6 +6,24 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## Streamer Overlay (idea, not started)
+
+Streamers playing ranked on Twitch want to show live ranked stats in their OBS overlay — e.g. current rating, last set result, win/loss streak, opponent info.
+
+**Most likely approach:** spin up a local HTTP server (via Tauri's `tauri-plugin-localhost` or a small Axum server in the Rust backend) that serves a minimal auto-updating HTML page. Streamers add it as a Browser Source in OBS at `localhost:PORT`. The page polls or uses SSE to reflect the latest watcher state.
+
+**Alternative:** write a JSON/text file to disk after each game that OBS reads with a Text source — simpler but less flexible for custom styling.
+
+**Open questions before building:**
+- What data goes on the overlay? (rating, delta, current streak, last set W/L, opponent code/char, stage?)
+- Should the layout be fixed or user-customizable (colors, font size)?
+- Does it only update during a live watcher session, or show historical stats too?
+- Premium feature or free?
+
+**Do not build without discussing the approach first.**
+
+---
+
 ## Set Grading System
 
 Wired end-to-end, gated behind `$isPremium`. Visible to all premium users in production.

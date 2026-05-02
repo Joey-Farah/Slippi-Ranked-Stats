@@ -125,7 +125,9 @@
       : oppHistory
   );
 
-  function downloadCSV(data: any[], name: string) {
+  let csvFlash: "recent" | "history" | null = $state(null);
+
+  function downloadCSV(data: any[], name: string, key: "recent" | "history") {
     const keys = Object.keys(data[0] ?? {});
     const rows = [keys.join(","), ...data.map((r) => keys.map((k) => r[k]).join(","))];
     const blob = new Blob([rows.join("\n")], { type: "text/csv" });
@@ -133,6 +135,8 @@
     a.href = URL.createObjectURL(blob);
     a.download = name;
     a.click();
+    csvFlash = key;
+    setTimeout(() => { csvFlash = null; }, 2000);
   }
 
   const TABLE_MAX_HEIGHT = 300;
@@ -291,11 +295,14 @@
         opponent: s.opponent_code,
         result: s.result,
         score: `${s.wins}-${s.losses}`,
-      })), "recent_sets.csv")}
+      })), "recent_sets.csv", "recent")}
       style="font-size:11px; background:var(--card); border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; cursor:pointer"
     >
       Export CSV
     </button>
+    {#if csvFlash === "recent"}
+      <span style="font-size:11px; color:var(--win)">✓ Saved to Downloads</span>
+    {/if}
   {/if}
 </div>
 <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px; max-height:{TABLE_MAX_HEIGHT}px; overflow-y:auto">
@@ -341,11 +348,14 @@
   />
   {#if oppHistory.length > 0}
     <button
-      onclick={() => downloadCSV(oppHistory, "opponent_history.csv")}
+      onclick={() => downloadCSV(oppHistory, "opponent_history.csv", "history")}
       style="font-size:11px; background:var(--card); border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; cursor:pointer"
     >
       Export CSV
     </button>
+    {#if csvFlash === "history"}
+      <span style="font-size:11px; color:var(--win)">✓ Saved to Downloads</span>
+    {/if}
   {/if}
 </div>
 <div class="card" style="padding:0; overflow:hidden; max-height:{TABLE_MAX_HEIGHT}px; overflow-y:auto">

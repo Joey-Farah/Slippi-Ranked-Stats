@@ -39,19 +39,24 @@ export async function getScannedDb(): Promise<Database> {
         PRIMARY KEY (filename, connect_code)
       )
     `);
-    // Migrate old single-column schema: if connect_code doesn't exist, drop and recreate.
-    // The scanned cache is non-precious (equivalent to Force Rescan), so this is safe.
+    // Migrate old single-column schema: preserve existing filenames by copying them
+    // into the new table with connect_code='' (a sentinel meaning "scanned by all codes").
     try {
       await _scanned.select(`SELECT connect_code FROM scanned_files LIMIT 0`);
     } catch {
-      await _scanned.execute(`DROP TABLE scanned_files`);
+      await _scanned.execute(`ALTER TABLE scanned_files RENAME TO scanned_files_old`);
       await _scanned.execute(`
         CREATE TABLE scanned_files (
           filename     TEXT NOT NULL,
-          connect_code TEXT NOT NULL,
+          connect_code TEXT NOT NULL DEFAULT '',
           PRIMARY KEY (filename, connect_code)
         )
       `);
+      await _scanned.execute(`
+        INSERT OR IGNORE INTO scanned_files (filename, connect_code)
+        SELECT filename, '' FROM scanned_files_old
+      `);
+      await _scanned.execute(`DROP TABLE scanned_files_old`);
     }
   }
   return _scanned;
@@ -300,7 +305,7 @@ export async function getSeasons(
 export async function getScannedFilenames(connectCode: string): Promise<Set<string>> {
   const sdb = await getScannedDb();
   const rows = await sdb.select<{ filename: string }[]>(
-    `SELECT filename FROM scanned_files WHERE connect_code = $1`,
+    `SELECT filename FROM scanned_files WHERE connect_code = $1 OR connect_code = ''`,
     [connectCode]
   );
   return new Set(rows.map((r) => r.filename));

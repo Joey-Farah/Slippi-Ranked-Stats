@@ -111,9 +111,11 @@ export async function scanDirectory(
   }
 
   // Load already-scanned sets per code, then find files needing work for any code.
+  // Check both full path (new records) and basename (legacy records pre-multi-folder).
   const alreadyByCode: Record<string, Set<string>> = {};
   for (const c of codes) alreadyByCode[c] = await getScannedFilenames(c);
-  const toProcess = slpFiles.filter((f) => codes.some((c) => !alreadyByCode[c].has(f.name)));
+  const isScanned = (f: FileEntry, c: string) => alreadyByCode[c].has(f.path) || alreadyByCode[c].has(f.name);
+  const toProcess = slpFiles.filter((f) => codes.some((c) => !isScanned(f, c)));
   const alreadyCount = slpFiles.length - toProcess.length;
 
   let scanned = 0;
@@ -137,12 +139,12 @@ export async function scanDirectory(
     // that haven't seen each file yet.
     const results = await Promise.all(
       batch.map(async (entry) => {
-        const pendingCodes = codes.filter((c) => !alreadyByCode[c].has(entry.name));
+        const pendingCodes = codes.filter((c) => !isScanned(entry, c));
         try {
           const parsed = await parseSlpFileMulti(entry.path, pendingCodes);
-          return { name: entry.name, pendingCodes, parsed, error: null };
+          return { name: entry.name, path: entry.path, pendingCodes, parsed, error: null };
         } catch (e: any) {
-          return { name: entry.name, pendingCodes, parsed: [] as { code: string; game: ParsedGameRow }[], error: String(e?.message ?? e) };
+          return { name: entry.name, path: entry.path, pendingCodes, parsed: [] as { code: string; game: ParsedGameRow }[], error: String(e?.message ?? e) };
         }
       })
     );
@@ -159,8 +161,8 @@ export async function scanDirectory(
         gamesInserted++;
       }
       for (const code of r.pendingCodes) {
-        newlyScannedByCode[code].push(r.name);
-        alreadyByCode[code].add(r.name);
+        newlyScannedByCode[code].push(r.path);
+        alreadyByCode[code].add(r.path);
       }
     }
 
