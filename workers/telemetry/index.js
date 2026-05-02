@@ -96,7 +96,7 @@ async function buildDashboard(db, previous) {
       db.prepare(`
         SELECT version, COUNT(DISTINCT install_id) AS installs
         FROM events WHERE version != ''
-        GROUP BY version ORDER BY installs DESC LIMIT 10
+        GROUP BY version
       `).all(),
       db.prepare(`
         SELECT event, COUNT(*) AS n FROM events
@@ -126,7 +126,9 @@ async function buildDashboard(db, previous) {
     : `<div class="since">First visit — deltas will appear next time</div>`;
 
   const vRows = (versionBreakdown.results ?? [])
-    .map(r => `<tr><td>${escapeHtml(r.version)}</td><td>${r.installs}</td><td>${rowDelta(r.installs, previous?.versions?.[r.version])}</td></tr>`)
+    .slice()
+    .sort((a, b) => compareVersionsDesc(a.version, b.version))
+    .map(r => `<tr><td>${escapeHtml(r.version)}</td><td>${r.installs}</td></tr>`)
     .join("");
 
   const eRows = (eventBreakdown.results ?? [])
@@ -209,7 +211,7 @@ ${sinceLine}
 <table><thead><tr><th>Date</th><th>DAU</th></tr></thead><tbody>${dRows}</tbody></table>
 
 <h2>Version breakdown</h2>
-<table><thead><tr><th>Version</th><th>Installs</th><th>Δ</th></tr></thead><tbody>${vRows}</tbody></table>
+<table><thead><tr><th>Version</th><th>Installs</th></tr></thead><tbody>${vRows}</tbody></table>
 
 <h2>Events</h2>
 <table><thead><tr><th>Event</th><th>Count</th><th>Δ</th></tr></thead><tbody>${eRows}</tbody></table>
@@ -242,6 +244,17 @@ function timeAgo(ts) {
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
+}
+
+function compareVersionsDesc(a, b) {
+  const pa = String(a).split(".").map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split(".").map(n => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (pb[i] ?? 0) - (pa[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 
 function escapeHtml(s) {
