@@ -6,7 +6,6 @@
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
-  import SetGradeDisplay from "../SetGradeDisplay.svelte";
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -73,6 +72,17 @@
     });
   })());
 
+  function gradeColor(letter: string): string {
+    switch (letter) {
+      case "S": return "#f1c40f";
+      case "A": return "#2ecc71";
+      case "B": return "#3498db";
+      case "C": return "#f39c12";
+      case "D": return "#e67e22";
+      default:  return "#e74c3c";
+    }
+  }
+
   function fmtRatio(v: number | null, decimals = 1): string {
     return v !== null ? v.toFixed(decimals) : "—";
   }
@@ -82,6 +92,19 @@
   }
 </script>
 
+{#snippet gradeRevealCard(letter: string, subtitle?: string)}
+  {#key letter}
+    <div class="grade-reveal">
+      <div class="grade-reveal-label">Last Set Grade</div>
+      {#if subtitle}
+        <div style="font-size:11px; color:var(--muted); margin-bottom:6px">{subtitle}</div>
+      {/if}
+      <div class="grade-reveal-letter" style="color: {gradeColor(letter)}">{letter}</div>
+      <div class="grade-reveal-hint">Check the Grading tab for a full breakdown.</div>
+    </div>
+  {/key}
+{/snippet}
+
 {#if !$isPremium}
   <PremiumGate
     featureName="Live Session Tracking"
@@ -89,6 +112,7 @@
   />
 
 {:else}
+
   {#if !$watcherActive}
     <p class="muted" style="margin-bottom: 16px">
       Monitoring will begin automatically when a ranked game is detected.
@@ -232,10 +256,12 @@
 
       </div>
 
-      <!-- Post-set grade — rendered only when the set is complete and a grade exists.
-           Hides automatically when a new set starts (lastMatch becomes incomplete). -->
+      <!-- Post-set grade reveal — hides automatically when a new set starts -->
       {#if complete && $lastSetGrade}
-        <SetGradeDisplay grade={$lastSetGrade} />
+        {@render gradeRevealCard(
+          $lastSetGrade.letter,
+          `vs ${games[0].opponent_code} · ${$lastSetGrade.setResult === "win" ? "Win" : "Loss"} ${$lastSetGrade.wins}–${$lastSetGrade.losses}`
+        )}
       {/if}
     {/if}
 
@@ -293,3 +319,47 @@
 
   {/if}
 {/if}
+
+<style>
+  .grade-reveal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 16px 16px;
+    margin-bottom: 16px;
+    text-align: center;
+    animation: gradeCardIn 0.35s ease-out both;
+  }
+
+  .grade-reveal-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .grade-reveal-letter {
+    font-size: 80px;
+    font-weight: 800;
+    line-height: 1;
+    animation: gradeLetterPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+  }
+
+  .grade-reveal-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+
+  @keyframes gradeCardIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes gradeLetterPop {
+    from { opacity: 0; transform: scale(0.35); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+</style>
