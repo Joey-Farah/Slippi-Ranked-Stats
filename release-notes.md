@@ -1,3 +1,15 @@
+## What's New in v1.4.8
+
+### New feature (Premium)
+
+- **Live Session grade reveal**: When a set ends during a live watcher session, the Live Session tab now shows an animated grade card with your letter grade and the opponent context (e.g. "vs KARD#577 · Win 2–0"). Tap the Grading tab for the full per-category breakdown.
+
+### Bug fixes
+
+- **Rating History — season reset delta**: The first set of a new season was showing a large incorrect negative delta (e.g. −1395) because the change was calculated against the previous season's final rating. The Change column now shows — for any set that crosses a season boundary.
+
+---
+
 ## What's New in v1.4.7
 
 ### Bug fixes
