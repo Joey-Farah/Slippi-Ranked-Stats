@@ -1,3 +1,11 @@
+## What's New in v1.4.9
+
+### macOS support
+
+Slippi Ranked Stats is now available on macOS. Download the `.dmg` below — works on both Apple Silicon and Intel Macs. All features including live session tracking, grading, and auto-updates are fully supported.
+
+---
+
 ## What's New in v1.4.8
 
 ### New feature (Premium)
