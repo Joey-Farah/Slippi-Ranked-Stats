@@ -95,6 +95,7 @@
       const snap = snapByMatchId.get(set.match_id);
       return {
         x: fmtTs(set.timestamp),
+        ts: set.timestamp,
         y: snap?.rating ?? null,
         name: `${set.result === "win" ? "W" : "L"} vs ${set.opponent_code} (${set.wins}–${set.losses})`,
       };
@@ -179,8 +180,11 @@
         </thead>
         <tbody>
           {#each setSnapshots as ss, i}
-            {@const prevRating = setSnapshots[i + 1]?.y ?? null}
-            {@const delta = ss.y !== null && prevRating !== null ? ss.y - prevRating : null}
+            {@const prevSnap = setSnapshots[i + 1]}
+            {@const prevRating = prevSnap?.y ?? null}
+            {@const seasonEnds = $seasons.map((s) => s.season_end).filter(Boolean)}
+            {@const crossesBoundary = prevSnap !== undefined && seasonEnds.some((end) => end > prevSnap.ts && end <= ss.ts)}
+            {@const delta = ss.y !== null && prevRating !== null && !crossesBoundary ? ss.y - prevRating : null}
             <tr>
               <td class="muted" style="font-size:11px">{ss.x}</td>
               <td style="font-size:12px">
