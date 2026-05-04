@@ -315,43 +315,41 @@ async function handleRankedGame(
       losses,
     });
 
-    if (import.meta.env.DEV) {
-      const setStats = get(liveGameStats).filter((s) => s.match_id === g.match_id);
-      const playerChar   = CHARACTERS[g.player_char_id]   ?? "Unknown";
-      const opponentChar = CHARACTERS[g.opponent_char_id] ?? "Unknown";
-      const setResult = wins > losses ? "win" : "loss";
+    const setStats = get(liveGameStats).filter((s) => s.match_id === g.match_id);
+    const playerChar   = CHARACTERS[g.player_char_id]   ?? "Unknown";
+    const opponentChar = CHARACTERS[g.opponent_char_id] ?? "Unknown";
+    const setResult = wins > losses ? "win" : "loss";
+    try {
+      const grade = gradeSet(setStats, playerChar, opponentChar, setResult, wins, losses);
+      lastSetGrade.set(grade);
       try {
-        const grade = gradeSet(setStats, playerChar, opponentChar, setResult, wins, losses);
-        lastSetGrade.set(grade);
-        try {
-          await saveSetGrade(db, {
-            match_id:         g.match_id,
-            generated_at:     new Date().toISOString(),
-            set_timestamp:    g.timestamp,
-            baseline_version: BENCHMARKS_VERSION,
-            player_char:      playerChar,
-            opponent_char:    opponentChar,
-            opponent_code:    g.opponent_code,
-            baseline_source:  grade.baselineSource,
-            set_result:       grade.setResult,
-            wins:             grade.wins,
-            losses:           grade.losses,
-            overall_letter:   grade.letter,
-            overall_score:    grade.score,
-            neutral_score:    grade.categories.neutral.score,
-            neutral_letter:   grade.categories.neutral.letter,
-            punish_score:     grade.categories.punish.score,
-            punish_letter:    grade.categories.punish.letter,
-            defense_score:    grade.categories.defense.score,
-            defense_letter:   grade.categories.defense.letter,
-            execution_score:  null,
-            execution_letter: null,
-            breakdown_json:   JSON.stringify(grade.breakdown),
-          });
-        } catch { /* don't fail live session on DB write error */ }
-      } catch {
-        lastSetGrade.set(null);
-      }
+        await saveSetGrade(db, {
+          match_id:         g.match_id,
+          generated_at:     new Date().toISOString(),
+          set_timestamp:    g.timestamp,
+          baseline_version: BENCHMARKS_VERSION,
+          player_char:      playerChar,
+          opponent_char:    opponentChar,
+          opponent_code:    g.opponent_code,
+          baseline_source:  grade.baselineSource,
+          set_result:       grade.setResult,
+          wins:             grade.wins,
+          losses:           grade.losses,
+          overall_letter:   grade.letter,
+          overall_score:    grade.score,
+          neutral_score:    grade.categories.neutral.score,
+          neutral_letter:   grade.categories.neutral.letter,
+          punish_score:     grade.categories.punish.score,
+          punish_letter:    grade.categories.punish.letter,
+          defense_score:    grade.categories.defense.score,
+          defense_letter:   grade.categories.defense.letter,
+          execution_score:  null,
+          execution_letter: null,
+          breakdown_json:   JSON.stringify(grade.breakdown),
+        });
+      } catch { /* don't fail live session on DB write error */ }
+    } catch {
+      lastSetGrade.set(null);
     }
 
     activeSet.set(null);
