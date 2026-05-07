@@ -301,8 +301,13 @@
           } catch { /* skip unparseable file */ }
         }
 
-        if (liveGames.length > 0) {
-          entry.grade = gradeSet(liveGames, playerChar, opponentChar, target.result, target.wins, target.losses);
+        // Filter out games with no frame data (e.g. opponent quit before any frames
+        // were written). avg_stock_duration is null iff playerFrames.length === 0 in
+        // the parser — the only code path that produces all-null stats.
+        const gradableGames = liveGames.filter((g) => g.avg_stock_duration !== null);
+
+        if (gradableGames.length > 0) {
+          entry.grade = gradeSet(gradableGames, playerChar, opponentChar, target.result, target.wins, target.losses);
           entry.baselineVersion = BENCHMARKS_VERSION;
 
           const targetCode = target.sourceCode ?? code;
@@ -339,6 +344,8 @@
             // Also save to primary DB so grades persist across code config changes
             if (targetCode !== code && primaryDb) { try { await saveSetGrade(primaryDb, gradeRow); } catch {} }
           }
+        } else if (liveGames.length > 0) {
+          entry.error = "No frame data (opponent likely disconnected before games started)";
         } else {
           entry.error = "No parseable files";
         }
