@@ -1,3 +1,16 @@
+## What's New in v1.4.12
+
+### Bug fixes
+
+- **Premium access restored**: A Discord API outage caused some premium members to be incorrectly shown as not having premium access. This release fixes it:
+  - If your access was incorrectly removed, it will be restored automatically the next time you launch the app — no need to re-link your Discord.
+  - Premium verification now goes through a more reliable backend path that isn't affected by the same Discord endpoint outages.
+  - Future Discord API hiccups will no longer silently downgrade your premium status.
+
+Sorry for the disruption.
+
+---
+
 ## What's New in v1.4.9
 
 ### macOS support

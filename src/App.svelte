@@ -10,7 +10,7 @@
   import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId } from "./lib/store";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
-  import { verifyPatronRole } from "./lib/discord";
+  import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
   import { onMount } from "svelte";
@@ -52,9 +52,11 @@
     onOpenUrl((_urls) => {});
 
     // Re-verify Discord patron status on launch if a token is stored,
-    // otherwise ensure isPremium is false (clears any leftover test state)
+    // otherwise ensure isPremium is false (clears any leftover test state).
+    // Uses retry-with-backoff so existing patrons whose last check hit a
+    // transient Discord 5xx auto-recover without re-linking.
     const token = get(discordToken);
-    if (token) verifyPatronRole(token).catch(() => {});
+    if (token) verifyPatronRoleWithRetry(token).catch(() => {});
     else isPremium.set(false);
 
     // Telemetry ping — fire and forget, silently ignore failures

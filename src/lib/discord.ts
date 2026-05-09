@@ -5,15 +5,11 @@ import { get } from "svelte/store";
 import { isPremium, discordToken, discordUsername, installId } from "./store";
 
 const CLIENT_ID = "1489690383171719188";
-const GUILD_ID = "703857185570029628";
-const PREMIUM_ROLE_IDS = new Set([
-  "1195042084961386526",
-  "1195042365849731142",
-  "1195043524463312917",
-  "1195043810263175302",
-  "1495188057396219904", // Slippi Ranked Stats — auto-assigned to both Patreon and Ko-fi supporters
-]);
 const REDIRECT_URI = "http://localhost:14523";
+
+// Worker that performs the role check using a bot token (server-side).
+// Avoids Discord's flaky user-context /users/@me/guilds/{id}/member endpoint.
+const PREMIUM_CHECK_URL = "https://srs-discord-check.joeyfarah.workers.dev/check-premium";
 
 // ── PKCE helpers ──────────────────────────────────────────────────────────────
 
@@ -97,55 +93,103 @@ export async function startDiscordAuth(): Promise<void> {
   }
 }
 
+// Outcome of a single verify attempt. Callers use this to decide whether to retry.
+//   premium       — confirmed: Discord returned a matching role
+//   no_role       — confirmed: Discord returned no matching role (user is not a patron)
+//   no_token      — no token stored
+//   auth_invalid  — 401/403/404: token bad or user not in guild
+//   transient     — 5xx/429/network: try again later, premium left untouched
+export type VerifyResult = "premium" | "no_role" | "no_token" | "auth_invalid" | "transient";
+
 /**
- * Checks the stored (or provided) token against Discord to see if the user
- * has a patron role. Also refreshes the stored username.
+ * Checks the stored (or provided) token against the SRS Discord-check worker,
+ * which uses a bot token (server-side) to look up the user's roles in the SRS
+ * guild. Also refreshes the stored username.
+ *
+ * Only flips `isPremium` on a definitive response. Transient failures
+ * (5xx/429/network) leave the prior value alone so a Discord hiccup can't
+ * silently downgrade an existing patron.
  */
-export async function verifyPatronRole(token?: string): Promise<boolean> {
+export async function verifyPatronRole(token?: string): Promise<VerifyResult> {
   const t = token ?? get(discordToken);
-  if (!t) return false;
+  if (!t) return "no_token";
 
+  let res: Response;
   try {
-    // Fetch display name
-    const userRes = await fetch("https://discord.com/api/users/@me", {
-      headers: { Authorization: `Bearer ${t}` },
+    res = await fetch(PREMIUM_CHECK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: t }),
     });
-    if (userRes.ok) {
-      const user = await userRes.json();
-      discordUsername.set(user.global_name ?? user.username ?? null);
-    }
+  } catch {
+    return "transient";
+  }
 
-    // Check guild membership and roles
-    const memberRes = await fetch(
-      `https://discord.com/api/users/@me/guilds/${GUILD_ID}/member`,
-      { headers: { Authorization: `Bearer ${t}` } }
-    );
+  // 5xx from the worker (which it returns when Discord itself is transient)
+  // means: leave premium untouched, retry later.
+  if (res.status >= 500) return "transient";
 
-    if (!memberRes.ok) {
-      if (memberRes.status === 401) {
-        discordToken.set(null);
-        discordUsername.set(null);
-      }
-      isPremium.set(false);
-      return false;
-    }
+  let data: { premium: boolean | null; reason: string; username?: string | null };
+  try {
+    data = await res.json();
+  } catch {
+    return "transient";
+  }
 
-    const member = await memberRes.json();
-    const roles: string[] = member.roles ?? [];
-    const hasPremium = roles.some((r) => PREMIUM_ROLE_IDS.has(r));
-    isPremium.set(hasPremium);
-    if (hasPremium) {
+  if (data.username !== undefined) discordUsername.set(data.username);
+
+  switch (data.reason) {
+    case "premium":
+      isPremium.set(true);
       fetch("https://srs-telemetry.joeyfarah.workers.dev/ping", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ install_id: get(installId), event: "premium" }),
       }).catch(() => {});
-    }
-    return hasPremium;
-  } catch {
-    isPremium.set(false);
-    return false;
+      return "premium";
+
+    case "no_role":
+      isPremium.set(false);
+      return "no_role";
+
+    case "not_in_guild":
+      isPremium.set(false);
+      return "auth_invalid";
+
+    case "auth_invalid":
+      // Token was rejected by Discord — clear it so the user re-links.
+      discordToken.set(null);
+      discordUsername.set(null);
+      isPremium.set(false);
+      return "auth_invalid";
+
+    default:
+      return "transient";
   }
+}
+
+/**
+ * Calls verifyPatronRole with exponential backoff on transient failures.
+ * Returns as soon as a definitive answer (premium / no_role / auth_invalid /
+ * no_token) is received. If every attempt is transient, returns "transient".
+ *
+ * Used on app launch so a downgraded patron auto-recovers when Discord
+ * stops returning 5xx — no action required from the user.
+ */
+export async function verifyPatronRoleWithRetry(
+  token?: string,
+  opts: { maxAttempts?: number; baseDelayMs?: number } = {}
+): Promise<VerifyResult> {
+  const { maxAttempts = 8, baseDelayMs = 2000 } = opts;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const result = await verifyPatronRole(token);
+    if (result !== "transient") return result;
+    if (attempt < maxAttempts - 1) {
+      const delay = Math.min(baseDelayMs * Math.pow(1.6, attempt), 60_000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  return "transient";
 }
 
 /** Revokes the token and clears all Discord state. */

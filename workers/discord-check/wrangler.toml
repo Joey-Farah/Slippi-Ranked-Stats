@@ -1,0 +1,6 @@
+name = "srs-discord-check"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# Set the bot token (never commit it):
+#   wrangler secret put DISCORD_BOT_TOKEN
