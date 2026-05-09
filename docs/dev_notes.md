@@ -85,6 +85,66 @@ All fixes are committed. Live parser (`slp_parser.ts`) and Python pipeline (`par
 
 ---
 
+## Premium verification (Discord role check)
+
+As of v1.4.12, the role check no longer hits Discord's user-context endpoint
+directly — it goes through a Cloudflare Worker that uses the bot token.
+
+### Why we moved off the user endpoint
+
+`/users/@me/guilds/{guild.id}/member` (user OAuth context) returned widespread
+500s on 2026-05-08 — Cloudflare confirmed the request reached Discord's origin
+(`cf-ray` + `cf-cache-status: BYPASS`), Discord's backend returned HTML error
+pages instead of JSON. Curl from a clean shell reproduced it identically. The
+endpoint has been historically flaky and isn't part of any major Discord
+incident reports — it just quietly breaks.
+
+The bot-context endpoint `/guilds/{id}/members/{user_id}` is a different code
+path on Discord's side (heavily exercised by every Discord bot in existence)
+and is much more reliable.
+
+### Current architecture
+
+- **App** (`src/lib/discord.ts`): OAuth flow unchanged (PKCE, scope
+  `identify guilds.members.read`, redirect to `localhost:14523`). The role
+  check `verifyPatronRole` POSTs the user's OAuth token to the worker and
+  translates the `{premium, reason, username}` response into a `VerifyResult`.
+- **Worker** (`workers/discord-check/index.js`): receives `{token}`, verifies
+  it against `/users/@me` to extract the user_id, then bot-context lookups
+  `/guilds/{GUILD_ID}/members/{user_id}` with the bot token. Returns the
+  premium decision. `GUILD_ID` and `PREMIUM_ROLE_IDS` live here, not in the
+  client.
+- **Resilience layer** (`verifyPatronRoleWithRetry`): app-mount verify uses
+  exponential backoff (8 attempts, ~86s total) on transient errors so a
+  downgraded patron auto-recovers when Discord returns 200 again. The
+  `verifyPatronRole` call itself only flips `isPremium=false` on definitive
+  responses — never on 5xx/429/network errors.
+
+### Operational requirements
+
+- The SRS bot user (`Slippi Ranked Stats`, app ID `1489690383171719188`) must
+  remain in the SRS Discord guild (`703857185570029628`) with **Server Members
+  Intent** enabled in the Discord Developer Portal → Bot tab → Privileged
+  Gateway Intents.
+- The bot token is stored as a Cloudflare Worker secret named
+  `DISCORD_BOT_TOKEN`. Never commit it. Set/rotate via
+  `wrangler secret put DISCORD_BOT_TOKEN` from `workers/discord-check/`.
+- Worker URL: `https://srs-discord-check.joeyfarah.workers.dev/check-premium`.
+  If you redeploy under a different account/subdomain, update
+  `PREMIUM_CHECK_URL` in `src/lib/discord.ts`.
+
+### Deploying changes to the worker
+
+```bash
+cd workers/discord-check
+npx wrangler deploy
+```
+
+No build step — single `index.js`. Logs visible in Cloudflare dashboard or
+`npx wrangler tail`.
+
+---
+
 ## Baseline pipeline (`scripts/`)
 
 Three Python scripts build the percentile benchmarks consumed by the in-app grading code.
