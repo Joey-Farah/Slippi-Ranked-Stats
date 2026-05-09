@@ -130,7 +130,7 @@ jobs:
       - name: Build universal Tauri app
         run: npm run tauri build -- --target universal-apple-darwin
 
-      - name: Sign DMG and upload to release
+      - name: Sign DMG + .app.tar.gz and upload to release
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -138,18 +138,36 @@ jobs:
           tag="${{ github.ref_name }}"
           repo="Joey-Farah/Slippi-Ranked-Stats"
 
+          # ── DMG: for fresh installs ────────────────────────────────────────
           dmg=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
-          echo "Signing: $dmg"
+          echo "Signing DMG: $dmg"
           npm run tauri -- signer sign --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "" "$dmg"
-          sig="${dmg}.sig"
+          dmgSig="${dmg}.sig"
 
-          dmgName=$(basename "$dmg")
-          encoded="${dmgName// /.}"
-          url="https://github.com/$repo/releases/download/$tag/$encoded"
-          sigContent=$(cat "$sig")
+          # ── .app.tar.gz: for the Tauri auto-updater ─────────────────────────
+          # macOS updater downloads + extracts a tar.gz of the .app bundle.
+          # A .dmg can't be used here — the updater would fail with
+          # "invalid gzip header".
+          app_dir="src-tauri/target/universal-apple-darwin/release/bundle/macos"
+          app=$(find "$app_dir" -maxdepth 1 -name "*.app" | head -1)
+          appBaseName=$(basename "$app")
+          tarPath="${app}.tar.gz"
+          echo "Creating updater bundle: $tarPath"
+          tar -czf "$tarPath" -C "$app_dir" "$appBaseName"
+          echo "Signing updater bundle: $tarPath"
+          npm run tauri -- signer sign --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "" "$tarPath"
+          tarSig="${tarPath}.sig"
 
-          gh release upload "$tag" "$dmg" "$sig" --clobber
+          # URL the updater will download (latest.json darwin entries).
+          tarName=$(basename "$tarPath")
+          encodedTar="${tarName// /.}"
+          url="https://github.com/$repo/releases/download/$tag/$encodedTar"
+          sigContent=$(cat "$tarSig")
 
+          # ── Upload installer + updater bundle to the release ──────────────
+          gh release upload "$tag" "$dmg" "$dmgSig" "$tarPath" "$tarSig" --clobber
+
+          # ── Patch latest.json with darwin entries ──────────────────────────
           curl -sL "https://github.com/$repo/releases/download/$tag/latest.json" -o latest.json
 
           python3 -c "
