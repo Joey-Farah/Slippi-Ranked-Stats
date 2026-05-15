@@ -126,6 +126,20 @@
       ? oppHistory.filter((o) => o.code.toLowerCase().includes(search.toLowerCase()))
       : oppHistory
   );
+
+  let csvFlash = $state(false);
+
+  function downloadCSV(data: any[], name: string) {
+    const keys = Object.keys(data[0] ?? {});
+    const rows = [keys.join(","), ...data.map((r) => keys.map((k) => r[k]).join(","))];
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    csvFlash = true;
+    setTimeout(() => { csvFlash = false; }, 2000);
+  }
 </script>
 
 {#if !$isPremium}
@@ -297,6 +311,15 @@
       bind:value={search}
       style="font-size:12px; padding:3px 8px; border-radius:4px; border:1px solid var(--border); background:var(--card); color:var(--text); width:180px"
     />
+    {#if oppHistory.length > 0}
+      <button
+        onclick={() => downloadCSV(oppHistory, "unranked_opponent_history.csv")}
+        style="font-size:11px; background:var(--card); border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; cursor:pointer"
+      >Export CSV</button>
+      {#if csvFlash}
+        <span style="font-size:11px; color:var(--win)">✓ Saved to Downloads</span>
+      {/if}
+    {/if}
   </div>
   <div class="card" style="padding:0; overflow:hidden; max-height:320px; overflow-y:auto">
     <table>

@@ -1,3 +1,11 @@
+## What's New in v1.5.1
+
+### Improvements
+
+- **Unranked & Direct Stats — Export CSV**: The Opponent History table now has an Export CSV button, matching the same feature on the Matchup Stats tab.
+
+---
+
 ## What's New in v1.5.0
 
 ### 🕹️ Unranked & Direct Stats tab (new, Premium)
