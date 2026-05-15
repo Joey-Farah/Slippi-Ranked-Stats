@@ -6,6 +6,31 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## Unranked & Direct Stats Tab (shipped v1.5.0)
+
+Premium-gated tab at the end of the tab bar. Reads `match_type = 'unranked'` games already stored in the DB — no parser changes needed.
+
+**What's in it:**
+- Summary cards: Games Played, Win %, Record
+- Win % vs Opponent Character chart (with A-Z/Best/Worst sort + per-character filter chips scoped to that chart)
+- Your Characters win % chart
+- Opponent Spotlight (Most Played, Best Record, Worst Record — same as Matchup Stats)
+- Stage Win % chart
+- Opponent History table (searchable)
+
+**Key implementation notes:**
+- `getGames()` in `db.ts` now returns all match types (ranked + unranked). `rankedGames` derived store still filters downstream — all ranked tabs unaffected.
+- `unrankedGames` derived store added to `store.ts` (same date-range filter as ranked).
+- Character filter chips are scoped to the opponent char chart only (not a global page filter).
+- `BarChart` horizontal grids now use `containLabel: true` instead of hardcoded `left: 140` — fixes Fountain of Dreams label clipping on all tabs.
+
+**Also shipped in v1.5.0 (from v1.4.12/v1.4.13, rebased in):**
+- Premium check now routes through a Cloudflare Worker using a bot token (`workers/discord-check/`) — more reliable than calling Discord directly.
+- `verifyPatronRoleWithRetry` with exponential backoff added to `discord.ts`. Transient 5xx/429 errors no longer flip `isPremium` to false.
+- macOS auto-updater fix: release workflow now produces `.app.tar.gz` correctly.
+
+---
+
 ## Streamer Overlay (idea, not started)
 
 Streamers playing ranked on Twitch want to show live ranked stats in their OBS overlay — e.g. current rating, last set result, win/loss streak, opponent info.
