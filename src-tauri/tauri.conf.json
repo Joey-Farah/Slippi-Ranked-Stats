@@ -1,6 +1,6 @@
 {
   "productName": "Slippi Ranked Stats",
-  "version": "1.4.13",
+  "version": "1.5.0",
   "identifier": "com.slippi.rankedstats",
   "build": {
     "frontendDist": "../dist",

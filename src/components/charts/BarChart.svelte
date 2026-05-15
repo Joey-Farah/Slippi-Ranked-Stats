@@ -63,7 +63,7 @@
         backgroundColor: "transparent",
         textStyle: { color: "#888" },
         grid: horizontal
-          ? { left: 140, right: 60, top: 10, bottom: 20 }
+          ? { left: 8, right: 60, top: 10, bottom: 20, containLabel: true }
           : { left: 40, right: 20, top: 20, bottom: 60 },
         tooltip,
         xAxis: horizontal ? axis : { ...cat, axisLabel: { color: "#aaa", fontSize: 10, rotate: 30 } },
@@ -114,7 +114,7 @@
       backgroundColor: "transparent",
       textStyle: { color: "#888" },
       grid: horizontal
-        ? { left: 140, right: 60, top: 10, bottom: 20 }
+        ? { left: 8, right: 60, top: 10, bottom: 20, containLabel: true }
         : { left: 40, right: 20, top: 20, bottom: 60 },
       tooltip: {
         trigger: "axis" as const,

@@ -199,12 +199,12 @@ export async function getGames(
 ): Promise<GameRow[]> {
   if (since) {
     return db.select<GameRow[]>(
-      `SELECT * FROM games WHERE match_type = 'ranked' AND timestamp >= $1 ORDER BY timestamp ASC`,
+      `SELECT * FROM games WHERE timestamp >= $1 ORDER BY timestamp ASC`,
       [since]
     );
   }
   return db.select<GameRow[]>(
-    `SELECT * FROM games WHERE match_type = 'ranked' ORDER BY timestamp ASC`
+    `SELECT * FROM games ORDER BY timestamp ASC`
   );
 }
 

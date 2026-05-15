@@ -7,6 +7,7 @@
   import LiveRankedSession from "./components/tabs/LiveRankedSession.svelte";
   import AllTimeStats from "./components/tabs/AllTimeStats.svelte";
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
+  import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId } from "./lib/store";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
@@ -171,6 +172,7 @@
     { label: "📈 Rating History" },
     { label: "📝 Grading" },
     { label: "🎯 Live Session" },
+    { label: "🕹️ Unranked & Direct Stats" },
   ];
 </script>
 
@@ -272,6 +274,8 @@
         <GradeHistory />
       {:else if $activeTab === 5}
         <LiveRankedSession />
+      {:else if $activeTab === 6}
+        <UnrankedStats />
       {/if}
     </div>
   </div>
