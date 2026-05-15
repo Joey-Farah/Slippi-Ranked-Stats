@@ -1,3 +1,22 @@
+## What's New in v1.5.0
+
+### 🕹️ Unranked & Direct Stats tab (new, Premium)
+
+A new tab at the end of the tab bar shows stats for your unranked and direct-mode games — the replays that were always being stored but never surfaced anywhere.
+
+- **Summary**: total games played, win %, and W–L record
+- **Win % vs Opponent Character**: bar chart with A-Z, Best, and Worst sorting, plus per-character filter chips to focus on specific matchups
+- **Your Characters**: win rate breakdown for each character you played
+- **Opponent Spotlight**: Most Played, Best Record, and Worst Record vs individual opponents
+- **Stage Win %**: win rate by stage across all your unranked games
+- **Opponent History**: full searchable table of every opponent you've played, sorted by games played
+
+### Bug fixes
+
+- **Stage name clipping in charts**: Long stage names like "Fountain of Dreams" were being cut off in horizontal bar charts. All charts now size their label area automatically.
+
+---
+
 ## What's New in v1.4.13
 
 ### Bug fixes
