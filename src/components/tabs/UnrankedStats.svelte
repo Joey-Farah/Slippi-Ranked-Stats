@@ -31,7 +31,7 @@
 
   // ── Chart stats (respect char filter) ─────────────────────────────────────
 
-  type SortMode = "alpha" | "best" | "worst";
+  type SortMode = "alpha" | "best" | "worst" | "most" | "least";
   let oppCharSort = $state<SortMode>("alpha");
 
   let oppCharStats = $derived((() => {
@@ -52,7 +52,9 @@
     // BarChart reverses horizontal data, so best/worst sort directions are inverted
     if (oppCharSort === "alpha") rows.sort((a, b) => a.name.localeCompare(b.name));
     else if (oppCharSort === "best") rows.sort((a, b) => b.pct - a.pct);
-    else rows.sort((a, b) => a.pct - b.pct);
+    else if (oppCharSort === "worst") rows.sort((a, b) => a.pct - b.pct);
+    else if (oppCharSort === "most") rows.sort((a, b) => b.total - a.total);
+    else rows.sort((a, b) => a.total - b.total);
     return rows;
   })());
 
@@ -177,7 +179,7 @@
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
           <div class="section-title" style="margin-bottom:0">Win % vs Opponent Character</div>
           <div style="display:flex; gap:4px">
-            {#each [["alpha", "A-Z"], ["best", "Best"], ["worst", "Worst"]] as [mode, lbl]}
+            {#each [["alpha", "A-Z"], ["best", "Best"], ["worst", "Worst"], ["most", "Most Played"], ["least", "Least Played"]] as [mode, lbl]}
               <button
                 onclick={() => oppCharSort = mode as SortMode}
                 style="

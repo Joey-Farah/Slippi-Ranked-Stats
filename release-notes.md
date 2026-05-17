@@ -1,3 +1,11 @@
+## What's New in v1.5.2
+
+### Improvements
+
+- **Sort by sample size**: The Win % vs Opponent Character chart (on both Matchup Stats and Unranked & Direct Stats) now has two new sort options — **Most Played** and **Least Played** — so you can quickly see your highest-volume matchups at the top or surface your rarest ones at the bottom.
+
+---
+
 ## What's New in v1.5.1
 
 ### Improvements
