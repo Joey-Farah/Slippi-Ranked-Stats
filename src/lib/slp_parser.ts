@@ -403,10 +403,10 @@ function computeAdvancedStats(
   let stockStart    = playerFrames[0].frame;
   let prevPStocks   = playerFrames[0].stocks;
 
-  // Spawn states in Melee: Rebirth (10) and RebirthWait (11). Character is
-  // invincible during these states; the transition OUT to any normal state (≥12)
-  // is when the opponent first becomes actionable after respawning.
-  const SPAWN_STATES = new Set([10, 11]);
+  // Respawn sequence in .slp files: DeadDown (0) → Entry/platform (12) → control.
+  // slippi-js docs list Rebirth=10/RebirthWait=11 but those states don't appear
+  // in post-frame data; the actual invincible-respawn state is 12 (Entry).
+  const SPAWN_STATES = new Set([0, 12]);
   let respawnSit = 0; let respawnSuccess = 0;
   let respawnEnd = -1; let respawnPct = -1;
   let respawnAwaitingSpawn = false;
@@ -480,7 +480,7 @@ function computeAdvancedStats(
         respawnEnd = -1;
       }
       if (respawnAwaitingSpawn && prevOppStateR >= 0 &&
-          SPAWN_STATES.has(prevOppStateR) && !SPAWN_STATES.has(opp.state) && opp.state >= 12) {
+          SPAWN_STATES.has(prevOppStateR) && !SPAWN_STATES.has(opp.state) && opp.state > 12) {
         respawnSit++;
         respawnEnd = snap.frame + RESPAWN_WINDOW;
         respawnPct = snap.percent;

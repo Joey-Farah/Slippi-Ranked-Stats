@@ -458,8 +458,10 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # ── Respawn defense rate ─────────────────────────────────────────────────
     # After opponent respawns, did the player avoid taking ≥5% for 120f?
     # Trigger: opponent loses a stock. Window starts when opponent exits spawn
-    # states (Rebirth=10, RebirthWait=11) and becomes actionable.
-    SPAWN_STATES_PY = {10, 11}
+    # states and becomes actionable.
+    # NOTE: peppi-py reports states 0 (death anim) then 12 (invincible respawn),
+    # NOT the slippi-js 10/11 (Rebirth/RebirthWait). Same logic, different IDs.
+    SPAWN_STATES_PY = {0, 12}
     respawn_defense_rate = None
     if len(raw_kill_frames) > 0:
         ok = 0; valid = 0
@@ -469,7 +471,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                 s = int(o_state[fi])
                 if s in SPAWN_STATES_PY:
                     in_spawn = True
-                elif in_spawn and s >= 12:
+                elif in_spawn and s > 12:
                     actionable_frame = fi; break
             if actionable_frame is None:
                 continue
