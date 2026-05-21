@@ -83,7 +83,9 @@ For each stat, `percentileScore(value, thresholds, inverted)` linearly interpola
 | Defense   | `avg_death_percent`, `recovery_success_rate`, `avg_stock_duration`, `respawn_defense_rate` |
 | Execution | `l_cancel_ratio`, `inputs_per_minute`, `wavedash_miss_rate` (display-only) |
 
-**Baselines (as of 2026-04-18):** Full HuggingFace rescan completed — 177,538 replays, 345,012 samples, 26 characters, 183 matchup entries. Uses `lastHitBy` kill attribution and both OCR fixes. Validated against slippi-js on 256 games: OPK/Kill%/L-cancel 99%+ exact, D/O 96% ≤1 dmg, NWR 88% ≤3pp, OCR 81% ≤3pp.
+**Baselines (as of 2026-05-21):** Full HuggingFace rescan completed — 128,851 replays, 250,048 samples, 26 characters, 127 matchup entries (≥50 samples). Includes all stat fixes: OCR phantom guard, respawn_defense_rate window, avg_stock_duration last-stock, tech_chase_rate threshold unification, lead/comeback stock-only definition. Authenticated via HF token (no rate limiting).
+
+~~**Baselines (as of 2026-04-18):** Full HuggingFace rescan completed — 177,538 replays, 345,012 samples, 26 characters, 183 matchup entries. Uses `lastHitBy` kill attribution and both OCR fixes. Validated against slippi-js on 256 games: OPK/Kill%/L-cancel 99%+ exact, D/O 96% ≤1 dmg, NWR 88% ≤3pp, OCR 81% ≤3pp.~~
 
 ### Premium gating
 
@@ -105,8 +107,43 @@ All fixes are committed. Live parser (`slp_parser.ts`) and Python pipeline (`par
 | Conversion data | Rollback post-frame duplicates in `frameData` inflated conversion counts | Deduplicate `frameData` per port by keeping last occurrence of each frame number |
 | OCR (first fix) | Used ≥20% damage threshold to define "successful conversion" | Changed to `convHitCount >= 2` (re-entries into hitstun), matching slippi-js `moves.length > 1` |
 | OCR (second fix) | Multi-hit moves (Falco dair, shine repeats) appear as continuous hitstun in frame data — re-entry check missed them | Added percent-increase check: if `opp.percent > convLastOppPercent + 0.5` while already in stun, count as new hit |
+| OCR (phantom conversion) | Kill frame terminates active conversion, then `oppInStun` fires on the same frame (prevOppStocks not yet updated) opening a phantom conversion | Added `oppStockLostThisFrame` guard — block opening new conversion when opponent stock drops this frame |
+| `respawn_defense_rate` | RESPAWN_WINDOW started at the death animation frame (~150 frames before respawn). Opponent had no agency during death, so the window expired before they could act — nearly always scored as "safe" (showed ~100%) | Window now starts when opponent **exits Rebirth/RebirthWait states** (action states 10/11) and becomes actionable. Both TS and Python updated. |
+| `avg_stock_duration` | Last stock never added to durations list (loop exits after last death). Also Python used attribution-filtered `death_frames` (missed self-destructs), causing "never died" games to inflate p50 to ~111 seconds | TS: append `playerFrames.at(-1).frame - stockStart` after loop. Python: use `raw_death_frames` (unfiltered) and include last surviving stock. "Never died" games still excluded from the benchmark to prevent inflation. |
+| `tech_chase_rate` (Python only) | Damage threshold was 2.0% vs TS 3.0%. Also had an early-exit on opponent regaining control before the hit, causing systematic undercount in benchmark data | Threshold unified to 3.0%. Control early-exit removed. |
+| `lead_maintenance_rate` / `comeback_rate` (Python only) | Python defined "player ahead/behind" using same-stock percent differential (+15% threshold) that the TS parser doesn't have — broader definition caused benchmark mismatch | Removed percent-differential condition from Python. Both scripts now use stock count only for lead/behind. |
+
+**Comeback rate null → perfect score:** Added `comeback_rate` null-case handling in `grading.ts`. If `comeback_rate === null` (player was never behind in stocks), it now scores as 100 instead of being excluded — being the player who never fell behind is a positive outcome.
+
+~~**Benchmarks status:** Rescan with all fixes above is **pending** — `peppi-py` and `huggingface_hub` need to be installed first.~~
 
 ~~**Pending: full benchmark rescan**~~ **Resolved 2026-04-18.** Rescan completed with `lastHitBy` kill attribution and both OCR fixes reflected in benchmarks.
+
+~~**Rescan required for 2026-05-20 fixes**~~ **Resolved 2026-05-21.** Rescan completed with all fixes above (128,851 replays, 250,048 samples). Run command was:
+```bash
+HF_TOKEN="..." .venv/Scripts/python.exe -u scripts/parse_hf_replays.py --character ALL --batch-size 500 --dl-workers 8
+.venv/Scripts/python.exe scripts/regen_benchmarks.py
+```
+
+### Stat descriptions and in-app methodology panel
+
+Added `STAT_DESCRIPTIONS` export to `grading.ts` — precise one-sentence descriptions of exactly what each stat measures (window sizes, thresholds, conditions). These appear as `(i)` tooltips next to each stat label in `SetGradeDisplay.svelte`.
+
+Added `GradingMethodology.svelte` — expandable in-app panel in the Grading tab (toggled by "How Grading Works" button). Shows:
+- How percentile scoring works + benchmark source
+- Grade letter thresholds (S≥75, A≥63, B≥52, C≥40, D≥28, F<28)
+- Per-category breakdown: each stat's weight within the category and its precise description
+- Execution stats explanation (why they're display-only)
+
+`STAT_WEIGHTS` and `CATEGORY_WEIGHTS` are now exported from `grading.ts` so the methodology component can import them directly instead of duplicating values.
+
+### Onboarding screen
+
+Added `OnboardingView.svelte` — shown when `$games.length === 0` (no replays scanned yet). Replaces the empty tab content with:
+- 3-step setup checklist (connect code → replay folder → scan), each step shows green checkmark when done
+- Feature highlight cards: Live Session, Set Grades (Premium), Matchup Stats, All-Time Stats
+
+Wired into `App.svelte`: `{#if $games.length === 0}` check placed before the tab content switch — the tab bar remains visible so users can navigate once data loads.
 
 ---
 
@@ -206,6 +243,11 @@ Parses replays from the HuggingFace `erickfm/slippi-public-dataset-v3.7` dataset
 - **Concurrent downloads** via ThreadPoolExecutor (8 threads) — download is I/O-bound
 - **Checkpointing** every batch for resume on interruption
 - **counter_hit_rate** fix: requires `o_ctrl & o_atk & o_vuln` (counter hits ⊆ neutral wins)
+
+**Pipeline reliability notes (2026-05-21):**
+- **ThreadPoolExecutor shutdown hang (fixed):** Old code used `with ThreadPoolExecutor(...) as dl_pool` which calls `shutdown(wait=True)` on `__exit__`. When `as_completed` timed out with threads stuck in HuggingFace 429 retry loops (up to 744s/retry), the `with` block silently blocked for hours. Fix: manage executor manually with `dl_pool.shutdown(wait=False, cancel_futures=True)` in a `finally` block.
+- **HF token required:** Without an authenticated token, HuggingFace rate-limits downloads (HTTP 429). Always run with `HF_TOKEN="hf_..."` env var set. Store permanently with `huggingface-cli login` to avoid needing to pass it each run.
+- **Always use `.venv/Scripts/python.exe`**, not system `py -3`. The `.venv` at the project root has all required packages (peppi-py, huggingface_hub, numpy) pre-installed.
 
 ```bash
 # Requires Python 3.10+ venv with peppi-py, numpy, huggingface_hub
