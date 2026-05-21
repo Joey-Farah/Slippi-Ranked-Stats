@@ -108,12 +108,12 @@ All fixes are committed. Live parser (`slp_parser.ts`) and Python pipeline (`par
 | OCR (first fix) | Used ≥20% damage threshold to define "successful conversion" | Changed to `convHitCount >= 2` (re-entries into hitstun), matching slippi-js `moves.length > 1` |
 | OCR (second fix) | Multi-hit moves (Falco dair, shine repeats) appear as continuous hitstun in frame data — re-entry check missed them | Added percent-increase check: if `opp.percent > convLastOppPercent + 0.5` while already in stun, count as new hit |
 | OCR (phantom conversion) | Kill frame terminates active conversion, then `oppInStun` fires on the same frame (prevOppStocks not yet updated) opening a phantom conversion | Added `oppStockLostThisFrame` guard — block opening new conversion when opponent stock drops this frame |
-| `respawn_defense_rate` | RESPAWN_WINDOW started at the death animation frame (~150 frames before respawn). Opponent had no agency during death, so the window expired before they could act — nearly always scored as "safe" (showed ~100%) | Window now starts when opponent **exits Rebirth/RebirthWait states** (action states 10/11) and becomes actionable. Both TS and Python updated. |
+| `respawn_defense_rate` | RESPAWN_WINDOW started at the death animation frame (~150 frames before respawn). Opponent had no agency during death, so the window expired before they could act — nearly always scored as "safe" (showed ~100%). Second bug (introduced same session): fix used states {10,11} (slippi-js doc IDs for Rebirth/RebirthWait) but those states **never appear** in peppi-py post-frame data — stat silently returned null for every game. | Window now starts when opponent exits **state 12 (Entry/spawn platform)** and transitions to state > 12 (actionable). Real respawn sequence in .slp files: state 0 (DeadDown) → state 12 (invincible platform) → control. Both `slp_parser.ts` and `parse_hf_replays.py` updated to `SPAWN_STATES = {0, 12}`. |
 | `avg_stock_duration` | Last stock never added to durations list (loop exits after last death). Also Python used attribution-filtered `death_frames` (missed self-destructs), causing "never died" games to inflate p50 to ~111 seconds | TS: append `playerFrames.at(-1).frame - stockStart` after loop. Python: use `raw_death_frames` (unfiltered) and include last surviving stock. "Never died" games still excluded from the benchmark to prevent inflation. |
 | `tech_chase_rate` (Python only) | Damage threshold was 2.0% vs TS 3.0%. Also had an early-exit on opponent regaining control before the hit, causing systematic undercount in benchmark data | Threshold unified to 3.0%. Control early-exit removed. |
 | `lead_maintenance_rate` / `comeback_rate` (Python only) | Python defined "player ahead/behind" using same-stock percent differential (+15% threshold) that the TS parser doesn't have — broader definition caused benchmark mismatch | Removed percent-differential condition from Python. Both scripts now use stock count only for lead/behind. |
 
-**Comeback rate null → perfect score:** Added `comeback_rate` null-case handling in `grading.ts`. If `comeback_rate === null` (player was never behind in stocks), it now scores as 100 instead of being excluded — being the player who never fell behind is a positive outcome.
+**Comeback rate null handling (2026-05-21):** `comeback_rate === null` (player was never behind in stocks) is now **excluded from scoring** — no bonus, no penalty. The UI shows *"never behind in stocks"* in italics. Previously null scored as 100 (perfect), which incorrectly rewarded dominant players with comeback credit they didn't demonstrate. The `NULL_CONTEXT` note for both `comeback_rate` and `lead_maintenance_rate` was already in `SetGradeDisplay.svelte`.
 
 ~~**Benchmarks status:** Rescan with all fixes above is **pending** — `peppi-py` and `huggingface_hub` need to be installed first.~~
 
@@ -124,6 +124,13 @@ All fixes are committed. Live parser (`slp_parser.ts`) and Python pipeline (`par
 HF_TOKEN="..." .venv/Scripts/python.exe -u scripts/parse_hf_replays.py --character ALL --batch-size 500 --dl-workers 8
 .venv/Scripts/python.exe scripts/regen_benchmarks.py
 ```
+
+**⚠ respawn_defense_rate baselines still missing (2026-05-21):** The 2026-05-21 rescan ran with the wrong state IDs ({10,11}) before the root cause was identified — all `respawn_defense_rate` entries in `grade_baselines.json` have `sample_size: 0`. The TS parser (`slp_parser.ts`) is fixed and computes correct values for users, but the grading bar cannot fill until baselines are populated. Run the targeted rescan to fix this:
+```bash
+HF_TOKEN="..." .venv/Scripts/python.exe -u scripts/rescan_respawn_only.py
+.venv/Scripts/python.exe scripts/regen_benchmarks.py
+```
+`rescan_respawn_only.py` downloads all ~129k replays, computes only `respawn_defense_rate`, and patches just that stat into `grade_baselines.json` without touching any other baselines. Supports resume via `scripts/parse_hf_respawn_checkpoint.json`. Expected runtime: similar to the full scan (~3 hrs) since downloads dominate. HF cache was cleared by the prior scan, so files must be re-downloaded.
 
 ### Stat descriptions and in-app methodology panel
 
