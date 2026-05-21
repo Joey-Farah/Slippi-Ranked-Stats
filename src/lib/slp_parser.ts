@@ -234,10 +234,15 @@ function computeConversionStats(
     const playerInStun = isInStun(snap.state);
     const playerInCtrl = isInControl(snap.state);
 
-    if (prevOppStocks >= 0 && opp.stocks < prevOppStocks) {
+    // Capture before prevOppStocks is updated — needed to guard the conversion
+    // start block below (prevOppStocks is overwritten before that check runs).
+    const oppStockLostThisFrame    = prevOppStocks    >= 0 && opp.stocks  < prevOppStocks;
+    const playerStockLostThisFrame = prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks;
+
+    if (oppStockLostThisFrame) {
       if (opp.lastHitBy === playerPort) attributedKillPercents.push(opp.percent);
     }
-    if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks) {
+    if (playerStockLostThisFrame) {
       if (snap.lastHitBy === oppPort) attributedDeathPercents.push(snap.percent);
     }
 
@@ -245,7 +250,7 @@ function computeConversionStats(
     // Without this, the dying state (0-10) is neither stun nor control, so the
     // reset counter never starts and playerConvActive stays true through respawn,
     // causing the next conversion on the fresh stock to be missed.
-    if (prevOppStocks >= 0 && opp.stocks < prevOppStocks && playerConvActive) {
+    if (oppStockLostThisFrame && playerConvActive) {
       if (convHitCount >= 2) openingConvCount++;
       playerConvActive   = false;
       playerResetCtr     = 0;
@@ -254,7 +259,7 @@ function computeConversionStats(
       convHitCount       = 0;
       convLastOppPercent = -1;
     }
-    if (prevPlayerStocks >= 0 && snap.stocks < prevPlayerStocks && oppConvActive) {
+    if (playerStockLostThisFrame && oppConvActive) {
       oppConvActive = false;
       oppResetCtr   = 0;
     }
@@ -263,7 +268,7 @@ function computeConversionStats(
 
     // ── Our conversion on opponent ────────────────────────────────────────
     if (oppInStun) {
-      if (!playerConvActive) {
+      if (!playerConvActive && !oppStockLostThisFrame) {
         playerConvActive   = true;
         playerConvCount++;
         convHitCount       = 1;
@@ -366,7 +371,7 @@ function computeAdvancedStats(
   const EG_WINDOW      = 180; // 3 s
   const TC_WINDOW      =  45; // 0.75 s
   const TC_HIT_DMG     =   3;
-  const RESPAWN_WINDOW = 150; // 2.5 s
+  const RESPAWN_WINDOW = 120; // 2 s after opponent becomes actionable
   const JUMP_STATES    = new Set([24, 25]); // JumpSquat (24), JumpF (25) — wavedash is input during jump squat
   const AIRDODGE       = 236; // EscapeAir (AIR_DODGE = 236 in slippi-js)
   const WD_LAND        = 43;  // LandingFallSpecial (state 43 in slippi-js)
@@ -398,9 +403,15 @@ function computeAdvancedStats(
   let stockStart    = playerFrames[0].frame;
   let prevPStocks   = playerFrames[0].stocks;
 
+  // Spawn states in Melee: Rebirth (10) and RebirthWait (11). Character is
+  // invincible during these states; the transition OUT to any normal state (≥12)
+  // is when the opponent first becomes actionable after respawning.
+  const SPAWN_STATES = new Set([10, 11]);
   let respawnSit = 0; let respawnSuccess = 0;
   let respawnEnd = -1; let respawnPct = -1;
+  let respawnAwaitingSpawn = false;
   let prevOppStocksR = -1;
+  let prevOppStateR  = -1;
 
   let wasEverDown = false;
   let wasEverUp   = false;
@@ -462,16 +473,25 @@ function computeAdvancedStats(
       prevOppY = opp.y;
 
       // ── Respawn defense ────────────────────────────────────────────────
+      // On death, wait for opponent to enter then exit spawn states (10/11)
+      // before starting the window — that's when they're actually actionable.
       if (prevOppStocksR >= 0 && opp.stocks < prevOppStocksR) {
+        respawnAwaitingSpawn = true;
+        respawnEnd = -1;
+      }
+      if (respawnAwaitingSpawn && prevOppStateR >= 0 &&
+          SPAWN_STATES.has(prevOppStateR) && !SPAWN_STATES.has(opp.state) && opp.state >= 12) {
         respawnSit++;
         respawnEnd = snap.frame + RESPAWN_WINDOW;
         respawnPct = snap.percent;
+        respawnAwaitingSpawn = false;
       }
       if (respawnEnd >= 0) {
-        if (snap.percent > respawnPct + 5)         { respawnEnd = -1; }
-        else if (snap.frame > respawnEnd)           { respawnSuccess++; respawnEnd = -1; }
+        if (snap.percent > respawnPct + 5)  { respawnEnd = -1; }
+        else if (snap.frame > respawnEnd)   { respawnSuccess++; respawnEnd = -1; }
       }
       prevOppStocksR = opp.stocks;
+      prevOppStateR  = opp.state;
     }
 
     // ── Recovery ───────────────────────────────────────────────────────────
@@ -499,10 +519,10 @@ function computeAdvancedStats(
     prevPState = snap.state;
   }
 
-  // If player never died, full game counts as one stock life
-  if (stockDurations.length === 0) {
-    stockDurations.push(playerFrames.at(-1)!.frame - playerFrames[0].frame);
-  }
+  // Always push the final stock (from last death/game-start to last frame).
+  // This handles both the "never died" case and the common case where the last
+  // surviving stock was never recorded because no subsequent death triggered it.
+  stockDurations.push(playerFrames.at(-1)!.frame - stockStart);
 
   return {
     stage_control_ratio:    onStageFrames > 0 ? centerFrames / onStageFrames : null,

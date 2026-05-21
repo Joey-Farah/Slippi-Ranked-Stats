@@ -396,10 +396,8 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
         for fd in down_frames:
             sp = float(o_pct[fd])
             for fw in range(int(fd) + 1, min(int(fd) + 45, n_frames)):
-                if float(o_pct[fw]) > sp + 2.0:
+                if float(o_pct[fw]) > sp + 3.0:
                     tc_hits += 1; break
-                if o_ctrl[fw]:
-                    break
         tech_chase_rate = tc_hits / len(down_frames)
 
     # ── Edgeguard success rate ───────────────────────────────────────────────
@@ -446,35 +444,48 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
         hit_advantage_rate = followups / len(hit_frs)
 
     # ── Average stock duration (frames) ─────────────────────────────────────
-    if len(death_frames) > 0:
+    # Always include the last surviving stock. Exclude "never died" games from
+    # the benchmark — they'd contribute the full game length as one stock duration,
+    # inflating the distribution.
+    avg_stock_duration = None
+    if len(raw_death_frames) > 0:
         prev = 0; durs = []
-        for fd in death_frames:
+        for fd in raw_death_frames:
             durs.append(int(fd) - prev); prev = int(fd) + 1
+        durs.append(n_frames - prev)  # last surviving stock
         avg_stock_duration = float(np.mean(durs))
-    else:
-        avg_stock_duration = float(n_frames)
 
     # ── Respawn defense rate ─────────────────────────────────────────────────
-    # After each death, did player avoid taking ≥5% in the ~150f respawn window?
+    # After opponent respawns, did the player avoid taking ≥5% for 120f?
+    # Trigger: opponent loses a stock. Window starts when opponent exits spawn
+    # states (Rebirth=10, RebirthWait=11) and becomes actionable.
+    SPAWN_STATES_PY = {10, 11}
     respawn_defense_rate = None
-    if len(death_frames) > 0:
-        ok = 0
-        for fd in death_frames:
-            rs = int(fd) + 80  # approx respawn frame
-            re = min(rs + 150, n_frames - 1)
-            if rs >= n_frames:
+    if len(raw_kill_frames) > 0:
+        ok = 0; valid = 0
+        for fd in raw_kill_frames:
+            in_spawn = False; actionable_frame = None
+            for fi in range(int(fd), min(int(fd) + 500, n_frames)):
+                s = int(o_state[fi])
+                if s in SPAWN_STATES_PY:
+                    in_spawn = True
+                elif in_spawn and s >= 12:
+                    actionable_frame = fi; break
+            if actionable_frame is None:
                 continue
-            sp   = float(p_pct[min(rs, n_frames - 1)])
-            safe = all(float(p_pct[fw]) <= sp + 5.0 for fw in range(rs + 1, re + 1))
+            valid += 1
+            re = min(actionable_frame + 120, n_frames - 1)
+            sp = float(p_pct[actionable_frame])
+            safe = all(float(p_pct[fw]) <= sp + 5.0 for fw in range(actionable_frame + 1, re + 1))
             if safe:
                 ok += 1
-        respawn_defense_rate = ok / len(death_frames)
+        respawn_defense_rate = ok / valid if valid > 0 else None
 
     # ── Comeback rate & Lead maintenance rate (binary per game) ──────────────
     player_won   = (int(p_stocks[-1]) > int(o_stocks[-1])) or \
                    (int(p_stocks[-1]) == int(o_stocks[-1]) and float(p_pct[-1]) < float(o_pct[-1]))
-    player_ahead = (o_stocks < p_stocks) | ((o_stocks == p_stocks) & (o_pct > p_pct + 15.0))
-    player_behind = (p_stocks < o_stocks) | ((p_stocks == o_stocks) & (p_pct > o_pct + 15.0))
+    player_ahead  = o_stocks < p_stocks
+    player_behind = p_stocks < o_stocks
 
     lead_maintenance_rate = (1.0 if player_won else 0.0) if bool(np.any(player_ahead))  else None
     comeback_rate         = (1.0 if player_won else 0.0) if bool(np.any(player_behind)) else None
@@ -720,7 +731,8 @@ def process_character_dir(
             return (file_path, local)
 
         local_paths = []
-        with ThreadPoolExecutor(max_workers=dl_workers) as dl_pool:
+        dl_pool = ThreadPoolExecutor(max_workers=dl_workers)
+        try:
             futures = {dl_pool.submit(download_one, fp): fp for fp in batch_files}
             try:
                 for future in as_completed(futures, timeout=300):
@@ -732,10 +744,12 @@ def process_character_dir(
             except TimeoutError:
                 stalled = sum(1 for f in futures if not f.done())
                 print(f"    WARNING: {stalled} downloads timed out, skipping", flush=True)
-                for f in futures:
-                    f.cancel()
                 counters["total_errors"] += stalled
                 batch_errors += stalled
+        finally:
+            # cancel_futures=True + wait=False: don't block on stuck download threads
+            # (e.g. threads backed off on 429 retries). Threads finish in background.
+            dl_pool.shutdown(wait=False, cancel_futures=True)
 
         dl_time = time.time() - t_batch
         print(f"    Downloaded {len(local_paths)} files in {dl_time:.1f}s", flush=True)
