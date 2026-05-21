@@ -104,7 +104,7 @@ export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>([
 ]);
 
 /** Per-stat scoring weights within a category. Unlisted stats default to 1.0. */
-const STAT_WEIGHTS: Partial<Record<keyof SetGrade["breakdown"], number>> = {
+export const STAT_WEIGHTS: Partial<Record<keyof SetGrade["breakdown"], number>> = {
   // Neutral (sum = 1.00)
   neutral_win_ratio:       0.30,
   opening_conversion_rate: 0.30,
@@ -126,7 +126,7 @@ const STAT_WEIGHTS: Partial<Record<keyof SetGrade["breakdown"], number>> = {
 };
 
 /** Overall score weights per category. */
-const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
+export const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
   neutral: 0.40,
   punish:  0.40,
   defense: 0.20,
@@ -140,6 +140,27 @@ export const CATEGORY_DEFS: Record<CategoryKey, { label: string; stats: (keyof S
   neutral: { label: "Neutral", stats: ["neutral_win_ratio", "opening_conversion_rate", "stage_control_ratio", "lead_maintenance_rate", "comeback_rate"] },
   punish:  { label: "Punish",  stats: ["damage_per_opening", "openings_per_kill", "avg_kill_percent", "edgeguard_success_rate", "tech_chase_rate", "hit_advantage_rate"] },
   defense: { label: "Defense", stats: ["avg_death_percent", "recovery_success_rate", "avg_stock_duration", "respawn_defense_rate"] },
+};
+
+export const STAT_DESCRIPTIONS: Partial<Record<string, string>> = {
+  neutral_win_ratio:       "Fraction of neutral exchanges you won. A neutral win is counted when you started a conversion while the opponent wasn't already converting on you.",
+  opening_conversion_rate: "Of your conversions (landing the opponent in hitstun or a grab), how often you landed at least one follow-up hit before they regained control.",
+  stage_control_ratio:     "How often your position was closer to center stage than your opponent's, measured only while both players were on stage.",
+  lead_maintenance_rate:   "Whether you won — only counted in games where you held a stock lead at some point. Null if you never had a lead.",
+  comeback_rate:           "Whether you won — only counted in games where you were down a stock at some point. Null (scored as perfect) if you were never behind.",
+  damage_per_opening:      "Average damage dealt per conversion, where a conversion ends when the opponent regains control for 45+ consecutive frames.",
+  openings_per_kill:       "Average number of conversions required to take a stock. Lower is better.",
+  avg_kill_percent:        "Average percent at which you killed the opponent. Lower means you're finishing stocks earlier.",
+  edgeguard_success_rate:  "Of the times your opponent went offstage (below Y=−5), how often they lost a stock within 3 seconds.",
+  tech_chase_rate:         "Of the times your opponent entered a knockdown state, how often you dealt 3+ damage within 45 frames (0.75 seconds).",
+  hit_advantage_rate:      "After your opponent entered a vulnerable state (hitstun, grabbed, etc.), how often you landed an attack within 30 frames (0.5 seconds).",
+  avg_death_percent:       "Average percent at which you died. Higher means you're surviving to higher damage before losing a stock.",
+  recovery_success_rate:   "Of the times you went offstage, how often you made it back (above Y=5) without losing a stock.",
+  avg_stock_duration:      "Average duration of each of your stocks in seconds.",
+  respawn_defense_rate:    "After your opponent becomes actionable following a respawn, how often you avoided taking 5%+ damage in the next 2 seconds.",
+  l_cancel_ratio:          "Fraction of aerial landings where you L-cancelled (pressed L/R within 7 frames before landing). Display only — benchmark data is insufficient.",
+  inputs_per_minute:       "Number of new digital button presses per minute (rising edges on the 12 digital buttons). Display only.",
+  wavedash_miss_rate:      "Fraction of attempted wavedashes (jump squat → airdodge near the ground) that didn't produce a wavedash landing. Lower is better.",
 };
 
 const STAT_LABELS: Record<string, string> = {
@@ -290,6 +311,10 @@ export function gradeSet(
     if (!skip && value !== null && thresholds) {
       score = percentileScore(value, thresholds, inverted);
       grade = scoreToGrade(score);
+    } else if (key === "comeback_rate" && value === null) {
+      // null means the player was never behind in stocks — treat as perfect
+      score = 100;
+      grade = scoreToGrade(100);
     }
 
     breakdown[key] = {

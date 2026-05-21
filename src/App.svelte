@@ -8,6 +8,7 @@
   import AllTimeStats from "./components/tabs/AllTimeStats.svelte";
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
+  import OnboardingView from "./components/OnboardingView.svelte";
   import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId } from "./lib/store";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
@@ -262,7 +263,9 @@
     </div>
 
     <div class="tab-content">
-      {#if $activeTab === 0}
+      {#if $games.length === 0}
+        <OnboardingView />
+      {:else if $activeTab === 0}
         <RankedSessions />
       {:else if $activeTab === 1}
         <MatchupStats />

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { open as openUrl } from "@tauri-apps/plugin-shell";
-  import { CATEGORY_DEFS, DISPLAY_ONLY_STATS, type SetGrade, type GradeLetter, type CategoryKey } from "../lib/grading";
+  import { CATEGORY_DEFS, DISPLAY_ONLY_STATS, STAT_DESCRIPTIONS, type SetGrade, type GradeLetter, type CategoryKey } from "../lib/grading";
+  import Tooltip from "./Tooltip.svelte";
 
   let { grade, detailed = true }: { grade: SetGrade; detailed?: boolean } = $props();
 
@@ -134,7 +135,12 @@
           ">
             <!-- Label + value -->
             <div>
-              <div style="font-size: 15px; font-weight: 600">{stat.label}</div>
+              <div style="font-size: 15px; font-weight: 600; display: flex; align-items: center;">
+                {stat.label}
+                {#if STAT_DESCRIPTIONS[statKey]}
+                  <Tooltip text={STAT_DESCRIPTIONS[statKey]!} />
+                {/if}
+              </div>
               <div style="font-size: 13px; color: var(--muted)">
                 {#if stat.value === null && NULL_CONTEXT[statKey as keyof SetGrade["breakdown"]]}
                   <span style="opacity: 0.6; font-style: italic">{NULL_CONTEXT[statKey as keyof SetGrade["breakdown"]]}</span>

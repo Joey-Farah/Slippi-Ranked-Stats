@@ -13,6 +13,7 @@
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, type SetGradeRow } from "../../lib/db";
   import { BENCHMARKS_VERSION } from "../../lib/grade-benchmarks";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
+  import GradingMethodology from "../GradingMethodology.svelte";
 
   function rowToEntry(row: SetGradeRow): GradeHistoryEntry {
     const d = new Date(row.set_timestamp);
@@ -117,6 +118,7 @@
   // Only sets not yet graded — shown in button label
   let ungradedSets = $derived(completedSets.filter((s) => !gradedIds.has(s.match_id)));
 
+  let showMethodology  = $state(false);
   let selectedMatchId  = $state<string | null>(null);
   let filterLetter     = $state<string | null>(null);
   let filterResult     = $state<"all" | "win" | "loss">("all");
@@ -502,15 +504,18 @@
         </div>
         <button
           type="button"
-          onclick={() => openUrl("https://github.com/Joey-Farah/Slippi-Ranked-Stats/blob/main/docs/grading_methodology.md")}
+          onclick={() => showMethodology = !showMethodology}
           style="
             display: inline-flex; align-items: center; gap: 5px;
-            background: #7c3aed18; border: 1px solid #7c3aed55; border-radius: 6px;
-            padding: 5px 10px; font-size: 11px; font-weight: 600;
+            background: {showMethodology ? '#7c3aed33' : '#7c3aed18'};
+            border: 1px solid {showMethodology ? '#7c3aed88' : '#7c3aed55'};
+            border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 600;
             color: #a78bfa; font-family: inherit; cursor: pointer;
           "
         >
-          <span style="font-size: 13px">📖</span> Grading Methodology
+          <span style="font-size: 13px">📖</span>
+          How Grading Works
+          <span style="font-size: 9px; transition: transform 0.15s; transform: rotate({showMethodology ? 180 : 0}deg)">▾</span>
         </button>
       </div>
       <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0">
@@ -575,6 +580,13 @@
       </div>
     {/if}
   </div>
+
+  <!-- Methodology panel (collapsible) -->
+  {#if showMethodology}
+    <div class="card" style="margin-bottom: 16px; border-color: #7c3aed44">
+      <GradingMethodology />
+    </div>
+  {/if}
 
   <!-- View toggle (premium + has graded data + not busy) -->
   {#if $isPremium && activeHistory.filter((r) => r.grade !== null).length > 0 && !$gradeHistoryBusy}
