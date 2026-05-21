@@ -311,10 +311,6 @@ export function gradeSet(
     if (!skip && value !== null && thresholds) {
       score = percentileScore(value, thresholds, inverted);
       grade = scoreToGrade(score);
-    } else if (key === "comeback_rate" && value === null) {
-      // null means the player was never behind in stocks — treat as perfect
-      score = 100;
-      grade = scoreToGrade(100);
     }
 
     breakdown[key] = {
