@@ -65,9 +65,14 @@ jobs:
 
           # Extract the latest release section (everything before the first ---)
           $notesRaw = Get-Content release-notes.md -Raw
-          $notes = ($notesRaw -split "`r?`n---")[0].Trim()
-          # Strip the "## What's New in vX.X.X" heading line
-          $notes = ($notes -split "`r?`n", 2)[1].Trim()
+          $latestSection = ($notesRaw -split "`r?`n---")[0].Trim()
+          # GitHub release body: just this version's section, so the download
+          # assets aren't buried under the whole changelog. Full history stays
+          # in release-notes.md in the repo.
+          $latestSection | Out-File -FilePath release-body.md -Encoding utf8NoBOM
+          # Strip the "## What's New in vX.X.X" heading line for latest.json
+          # (the in-app updater shows the version number separately)
+          $notes = ($latestSection -split "`r?`n", 2)[1].Trim()
 
           $json = [ordered]@{
             version  = $version
@@ -93,7 +98,7 @@ jobs:
           gh release delete $tag --yes 2>$null
           gh release create $tag `
             --title $title `
-            --notes-file release-notes.md `
+            --notes-file release-body.md `
             $(if ($isPreRelease) { "--prerelease" }) `
             "$exePath" `
             latest.json
