@@ -72,14 +72,14 @@ For each stat, `percentileScore(value, thresholds, inverted)` linearly interpola
 - **Benchmark lookup**: matchup (player × opp) → player char → `_overall`
 - **Category weights**: Neutral 40%, Punish 40%, Defense 20% (execution stats are display-only, not scored — no category weight)
 - **Per-stat weights (Neutral)**: NWR 30%, OCR 30%, Stage Control 15%, Lead Maintenance 15%, Comeback 10%
-- **Per-stat weights (Punish)**: D/O 30%, OPK 30%, Edgeguard 15%, Kill% 15%, Tech Chase 5%, Hit Advantage 5%
+- **Per-stat weights (Punish)**: D/O 30%, OPK 35%, Edgeguard 15%, Kill% 15%, Tech Chase 5% (hit_advantage_rate cut 2026-05-22 — see TODO below)
 - **Per-stat weights (Defense)**: Recovery 35%, Death% 30%, Stock Duration 20%, Respawn Defense 15%
 
-**Stats by category (18 total):**
+**Stats by category (17 scored/displayed):**
 | Category  | Stats |
 |-----------|-------|
 | Neutral   | `neutral_win_ratio`, `opening_conversion_rate`, `stage_control_ratio`, `lead_maintenance_rate`, `comeback_rate` |
-| Punish    | `damage_per_opening`, `openings_per_kill`, `avg_kill_percent`, `edgeguard_success_rate`, `tech_chase_rate`, `hit_advantage_rate` |
+| Punish    | `damage_per_opening`, `openings_per_kill`, `avg_kill_percent`, `edgeguard_success_rate`, `tech_chase_rate` |
 | Defense   | `avg_death_percent`, `recovery_success_rate`, `avg_stock_duration`, `respawn_defense_rate` |
 | Execution | `l_cancel_ratio`, `inputs_per_minute`, `wavedash_miss_rate` (display-only) |
 
@@ -135,6 +135,29 @@ The supervisor wraps `rescan_respawn_only.py` (patches only `respawn_defense_rat
 - **peppi-py 0.8.x renamed `post.damage` → `post.percent`.** `rescan_respawn_only.py` handles both; the Windows venv's older peppi-py still exposes `.damage`.
 - **The Xet backend wedges:** individual download threads hang indefinitely (the per-batch `as_completed(timeout=300)` does not reliably fire), freezing a batch with no error. `run_respawn_supervised.sh` detects log silence > 300 s, kills, and resumes from the checkpoint — lossless. Disabling Xet (`HF_HUB_DISABLE_XET=1` + `HF_HUB_DOWNLOAD_TIMEOUT=30`) is reliable but ~5× slower.
 - **Download is bandwidth-bound**, not parse-bound. Throughput plateaus ~75 Mbps on this connection; `DL_WORKERS` raised 8 → 32 (sweet spot; 64 barely helps). A faster connection is the only real speed lever.
+
+### TODO: revisit `hit_advantage_rate` (cut from scoring 2026-05-22)
+
+Removed from the **grade scoring + UI** because it overlapped `opening_conversion_rate`:
+both reward landing follow-ups after the opponent becomes vulnerable, and OCR does it
+more rigorously (requires the follow-up to actually land; guards against double-counting
+mid-combo). Hit advantage only checked whether the player *entered an attacking state*
+within 0.5 s of any vulnerability onset (incl. grabs, knockdowns, techs, and the dying
+state), so it was the noisier proxy. Its 5% Punish weight was given entirely to
+openings_per_kill (now 0.35).
+
+**Still computed** by both parsers (`slp_parser.ts`, `parse_hf_replays.py`) and still
+present in `grade_baselines.json` / `grade-benchmarks.ts` — only `grading.ts` + the
+methodology UI changed, so no rescan was needed. To revisit next session:
+
+- **Keep as-is:** re-add to the `breakdown` interface, `STAT_WEIGHTS`,
+  `CATEGORY_DEFS.punish`, `STAT_DESCRIPTIONS`, `STAT_LABELS`, and the `formatStatValue`
+  percent set in `grading.ts` (plus the local label map in `GradingMethodology.svelte`),
+  then re-balance the Punish weights.
+- **Redefine** (e.g. true frame/tempo advantage, follow-up *accuracy*, or surfacing the
+  dormant `counter_hit_rate` field that's already computed in the Python pipeline but
+  null/unused in the live grade): change the computation in both parsers and **run a full
+  baseline rescan** before shipping.
 
 ### Stat descriptions and in-app methodology panel
 

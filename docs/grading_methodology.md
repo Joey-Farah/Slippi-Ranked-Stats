@@ -51,12 +51,11 @@ Turning openings into stocks.
 
 | Stat | Weight | What it measures |
 |------|--------|-----------------|
+| **Openings / Kill** | 35% | How many openings it took to take each stock (lower is better) |
 | **Damage / Opening** | 30% | Average damage dealt per successful opening |
-| **Openings / Kill** | 30% | How many openings it took to take each stock (lower is better) |
 | **Edgeguard %** | 15% | Success rate when your opponent was offstage |
 | **Avg Kill %** | 15% | Average percent you took stocks at (lower is better) |
 | **Tech Chase %** | 5% | Success rate following up tech situations |
-| **Hit Advantage Rate** | 5% | How often you won the beat-to-beat exchange during engagements |
 
 ### Defense — 20% of overall
 
@@ -133,7 +132,7 @@ Our replay parser matches Slippi Launcher's own methodology (the `@slippi/slippi
 - **Damage / Opening**: differs by ~1 on average due to a methodology difference (we use peak-percent-per-stock; slippi-js uses per-conversion move damage). Values are consistent across both the benchmark dataset and your live grades, so percentiles remain valid.
 - **Opening Conversion %**: we systematically overcount slightly (avg +1pp, max +13pp) due to multi-hit moves. We never undercount, so you will never see a lower number here than in Slippi Launcher.
 
-Custom stats (stage control, edgeguards, tech chase, hit advantage, recovery, etc.) are not computed by slippi-js — we derive them from frame-by-frame action-state tracking using the same state-ID definitions slippi-js uses.
+Custom stats (stage control, edgeguards, tech chase, recovery, etc.) are not computed by slippi-js — we derive them from frame-by-frame action-state tracking using the same state-ID definitions slippi-js uses.
 
 ---
 

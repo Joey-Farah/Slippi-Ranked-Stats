@@ -71,14 +71,14 @@ describe("scoreToGrade", () => {
 // ── gradeSet — shape + invariants ──────────────────────────────────────────
 
 describe("gradeSet", () => {
-  it("returns a fully-populated SetGrade with all 18 breakdown keys", () => {
+  it("returns a fully-populated SetGrade with all 17 breakdown keys", () => {
     const grade = gradeSet([mockGame()], "Fox", "Falco", "win", 2, 0);
 
     const expectedKeys = [
       "neutral_win_ratio", "opening_conversion_rate", "stage_control_ratio",
       "lead_maintenance_rate", "openings_per_kill", "damage_per_opening",
       "avg_kill_percent", "edgeguard_success_rate", "tech_chase_rate",
-      "hit_advantage_rate", "avg_death_percent", "recovery_success_rate",
+      "avg_death_percent", "recovery_success_rate",
       "avg_stock_duration", "respawn_defense_rate", "comeback_rate",
       "l_cancel_ratio", "inputs_per_minute", "wavedash_miss_rate",
     ];

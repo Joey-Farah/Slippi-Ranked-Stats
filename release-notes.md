@@ -1,3 +1,21 @@
+## What's New in v1.6.0
+
+### 🚀 Guided setup for new users (new)
+
+If you haven't scanned any replays yet, the app now greets you with a setup screen that walks you through getting started — entering your connect code, picking your replay folder, and running your first scan — alongside quick-look cards for the main features (Live Session, Set Grades, Matchup Stats, and All-Time Stats).
+
+### 🎯 Set Grades: more accurate and more transparent (Premium)
+
+- **New "How Grading Works" panel**: open it from the Grading tab to see exactly how grades are built — how percentile scoring works, the S–F thresholds, each category's weight, and a plain-English description of what every stat measures.
+- **More accurate stats**: several of the underlying calculations were rebuilt to match Slippi's own reference numbers — including respawn defense, average stock duration, opening conversions, tech chase, and neutral wins. Grades are now compared against a freshly rebuilt and much larger benchmark dataset, so your letter grades are more trustworthy than before.
+
+### Grading refinements
+
+- **Retired the "Hit Advantage" stat**: it measured almost the same thing as Opening Conversion Rate, so it was redundant. Its weight has moved to Openings per Kill.
+- **Comeback Rate fix**: games where you were never behind in stocks no longer count as a "perfect" comeback — they're now left out of the comeback score instead of inflating it.
+
+---
+
 ## What's New in v1.5.2
 
 ### Improvements

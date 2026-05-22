@@ -5,7 +5,7 @@
  *   Neutral   40% — neutral_win_ratio, opening_conversion_rate, stage_control_ratio,
  *                    lead_maintenance_rate, comeback_rate
  *   Punish    40% — damage_per_opening, openings_per_kill, avg_kill_percent*,
- *                    edgeguard_success_rate, tech_chase_rate, hit_advantage_rate
+ *                    edgeguard_success_rate, tech_chase_rate
  *   Defense   20% — avg_death_percent*, recovery_success_rate, avg_stock_duration,
  *                    respawn_defense_rate
  *
@@ -69,7 +69,6 @@ export interface SetGrade {
     avg_kill_percent:        StatGrade;
     edgeguard_success_rate:  StatGrade;
     tech_chase_rate:         StatGrade;
-    hit_advantage_rate:      StatGrade;
     avg_death_percent:       StatGrade;
     recovery_success_rate:   StatGrade;
     avg_stock_duration:      StatGrade;
@@ -111,13 +110,14 @@ export const STAT_WEIGHTS: Partial<Record<keyof SetGrade["breakdown"], number>> 
   stage_control_ratio:     0.15,
   lead_maintenance_rate:   0.15,
   comeback_rate:           0.10,
-  // Punish (sum = 1.00) — D/O and OPK are primary efficiency metrics
+  // Punish (sum = 1.00) — the 0.05 freed by cutting hit_advantage_rate was given
+  // to openings_per_kill (hit advantage overlapped opening_conversion_rate; see
+  // docs/dev_notes.md).
   damage_per_opening:      0.30,
-  openings_per_kill:       0.30,
+  openings_per_kill:       0.35,
   edgeguard_success_rate:  0.15,
   avg_kill_percent:        0.15,
   tech_chase_rate:         0.05,
-  hit_advantage_rate:      0.05,
   // Defense (sum = 1.00)
   recovery_success_rate:   0.35,
   avg_death_percent:       0.30,
@@ -138,7 +138,7 @@ export const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
  *  in DISPLAY_ONLY_STATS and are not a scored category. */
 export const CATEGORY_DEFS: Record<CategoryKey, { label: string; stats: (keyof SetGrade["breakdown"])[] }> = {
   neutral: { label: "Neutral", stats: ["neutral_win_ratio", "opening_conversion_rate", "stage_control_ratio", "lead_maintenance_rate", "comeback_rate"] },
-  punish:  { label: "Punish",  stats: ["damage_per_opening", "openings_per_kill", "avg_kill_percent", "edgeguard_success_rate", "tech_chase_rate", "hit_advantage_rate"] },
+  punish:  { label: "Punish",  stats: ["openings_per_kill", "damage_per_opening", "avg_kill_percent", "edgeguard_success_rate", "tech_chase_rate"] },
   defense: { label: "Defense", stats: ["avg_death_percent", "recovery_success_rate", "avg_stock_duration", "respawn_defense_rate"] },
 };
 
@@ -152,9 +152,7 @@ export const STAT_DESCRIPTIONS: Partial<Record<string, string>> = {
   openings_per_kill:       "Average number of conversions required to take a stock. Lower is better.",
   avg_kill_percent:        "Average percent at which you killed the opponent. Lower means you're finishing stocks earlier.",
   edgeguard_success_rate:  "Of the times your opponent went offstage (below Y=−5), how often they lost a stock within 3 seconds.",
-  tech_chase_rate:         "Of the times your opponent entered a knockdown state, how often you dealt 3+ damage within 45 frames (0.75 seconds).",
-  hit_advantage_rate:      "After your opponent entered a vulnerable state (hitstun, grabbed, etc.), how often you landed an attack within 30 frames (0.5 seconds).",
-  avg_death_percent:       "Average percent at which you died. Higher means you're surviving to higher damage before losing a stock.",
+  tech_chase_rate:         "Of the times your opponent entered a knockdown state, how often you dealt 3+ damage within 45 frames (0.75 seconds).",  avg_death_percent:       "Average percent at which you died. Higher means you're surviving to higher damage before losing a stock.",
   recovery_success_rate:   "Of the times you went offstage, how often you made it back (above Y=5) without losing a stock.",
   avg_stock_duration:      "Average duration of each of your stocks in seconds.",
   respawn_defense_rate:    "After your opponent becomes actionable following a respawn, how often you avoided taking 5%+ damage in the next 2 seconds.",
@@ -172,9 +170,7 @@ const STAT_LABELS: Record<string, string> = {
   damage_per_opening:      "Damage / Opening",
   avg_kill_percent:        "Avg Kill %",
   edgeguard_success_rate:  "Edgeguard %",
-  tech_chase_rate:         "Tech Chase %",
-  hit_advantage_rate:      "Hit Advantage %",
-  avg_death_percent:       "Avg Death %",
+  tech_chase_rate:         "Tech Chase %",  avg_death_percent:       "Avg Death %",
   recovery_success_rate:   "Recovery %",
   avg_stock_duration:      "Avg Stock Duration",
   respawn_defense_rate:    "Respawn Defense %",
@@ -222,7 +218,7 @@ export function formatStatValue(key: string, value: number | null): string {
   const PCT_STATS = new Set([
     "neutral_win_ratio", "l_cancel_ratio",
     "opening_conversion_rate", "stage_control_ratio", "lead_maintenance_rate",
-    "edgeguard_success_rate", "tech_chase_rate", "hit_advantage_rate",
+    "edgeguard_success_rate", "tech_chase_rate",
     "recovery_success_rate", "respawn_defense_rate", "comeback_rate", "wavedash_miss_rate",
   ]);
   if (PCT_STATS.has(key))                return (value * 100).toFixed(0) + "%";
