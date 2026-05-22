@@ -66,10 +66,12 @@ jobs:
           # Extract the latest release section (everything before the first ---)
           $notesRaw = Get-Content release-notes.md -Raw
           $latestSection = ($notesRaw -split "`r?`n---")[0].Trim()
-          # GitHub release body: just this version's section, so the download
-          # assets aren't buried under the whole changelog. Full history stays
-          # in release-notes.md in the repo.
-          $latestSection | Out-File -FilePath release-body.md -Encoding utf8NoBOM
+          # GitHub release body: an "already installed? just reopen the app"
+          # banner + just this version's section, so the download assets aren't
+          # buried under the whole changelog. Full history stays in
+          # release-notes.md in the repo.
+          $updateBanner = "> **Already have Slippi Ranked Stats?** There's no need to reinstall - you'll be prompted to update the next time you open the app. The downloads below are only needed for a fresh install."
+          ($updateBanner + "`r`n`r`n" + $latestSection) | Out-File -FilePath release-body.md -Encoding utf8NoBOM
           # Strip the "## What's New in vX.X.X" heading line for latest.json
           # (the in-app updater shows the version number separately)
           $notes = ($latestSection -split "`r?`n", 2)[1].Trim()

@@ -313,6 +313,14 @@ Workflow: edit the `SETS` array in all three files with matching replay paths, r
 
 ---
 
+## Release pages (GitHub)
+
+The release workflow (`.github/workflows/release.yml`) publishes **only the latest version's `release-notes.md` section** as the GitHub release body (written to `release-body.md`), not the entire changelog — so the download assets aren't buried under the history. It also prepends a standing "already installed? no need to reinstall — just reopen the app for the update prompt" banner.
+
+**Keep this layout for every release.** `latest.json` (the in-app updater notes) is unaffected — it already shows only the version-specific notes. The full changelog history stays in `release-notes.md` in the repo.
+
+---
+
 ## Cross-machine workflow
 
 Anything that needs to travel between machines must be in git. Per-machine state that does NOT travel:
