@@ -37,6 +37,12 @@ function isAttacking(s) {
 function isKnockdown(s) {
   return s >= 183 && s <= 204;
 }
+function isGrounded(s) {
+  return (s >= 14 && s <= 24) || (s >= 39 && s <= 64) || s === 212;
+}
+function isOnLedge(s) {
+  return s >= 252 && s <= 263;
+}
 
 // Correct IDs from slippi-js common.esm.js (previously wrong: {29,30,31} = fall states)
 const DEFENSIVE_STATES_SET = new Set([233, 234, 235]);
@@ -98,7 +104,7 @@ function parseUbjson(buf, startPos) {
 function computeAdvancedStats(playerFrames, oppByFrame, result) {
   if (playerFrames.length === 0) return null;
 
-  const OFFSTAGE_Y = -5, RETURN_Y = 5;
+  const OFFSTAGE_Y = -5;
   const EG_WINDOW = 180, TC_WINDOW = 45, TC_HIT_DMG = 3, RESPAWN_WINDOW = 150;
   // Correct wavedash state IDs (previously: AIRDODGE=235 spot-dodge, WD_LAND=189 knockdown state)
   const JUMP_STATES = new Set([24, 25]); // JumpSquat, JumpF
@@ -108,7 +114,7 @@ function computeAdvancedStats(playerFrames, oppByFrame, result) {
 
   let centerFrames = 0, onStageFrames = 0;
   let techSit = 0, techHit = 0, tcFrame = -1, tcPct = -1, prevOppKD = false;
-  let egSit = 0, egSuccess = 0, egFrame = -1, egStocks = -1, prevOppY = 999;
+  let egSit = 0, egSuccess = 0, egFrame = -1, egStocks = -1, egStartPct = -1, prevOppY = 999;
   let recSit = 0, recSuccess = 0, recFrame = -1, recStocks = -1, prevPY = 999;
   let hitOpps = 0, hitFollowups = 0, hitWindowEnd = -1, prevOppVuln = false;
   const stockDurations = [];
@@ -152,12 +158,17 @@ function computeAdvancedStats(playerFrames, oppByFrame, result) {
       }
       prevOppKD = oppKD;
 
+      // Edgeguard (hit-based): success = you hit them offstage (% rose) or took
+      // the stock, before they made it back onto the stage (grounded only).
       const oppOff = opp.y < OFFSTAGE_Y;
-      if (egFrame < 0 && oppOff && prevOppY >= OFFSTAGE_Y) { egSit++; egFrame = snap.frame; egStocks = opp.stocks; }
+      if (egFrame < 0 && oppOff && prevOppY >= OFFSTAGE_Y) {
+        egSit++; egFrame = snap.frame; egStocks = opp.stocks; egStartPct = opp.percent;
+      }
       if (egFrame >= 0) {
-        if (opp.stocks < egStocks)                 { egSuccess++; egFrame = -1; }
-        else if (opp.y > RETURN_Y)                 {              egFrame = -1; }
-        else if (snap.frame > egFrame + EG_WINDOW) {              egFrame = -1; }
+        if (opp.stocks < egStocks)                 { egSuccess++; egFrame = -1; } // gimp / kill
+        else if (opp.percent > egStartPct + 0.5)   { egSuccess++; egFrame = -1; } // hit landed
+        else if (isGrounded(opp.state))            {              egFrame = -1; } // escaped to stage
+        else if (snap.frame > egFrame + EG_WINDOW) {              egFrame = -1; } // timed out
       }
       prevOppY = opp.y;
 
@@ -171,12 +182,14 @@ function computeAdvancedStats(playerFrames, oppByFrame, result) {
       prevOppStocksR = opp.stocks;
     }
 
+    // Recovery (grounded/ledge state): success = you reach a grounded or ledge
+    // state (sweetspot ledge grab counts) before losing the stock.
     const pOff = snap.y < OFFSTAGE_Y;
     if (recFrame < 0 && pOff && prevPY >= OFFSTAGE_Y) { recSit++; recFrame = snap.frame; recStocks = snap.stocks; }
     if (recFrame >= 0) {
-      if (snap.stocks < recStocks)                { recFrame = -1; }
-      else if (snap.y > RETURN_Y)                 { recSuccess++; recFrame = -1; }
-      else if (snap.frame > recFrame + EG_WINDOW) { recFrame = -1; }
+      if (snap.stocks < recStocks)                              { recFrame = -1; } // died
+      else if (isGrounded(snap.state) || isOnLedge(snap.state)) { recSuccess++; recFrame = -1; } // made it back
+      else if (snap.frame > recFrame + EG_WINDOW)               { recFrame = -1; } // timed out
     }
     prevPY = snap.y;
 

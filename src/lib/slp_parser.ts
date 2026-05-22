@@ -149,6 +149,21 @@ function isKnockdown(s: number): boolean {
   return (s >= 183 && s <= 204); // down-bound, down-wait, tech, get-up family
 }
 
+/** Player is standing on a surface (stage or platform): grounded control, squat,
+ *  landing, ground attacks, grab. Excludes airborne (25–38) and ledge states. */
+function isGrounded(s: number): boolean {
+  return (s >= 14 && s <= 24)    // Wait..KneeBend (grounded control)
+      || (s >= 39 && s <= 64)    // squat (39–41), landing (42–43), ground attacks (44–64)
+      || s === 212;              // GRAB
+}
+
+/** Player is hanging on / acting from the ledge: CliffCatch (252) through the
+ *  cliff getup/attack/escape/jump family (263). Counts as recovered (you survived)
+ *  but NOT as having escaped an edgeguard (you can still be hit off the ledge). */
+function isOnLedge(s: number): boolean {
+  return s >= 252 && s <= 263;
+}
+
 /** Hamming weight — counts set bits. Matches slippi-js countSetBits. */
 function countSetBits(x: number): number {
   let bits = x;
@@ -367,7 +382,6 @@ function computeAdvancedStats(
   if (playerFrames.length === 0) return NULL_RESULT;
 
   const OFFSTAGE_Y     = -5;
-  const RETURN_Y       =  5;
   const EG_WINDOW      = 180; // 3 s
   const TC_WINDOW      =  45; // 0.75 s
   const TC_HIT_DMG     =   3;
@@ -387,7 +401,7 @@ function computeAdvancedStats(
   let prevOppKD = false;
 
   let egSit = 0; let egSuccess = 0;
-  let egFrame = -1; let egStocks = -1;
+  let egFrame = -1; let egStocks = -1; let egStartPct = -1;
   let prevOppY = 999;
 
   let recSit = 0; let recSuccess = 0;
@@ -462,13 +476,21 @@ function computeAdvancedStats(
       }
       prevOppKD = oppKD;
 
-      // ── Edgeguard ──────────────────────────────────────────────────────
+      // ── Edgeguard (hit-based) ──────────────────────────────────────────
+      // Opens when the opponent goes offstage. Success = you landed a hit on
+      // them while offstage (their % rose) OR they lost the stock. Escape =
+      // they made it back onto the stage (grounded only — ledge-hang stays
+      // open, you can still hit them off the ledge) without being hit, or 3s
+      // timeout.
       const oppOff = opp.y < OFFSTAGE_Y;
-      if (egFrame < 0 && oppOff && prevOppY >= OFFSTAGE_Y) { egSit++; egFrame = snap.frame; egStocks = opp.stocks; }
+      if (egFrame < 0 && oppOff && prevOppY >= OFFSTAGE_Y) {
+        egSit++; egFrame = snap.frame; egStocks = opp.stocks; egStartPct = opp.percent;
+      }
       if (egFrame >= 0) {
-        if (opp.stocks < egStocks)                    { egSuccess++; egFrame = -1; }
-        else if (opp.y > RETURN_Y)                    {              egFrame = -1; }
-        else if (snap.frame > egFrame + EG_WINDOW)    {              egFrame = -1; }
+        if (opp.stocks < egStocks)                    { egSuccess++; egFrame = -1; } // gimp / kill
+        else if (opp.percent > egStartPct + 0.5)      { egSuccess++; egFrame = -1; } // hit landed
+        else if (isGrounded(opp.state))               {              egFrame = -1; } // escaped to stage
+        else if (snap.frame > egFrame + EG_WINDOW)    {              egFrame = -1; } // timed out
       }
       prevOppY = opp.y;
 
@@ -494,13 +516,16 @@ function computeAdvancedStats(
       prevOppStateR  = opp.state;
     }
 
-    // ── Recovery ───────────────────────────────────────────────────────────
+    // ── Recovery (grounded/ledge state based) ───────────────────────────────
+    // Opens when you go offstage. Success = you reach a grounded OR ledge state
+    // (you survived the trip — a sweetspot ledge grab counts) before losing the
+    // stock. Failure = you lost the stock, or 3s passed without making it back.
     const pOff = snap.y < OFFSTAGE_Y;
     if (recFrame < 0 && pOff && prevPY >= OFFSTAGE_Y) { recSit++; recFrame = snap.frame; recStocks = snap.stocks; }
     if (recFrame >= 0) {
-      if (snap.stocks < recStocks)                  {               recFrame = -1; }
-      else if (snap.y > RETURN_Y)                   { recSuccess++; recFrame = -1; }
-      else if (snap.frame > recFrame + EG_WINDOW)   {               recFrame = -1; }
+      if (snap.stocks < recStocks)                              {               recFrame = -1; } // died
+      else if (isGrounded(snap.state) || isOnLedge(snap.state)) { recSuccess++; recFrame = -1; } // made it back
+      else if (snap.frame > recFrame + EG_WINDOW)               {               recFrame = -1; } // timed out
     }
     prevPY = snap.y;
 

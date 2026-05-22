@@ -142,6 +142,20 @@ ATTACKING_RANGES = [
 
 DEFENSIVE_STATES = {233, 234, 235}  # roll fwd (233), roll bwd (234), spot dodge (235) — matches slippi-js
 
+
+def _is_grounded(s):
+    """Standing on a surface: grounded control (14–24), squat/landing/ground
+    attacks (39–64), grab (212). Excludes airborne and ledge. Mirrors
+    slp_parser.ts isGrounded."""
+    return (14 <= s <= 24) or (39 <= s <= 64) or s == 212
+
+
+def _is_on_ledge(s):
+    """Hanging on / acting from the ledge (CliffCatch 252 .. cliff jump family
+    263). Counts as recovered but NOT as escaping an edgeguard. Mirrors
+    slp_parser.ts isOnLedge."""
+    return 252 <= s <= 263
+
 # Conversion detection (slippi-js: isDamaged || isGrabbed || isCommandGrabbed)
 # A conversion/opening starts when opponent enters any of these states.
 # RESET_FRAMES (45): frames of isInControl before the conversion ends.
@@ -400,37 +414,59 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                     tc_hits += 1; break
         tech_chase_rate = tc_hits / len(down_frames)
 
-    # ── Edgeguard success rate ───────────────────────────────────────────────
+    # ── Edgeguard success rate (hit-based) ───────────────────────────────────
+    # Opens when the opponent goes offstage (y < -5). Success = you landed a hit
+    # on them while offstage (their % rose) OR they lost the stock. Escape = they
+    # made it back onto the stage (grounded only — ledge-hang stays open, you can
+    # still hit them off the ledge) without being hit, or 3 s timeout. Overlapping
+    # offstage dips are collapsed into one situation (matches slp_parser.ts).
     edgeguard_success_rate = None
     if o_y is not None:
         o_offstage    = o_y < -5.0
         offstage_frs  = np.where(o_offstage[1:] & ~o_offstage[:-1])[0] + 1
         if len(offstage_frs) > 0:
-            eg_kills = 0
+            eg_sit = 0; eg_success = 0; next_allowed = 0
             for fo in offstage_frs:
-                ss = int(o_stocks[fo])
-                for fw in range(int(fo) + 1, min(int(fo) + 180, n_frames)):
+                fo = int(fo)
+                if fo < next_allowed:
+                    continue
+                eg_sit += 1
+                ss = int(o_stocks[fo]); start_pct = float(o_pct[fo]); resolved = fo + 180
+                for fw in range(fo + 1, min(fo + 180, n_frames)):
                     if int(o_stocks[fw]) < ss:
-                        eg_kills += 1; break
-            edgeguard_success_rate = eg_kills / len(offstage_frs)
+                        eg_success += 1; resolved = fw; break          # gimp / kill
+                    if float(o_pct[fw]) > start_pct + 0.5:
+                        eg_success += 1; resolved = fw; break          # hit landed
+                    if _is_grounded(int(o_state[fw])):
+                        resolved = fw; break                           # escaped to stage
+                next_allowed = resolved
+            edgeguard_success_rate = eg_success / eg_sit if eg_sit > 0 else None
 
-    # ── Recovery success rate ────────────────────────────────────────────────
+    # ── Recovery success rate (grounded/ledge state based) ───────────────────
+    # Opens when you go offstage (y < -5). Success = you reach a grounded OR ledge
+    # state (you survived the trip — a sweetspot ledge grab counts) before losing
+    # the stock. Failure = lost the stock, or 3 s passed without making it back.
+    # Overlapping offstage dips collapsed into one situation (matches slp_parser.ts).
     recovery_success_rate = None
     if p_y is not None:
         p_offstage    = p_y < -5.0
         p_offstage_frs = np.where(p_offstage[1:] & ~p_offstage[:-1])[0] + 1
         if len(p_offstage_frs) > 0:
-            recoveries = 0
+            rec_sit = 0; rec_success = 0; next_allowed = 0
             for fo in p_offstage_frs:
-                ss = int(p_stocks[fo]); recovered = False
-                for fw in range(int(fo) + 1, min(int(fo) + 180, n_frames)):
+                fo = int(fo)
+                if fo < next_allowed:
+                    continue
+                rec_sit += 1
+                ss = int(p_stocks[fo]); resolved = fo + 180
+                for fw in range(fo + 1, min(fo + 180, n_frames)):
                     if int(p_stocks[fw]) < ss:
-                        break
-                    if float(p_y[fw]) > 5.0:
-                        recovered = True; break
-                if recovered:
-                    recoveries += 1
-            recovery_success_rate = recoveries / len(p_offstage_frs)
+                        resolved = fw; break                           # died
+                    s = int(p_state[fw])
+                    if _is_grounded(s) or _is_on_ledge(s):
+                        rec_success += 1; resolved = fw; break         # made it back
+                next_allowed = resolved
+            recovery_success_rate = rec_success / rec_sit if rec_sit > 0 else None
 
     # ── Hit advantage rate ───────────────────────────────────────────────────
     p_atk      = _make_state_mask(p_state, ATTACKING_RANGES)
