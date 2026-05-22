@@ -138,75 +138,96 @@ The supervisor wraps `rescan_respawn_only.py` (patches only `respawn_defense_rat
 
 ### Recovery & edgeguard redefinition (2026-05-22) — ⚠ RESCAN REQUIRED
 
-Both `recovery_success_rate` and `edgeguard_success_rate` were redefined because
-their old definitions measured the wrong thing. **The parser/code changes are
-committed; the benchmark rescan is NOT done yet.** Until the rescan runs, the
-displayed *values* are correct (they come from the live parser) but the
-*percentile scores / letter grades* for these two stats compare against stale
-benchmarks and will be biased — eyeball the raw % only.
+**Plain English:** Recovery % and Edgeguard % were measuring the wrong things, so
+they were rewritten to be two views of the same event — *did the player who got
+knocked off the stage make it back, or not.* If you got knocked offstage and made
+it back (landed on stage or grabbed the ledge), that's a **successful recovery**
+for you and a **dropped edgeguard** for your opponent. If you didn't make it back
+(you died offstage), that's a **failed recovery** for you and a **successful
+edgeguard** for your opponent. The one exception: getting hit on-stage and flying
+*straight to the blast zone* doesn't count for either — there was no recovery to
+attempt and no edgeguard to perform.
 
-**The bugs that prompted this:**
+**Status: code is done and committed; the benchmark rescan is NOT.** Until the
+rescan runs, the displayed *values* are correct (they come from the live parser)
+but the *percentile scores / letter grades* for these two stats compare against
+stale benchmarks — eyeball the raw % only.
 
-| Stat | Old definition | Why it was wrong |
-|------|----------------|------------------|
-| `recovery_success_rate` | Success required the player to reach `y > 5` (above the stage) before dying/timeout. | The codebase's own "on stage" line is `y > -5` (stage-control uses it). Standing on stage is `y ≈ 0`, so a **sweetspot ledge grab / low getup never reaches y>5** → the situation timed out (3 s) and was scored a **failure**. It measured "recovered *high*," not "survived the recovery," penalizing the safest recoveries. |
-| `edgeguard_success_rate` | Of every opponent offstage trip, did they lose a stock within 3 s. | Measured **deaths-after-going-offstage, not edgeguard hits**: counted opponent SDs and outright side-kills, missed clean hits that didn't kill, and the denominator counted uncontested free recoveries. Also the Python benchmark **lacked the "escaped" early-exit** the live parser had (it credited a death up to 3 s later even after a full recovery → inflated benchmark) and counted overlapping offstage dips as separate situations. |
+**Why we had to change them (the bugs):**
+- **Recovery** used to require getting back *above* the stage (`y > 5`). But
+  standing on stage is `y ≈ 0`, so a sweetspot ledge grab / low getup never got
+  there → it timed out and scored as a **failure**. It rewarded recovering *high*
+  and punished the safest recoveries.
+- **Edgeguard** used to count *any* opponent death within 3 s of going offstage —
+  including their SDs and on-stage kills that flew off the side — and the Python
+  benchmark even credited deaths after a full recovery. It wasn't measuring
+  edgeguarding.
 
-**New definitions (live `slp_parser.ts` + benchmark `parse_hf_replays.py` in sync):**
-- **Recovery** — opens when you cross offstage (`y < -5`). Success = you reach a
-  **grounded OR ledge** state (`isGrounded` 14–24 / 39–64 / 212, or `isOnLedge`
-  252–263) before losing the stock. A sweetspot ledge grab counts. Failure =
-  lost the stock, or 3 s without making it back.
-- **Edgeguard** — opens when the opponent crosses offstage. Success = you
-  **landed a hit** on them while offstage (their `%` rose > 0.5) **OR** they lost
-  the stock (gimp/kill). Escape (failure) = they made it back **onto the stage**
-  (`isGrounded` only — **ledge-hang stays open**, you can still hit them off the
-  ledge) without being hit, or 3 s timeout.
-- Both: Python rewritten to a stateful pass that **collapses overlapping offstage
-  dips** into one situation, matching the live parser.
+**The final definitions (live `slp_parser.ts` + benchmark `parse_hf_replays.py`
+are byte-for-byte in sync):**
 
-Key design call: recovery counts the **ledge** as safe (you survived), edgeguard
-does **not** (you can still edgeguard a ledge-hang) — hence two predicates,
-`isGrounded` and `isOnLedge`. The old shared `RETURN_Y = 5` constant is gone.
+A single **offstage trip** is scored from both sides:
+- **Offstage** = `|x|` past the stage's ledge **OR** `y < -5`. (New: horizontal —
+  you don't have to be below the ledge, just off the side. Needs the per-stage
+  ledge-X table below.)
+- **Made it back** = you return over the stage (no longer offstage) **or** reach a
+  ledge state (CliffCatch family 252–263). → recovery success / edgeguard dropped.
+- **Died offstage** → recovery failure / edgeguard success.
+- **Blast kill (excluded from both)** = death from one continuous knockback
+  (states 75–91) that *began on-stage* — the launching hit carried them to the
+  blast zone. Tracked forward in the live parser (`*Ko*` vars), traced backward in
+  Python (`_blast_kill`). ~23 % of offstage deaths in local replays.
+- 3 s timeout closes the trip without a success.
 
-**Files changed:** `src/lib/slp_parser.ts` (parser), `scripts/parse_hf_replays.py`
-(benchmark parser), `src/lib/grading.ts` (`STAT_DESCRIPTIONS` for both stats),
-`scripts/our_stats.cjs` (slippi-js audit port — recovery/edgeguard synced; **note
-its respawn logic is still stale**, predates the `SPAWN_STATES={0,12}` fix).
-Typecheck clean, 42/42 tests pass.
+Recovery and edgeguard are now exact mirrors (one's success = the other's
+failure), so they share the offstage detection, the "made it back" check, and the
+blast-kill exclusion. The old `RETURN_Y = 5` and the short-lived hit-based
+edgeguard are both gone.
 
-**The rescan (run on the wired-Ethernet machine):** use the targeted script —
-it patches **only** these two stats in `grade_baselines.json`, leaving the other
-15 (incl. the freshly-rescanned respawn) untouched. Same `rescan_respawn_only.py`
-pattern (batched download+delete, resumable checkpoint, Xet-stall handling).
+**Data-driven choices (measured from ~700 local replays, scripts in `/tmp` were
+throwaway):**
+- **Ledge-X per stage** measured from the ledge-grab (CliffCatch) position:
+  FoD 67.4, PStadium 91.8, YStory 60.1, DreamLand 81.3, Battlefield 72.5, FD 89.6
+  (`STAGE_LEDGE_X`, keyed by Slippi stage id; others fall back to 90).
+- **Blast-kill rule** ("knockback began on-stage") cleanly separates launch-kills
+  (trip p50 ≈ 50 frames) from real failed recoveries (p50 ≈ 150 frames).
+- **"Made it back over the stage"** (not just landing) was needed because the new
+  horizontal trigger otherwise left ~12 % of trips timing out (knocked off the
+  side, drifted back over the stage, never cleanly landed within 3 s). With it,
+  timeouts drop to ~6 %.
+- Sanity check on local replays: recovery mean ≈ 0.86 (p50 0.88), edgeguard mean
+  ≈ 0.07 (p50 0.06). Edgeguard is low because the denominator is *every* offstage
+  trip and most are recovered — that's expected and matches the chosen definition.
+
+**Files changed:** `src/lib/slp_parser.ts` (live parser, `stageId` now threaded into
+`computeAdvancedStats`), `scripts/parse_hf_replays.py` (benchmark parser),
+`scripts/rescan_recovery_edgeguard_only.py` (targeted rescan — kept in exact parity,
+verified on local replays), `scripts/our_stats.cjs` (audit port; **its respawn logic
+is still stale**, predates the `SPAWN_STATES={0,12}` fix), `src/lib/grading.ts`
+(`STAT_DESCRIPTIONS`). Typecheck clean, 42/42 tests pass, all parsers parity-checked.
+
+**The rescan (run on the wired-Ethernet machine):** the targeted script patches
+**only** these two stats in `grade_baselines.json`, leaving the other 15 untouched
+(batched download+delete, resumable checkpoint, dual `.percent`/`.damage` support).
 
 ```bash
-# macOS (note .venv/bin/python, and caffeinate to prevent sleep during the long run):
+# macOS (.venv/bin/python; caffeinate so it doesn't sleep mid-run):
 HF_TOKEN="hf_..." caffeinate -i .venv/bin/python scripts/rescan_recovery_edgeguard_only.py
 # Windows:
 set HF_TOKEN=hf_... && .venv\Scripts\python.exe scripts\rescan_recovery_edgeguard_only.py
 
-# then regenerate the TS benchmarks:
-python3 scripts/regen_benchmarks.py   # (.venv python on the respective machine)
+# then regenerate the TS benchmarks and commit grade_baselines.json + grade-benchmarks.ts:
+python scripts/regen_benchmarks.py
 ```
 
-Resumable via `scripts/parse_hf_recov_eg_checkpoint.json`. If the Xet backend
-wedges (per the respawn run notes), wrap with the same supervisor approach as
-`run_respawn_supervised.sh`, or set `HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=30`
-(reliable but ~5× slower).
+Resumable via `scripts/parse_hf_recov_eg_checkpoint.json`. If the Xet backend wedges
+(see the respawn run notes), wrap it like `run_respawn_supervised.sh` or set
+`HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=30` (reliable but ~5× slower).
 
-**Suggestions / open decisions:**
-- **Validate the definitions in dev before rescanning.** The rescan is
-  download-bound (~8 h regardless of stat count — pipeline re-downloads every
-  replay). If dev testing shows a definition needs tweaking (e.g. the edgeguard
-  hit threshold, or whether ledge-hang should count), changing the parser means
-  rescanning *again*. Lock the definition first, rescan once.
-- **"Targeted" buys safety, not speed** — it still re-downloads the whole dataset.
-  The only real speed lever is the connection (hence the Ethernet machine).
-- **If we expect more stat-definition iteration** (likely), the real fix is to
-  **cache the dataset (or a representative subset) on local disk** so re-parsing
-  any stat becomes ~15 min instead of ~8 h. It's download+delete today purely to
-  save disk (~128k replays ≈ 150–200 GB for the full set).
+**Still worth doing:** the rescan is download-bound (~8 h regardless of stat count).
+If we keep iterating on stat definitions, cache the dataset (or a representative
+subset) on local disk so re-parsing any stat is ~15 min instead of ~8 h — it's
+download+delete today only to save disk (~128k replays ≈ 150–200 GB).
 
 ### TODO: revisit `hit_advantage_rate` (cut from scoring 2026-05-22)
 

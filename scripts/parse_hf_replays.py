@@ -152,9 +152,34 @@ def _is_grounded(s):
 
 def _is_on_ledge(s):
     """Hanging on / acting from the ledge (CliffCatch 252 .. cliff jump family
-    263). Counts as recovered but NOT as escaping an edgeguard. Mirrors
+    263). Reaching the ledge means you survived the offstage trip. Mirrors
     slp_parser.ts isOnLedge."""
     return 252 <= s <= 263
+
+
+def _made_it_back(s):
+    """Back to safety after an offstage trip: on the stage OR on the ledge.
+    Shared by recovery (your success) and edgeguard (opponent escaped)."""
+    return _is_grounded(s) or _is_on_ledge(s)
+
+
+def _blast_kill(state, offstage, fd):
+    """A death is a 'blast kill' if it came from one continuous knockback (states
+    75-91) that began ON-STAGE — the launching hit carried them straight to the
+    blast zone, so no edgeguard/recovery happened. Such trips are excluded from
+    both stats. Mirrors the *Ko* tracking in slp_parser.ts."""
+    f = fd - 1
+    if f < 0 or not (75 <= int(state[f]) <= 91):
+        return False
+    while f - 1 >= 0 and 75 <= int(state[f - 1]) <= 91:
+        f -= 1
+    return not bool(offstage[f])   # run began on-stage
+
+
+# Ground-edge X per stage (ledge-grab position, measured from 700+ replays).
+# |x| beyond this = off the stage horizontally. Mirrors slp_parser.ts.
+STAGE_LEDGE_X = {2: 67.4, 3: 91.8, 8: 60.1, 28: 81.3, 31: 72.5, 32: 89.6}
+DEFAULT_LEDGE_X = 90.0
 
 # Conversion detection (slippi-js: isDamaged || isGrabbed || isCommandGrabbed)
 # A conversion/opening starts when opponent enters any of these states.
@@ -228,6 +253,11 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # ── Position data (stage_control, edgeguard, recovery, wavedash) ─────────
     p_x, p_y = _get_positions(p_post)
     o_x, o_y = _get_positions(o_post)
+    try:
+        stage_id = int(game.start.stage)
+    except (AttributeError, TypeError, ValueError):
+        stage_id = -1
+    ledge_x = STAGE_LEDGE_X.get(stage_id, DEFAULT_LEDGE_X)
 
     # ── State masks ──────────────────────────────────────────────────────────
     p_ctrl = _make_state_mask(p_state, IN_CONTROL_RANGES)
@@ -414,15 +444,15 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                     tc_hits += 1; break
         tech_chase_rate = tc_hits / len(down_frames)
 
-    # ── Edgeguard success rate (hit-based) ───────────────────────────────────
-    # Opens when the opponent goes offstage (y < -5). Success = you landed a hit
-    # on them while offstage (their % rose) OR they lost the stock. Escape = they
-    # made it back onto the stage (grounded only — ledge-hang stays open, you can
-    # still hit them off the ledge) without being hit, or 3 s timeout. Overlapping
-    # offstage dips are collapsed into one situation (matches slp_parser.ts).
+    # ── Edgeguard success rate ───────────────────────────────────────────────
+    # Opens when the opponent goes offstage (|x| past the ledge, or y < -5).
+    # Success = they die there. Dropped = they make it back (grounded OR ledge —
+    # a ledge grab counts as recovered). A blast kill (death from one on-stage-
+    # origin knockback) is excluded from the stat entirely. 3 s timeout closes
+    # without a success. Overlapping dips collapsed to one trip (matches slp_parser.ts).
     edgeguard_success_rate = None
-    if o_y is not None:
-        o_offstage    = o_y < -5.0
+    if o_x is not None and o_y is not None:
+        o_offstage    = (np.abs(o_x) > ledge_x) | (o_y < -5.0)
         offstage_frs  = np.where(o_offstage[1:] & ~o_offstage[:-1])[0] + 1
         if len(offstage_frs) > 0:
             eg_sit = 0; eg_success = 0; next_allowed = 0
@@ -431,25 +461,28 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                 if fo < next_allowed:
                     continue
                 eg_sit += 1
-                ss = int(o_stocks[fo]); start_pct = float(o_pct[fo]); resolved = fo + 180
+                ss = int(o_stocks[fo]); resolved = fo + 180
                 for fw in range(fo + 1, min(fo + 180, n_frames)):
-                    if int(o_stocks[fw]) < ss:
-                        eg_success += 1; resolved = fw; break          # gimp / kill
-                    if float(o_pct[fw]) > start_pct + 0.5:
-                        eg_success += 1; resolved = fw; break          # hit landed
-                    if _is_grounded(int(o_state[fw])):
-                        resolved = fw; break                           # escaped to stage
+                    if int(o_stocks[fw]) < ss:                         # died offstage
+                        if _blast_kill(o_state, o_offstage, fw):
+                            eg_sit -= 1                                 #   blast kill → exclude trip
+                        else:
+                            eg_success += 1                            #   real edgeguard
+                        resolved = fw; break
+                    if (not o_offstage[fw]) or _made_it_back(int(o_state[fw])):  # dropped: back over stage / ledge
+                        resolved = fw; break
                 next_allowed = resolved
             edgeguard_success_rate = eg_success / eg_sit if eg_sit > 0 else None
 
-    # ── Recovery success rate (grounded/ledge state based) ───────────────────
-    # Opens when you go offstage (y < -5). Success = you reach a grounded OR ledge
-    # state (you survived the trip — a sweetspot ledge grab counts) before losing
-    # the stock. Failure = lost the stock, or 3 s passed without making it back.
-    # Overlapping offstage dips collapsed into one situation (matches slp_parser.ts).
+    # ── Recovery success rate ────────────────────────────────────────────────
+    # Mirror of edgeguard, from your side. Opens when you go offstage. Success =
+    # you make it back (grounded OR ledge — a sweetspot ledge grab counts) before
+    # losing the stock. Failure = you died there, or 3 s passed without making it
+    # back. A blast kill (death from one on-stage-origin knockback) is excluded.
+    # Overlapping dips collapsed to one trip (matches slp_parser.ts).
     recovery_success_rate = None
-    if p_y is not None:
-        p_offstage    = p_y < -5.0
+    if p_x is not None and p_y is not None:
+        p_offstage    = (np.abs(p_x) > ledge_x) | (p_y < -5.0)
         p_offstage_frs = np.where(p_offstage[1:] & ~p_offstage[:-1])[0] + 1
         if len(p_offstage_frs) > 0:
             rec_sit = 0; rec_success = 0; next_allowed = 0
@@ -460,11 +493,12 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                 rec_sit += 1
                 ss = int(p_stocks[fo]); resolved = fo + 180
                 for fw in range(fo + 1, min(fo + 180, n_frames)):
-                    if int(p_stocks[fw]) < ss:
-                        resolved = fw; break                           # died
-                    s = int(p_state[fw])
-                    if _is_grounded(s) or _is_on_ledge(s):
-                        rec_success += 1; resolved = fw; break         # made it back
+                    if int(p_stocks[fw]) < ss:                         # died offstage
+                        if _blast_kill(p_state, p_offstage, fw):
+                            rec_sit -= 1                                #   blast kill → exclude trip
+                        resolved = fw; break                           #   else: failed recovery (counted)
+                    if (not p_offstage[fw]) or _made_it_back(int(p_state[fw])):  # back over stage / on ledge
+                        rec_success += 1; resolved = fw; break
                 next_allowed = resolved
             recovery_success_rate = rec_success / rec_sit if rec_sit > 0 else None
 

@@ -85,8 +85,31 @@ def _is_grounded(s):
 
 def _is_on_ledge(s):
     """Hanging on / acting from the ledge (CliffCatch 252 .. cliff jump 263).
-    Counts as recovered but NOT as escaping an edgeguard."""
+    Reaching the ledge means you survived the offstage trip."""
     return 252 <= s <= 263
+
+
+def _made_it_back(s):
+    """Back to safety after an offstage trip: on the stage OR on the ledge."""
+    return _is_grounded(s) or _is_on_ledge(s)
+
+
+def _blast_kill(state, offstage, fd):
+    """Death from one continuous knockback (75-91) that began ON-STAGE — the
+    launching hit carried them to the blast zone, so no edgeguard/recovery
+    happened. Such trips are excluded from both stats."""
+    f = fd - 1
+    if f < 0 or not (75 <= int(state[f]) <= 91):
+        return False
+    while f - 1 >= 0 and 75 <= int(state[f - 1]) <= 91:
+        f -= 1
+    return not bool(offstage[f])   # run began on-stage
+
+
+# Ground-edge X per stage (ledge-grab position, measured from 700+ replays).
+# |x| beyond this = off the stage horizontally. Mirrors slp_parser.ts.
+STAGE_LEDGE_X = {2: 67.4, 3: 91.8, 8: 60.1, 28: 81.3, 31: 72.5, 32: 89.6}
+DEFAULT_LEDGE_X = 90.0
 
 
 def _get_positions(post):
@@ -132,6 +155,10 @@ def compute_recovery_edgeguard_both_ports(filepath: str):
     results = []
     port_indices = [i for i, _ in active]
     frames = game.frames
+    try:
+        ledge_x = STAGE_LEDGE_X.get(int(game.start.stage), DEFAULT_LEDGE_X)
+    except (AttributeError, TypeError, ValueError):
+        ledge_x = DEFAULT_LEDGE_X
 
     for player_slot, opp_slot in [(0, 1), (1, 0)]:
         player_port = port_indices[player_slot]
@@ -146,21 +173,20 @@ def compute_recovery_edgeguard_both_ports(filepath: str):
         o_state  = np.array(o_post.state,  copy=False)
         p_stocks = np.array(p_post.stocks, copy=False)
         o_stocks = np.array(o_post.stocks, copy=False)
-        # peppi-py renamed post.damage -> post.percent in 0.8.x. Support both.
-        o_dmg    = o_post.percent if hasattr(o_post, "percent") else o_post.damage
-        o_pct    = np.array(o_dmg, copy=False)
 
-        _, p_y = _get_positions(p_post)
-        _, o_y = _get_positions(o_post)
+        p_x, p_y = _get_positions(p_post)
+        o_x, o_y = _get_positions(o_post)
 
         n_frames = len(p_state)
         if n_frames < 2:
             continue
 
-        # ── Recovery (grounded/ledge state based) ──────────────────────────
+        # ── Recovery ───────────────────────────────────────────────────────
+        # Offstage = |x| past the ledge OR y < -5. Success = make it back (over
+        # the stage, or grounded/ledge) before dying. Blast kills excluded.
         recovery = None
-        if p_y is not None:
-            offstage = p_y < OFFSTAGE_Y
+        if p_x is not None and p_y is not None:
+            offstage = (np.abs(p_x) > ledge_x) | (p_y < OFFSTAGE_Y)
             edges = np.where(offstage[1:] & ~offstage[:-1])[0] + 1
             if len(edges) > 0:
                 rec_sit = 0; rec_success = 0; next_allowed = 0
@@ -171,18 +197,21 @@ def compute_recovery_edgeguard_both_ports(filepath: str):
                     rec_sit += 1
                     ss = int(p_stocks[fo]); resolved = fo + EG_WINDOW
                     for fw in range(fo + 1, min(fo + EG_WINDOW, n_frames)):
-                        if int(p_stocks[fw]) < ss:
-                            resolved = fw; break                       # died
-                        s = int(p_state[fw])
-                        if _is_grounded(s) or _is_on_ledge(s):
+                        if int(p_stocks[fw]) < ss:                     # died offstage
+                            if _blast_kill(p_state, offstage, fw):
+                                rec_sit -= 1                           #   blast kill → exclude
+                            resolved = fw; break                       #   else: failed recovery
+                        if (not offstage[fw]) or _made_it_back(int(p_state[fw])):
                             rec_success += 1; resolved = fw; break     # made it back
                     next_allowed = resolved
                 recovery = rec_success / rec_sit if rec_sit > 0 else None
 
-        # ── Edgeguard (hit-based) ──────────────────────────────────────────
+        # ── Edgeguard ──────────────────────────────────────────────────────
+        # Mirror of recovery, on the opponent's trips. Success = they die there.
+        # Dropped = they make it back. Blast kills excluded.
         edgeguard = None
-        if o_y is not None:
-            offstage = o_y < OFFSTAGE_Y
+        if o_x is not None and o_y is not None:
+            offstage = (np.abs(o_x) > ledge_x) | (o_y < OFFSTAGE_Y)
             edges = np.where(offstage[1:] & ~offstage[:-1])[0] + 1
             if len(edges) > 0:
                 eg_sit = 0; eg_success = 0; next_allowed = 0
@@ -191,15 +220,16 @@ def compute_recovery_edgeguard_both_ports(filepath: str):
                     if fo < next_allowed:
                         continue
                     eg_sit += 1
-                    ss = int(o_stocks[fo]); start_pct = float(o_pct[fo])
-                    resolved = fo + EG_WINDOW
+                    ss = int(o_stocks[fo]); resolved = fo + EG_WINDOW
                     for fw in range(fo + 1, min(fo + EG_WINDOW, n_frames)):
-                        if int(o_stocks[fw]) < ss:
-                            eg_success += 1; resolved = fw; break      # gimp / kill
-                        if float(o_pct[fw]) > start_pct + 0.5:
-                            eg_success += 1; resolved = fw; break      # hit landed
-                        if _is_grounded(int(o_state[fw])):
-                            resolved = fw; break                       # escaped to stage
+                        if int(o_stocks[fw]) < ss:                     # died offstage
+                            if _blast_kill(o_state, offstage, fw):
+                                eg_sit -= 1                            #   blast kill → exclude
+                            else:
+                                eg_success += 1                        #   real edgeguard
+                            resolved = fw; break
+                        if (not offstage[fw]) or _made_it_back(int(o_state[fw])):
+                            resolved = fw; break                       # dropped (recovered)
                     next_allowed = resolved
                 edgeguard = eg_success / eg_sit if eg_sit > 0 else None
 

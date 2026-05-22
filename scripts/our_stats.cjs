@@ -43,6 +43,11 @@ function isGrounded(s) {
 function isOnLedge(s) {
   return s >= 252 && s <= 263;
 }
+function madeItBack(s) { return isGrounded(s) || isOnLedge(s); }
+function inKnockback(s) { return s >= 75 && s <= 91; }
+// Ground-edge X per stage (ledge-grab position). |x| beyond = off the stage.
+const STAGE_LEDGE_X = { 2: 67.4, 3: 91.8, 8: 60.1, 28: 81.3, 31: 72.5, 32: 89.6 };
+const DEFAULT_LEDGE_X = 90;
 
 // Correct IDs from slippi-js common.esm.js (previously wrong: {29,30,31} = fall states)
 const DEFENSIVE_STATES_SET = new Set([233, 234, 235]);
@@ -101,10 +106,11 @@ function parseUbjson(buf, startPos) {
 
 // ── Advanced stats (port of computeAdvancedStats from slp_parser.ts) ──────
 
-function computeAdvancedStats(playerFrames, oppByFrame, result) {
+function computeAdvancedStats(playerFrames, oppByFrame, result, stageId) {
   if (playerFrames.length === 0) return null;
 
   const OFFSTAGE_Y = -5;
+  const LEDGE_X = STAGE_LEDGE_X[stageId] ?? DEFAULT_LEDGE_X;
   const EG_WINDOW = 180, TC_WINDOW = 45, TC_HIT_DMG = 3, RESPAWN_WINDOW = 150;
   // Correct wavedash state IDs (previously: AIRDODGE=235 spot-dodge, WD_LAND=189 knockdown state)
   const JUMP_STATES = new Set([24, 25]); // JumpSquat, JumpF
@@ -114,8 +120,10 @@ function computeAdvancedStats(playerFrames, oppByFrame, result) {
 
   let centerFrames = 0, onStageFrames = 0;
   let techSit = 0, techHit = 0, tcFrame = -1, tcPct = -1, prevOppKD = false;
-  let egSit = 0, egSuccess = 0, egFrame = -1, egStocks = -1, egStartPct = -1, prevOppY = 999;
-  let recSit = 0, recSuccess = 0, recFrame = -1, recStocks = -1, prevPY = 999;
+  let egSit = 0, egSuccess = 0, egFrame = -1, egStocks = -1, prevOppOff = false;
+  let oKoActive = false, oKoStartedOn = false, prevOInKnockback = false;
+  let recSit = 0, recSuccess = 0, recFrame = -1, recStocks = -1, prevPOff = false;
+  let pKoActive = false, pKoStartedOn = false, prevPInKnockback = false;
   let hitOpps = 0, hitFollowups = 0, hitWindowEnd = -1, prevOppVuln = false;
   const stockDurations = [];
   let stockStart = playerFrames[0].frame, prevPStocks = playerFrames[0].stocks;
@@ -158,19 +166,25 @@ function computeAdvancedStats(playerFrames, oppByFrame, result) {
       }
       prevOppKD = oppKD;
 
-      // Edgeguard (hit-based): success = you hit them offstage (% rose) or took
-      // the stock, before they made it back onto the stage (grounded only).
-      const oppOff = opp.y < OFFSTAGE_Y;
-      if (egFrame < 0 && oppOff && prevOppY >= OFFSTAGE_Y) {
-        egSit++; egFrame = snap.frame; egStocks = opp.stocks; egStartPct = opp.percent;
-      }
+      // Edgeguard: success = opponent dies offstage. Dropped = they make it back
+      // (over the stage or on the ledge). Blast kill (on-stage-origin knockback)
+      // excluded. Offstage = |x| past the ledge or y < -5.
+      const oppOff = Math.abs(opp.x) > LEDGE_X || opp.y < OFFSTAGE_Y;
+      if (egFrame < 0 && oppOff && !prevOppOff) { egSit++; egFrame = snap.frame; egStocks = opp.stocks; }
       if (egFrame >= 0) {
-        if (opp.stocks < egStocks)                 { egSuccess++; egFrame = -1; } // gimp / kill
-        else if (opp.percent > egStartPct + 0.5)   { egSuccess++; egFrame = -1; } // hit landed
-        else if (isGrounded(opp.state))            {              egFrame = -1; } // escaped to stage
-        else if (snap.frame > egFrame + EG_WINDOW) {              egFrame = -1; } // timed out
+        if (opp.stocks < egStocks) {                                 // died offstage
+          if (oKoActive && oKoStartedOn) egSit--;                    //   blast kill → exclude
+          else                           egSuccess++;                //   real edgeguard
+          egFrame = -1;
+        }
+        else if (!oppOff || madeItBack(opp.state)) { egFrame = -1; } // dropped (recovered)
+        else if (snap.frame > egFrame + EG_WINDOW) { egFrame = -1; } // timed out
       }
-      prevOppY = opp.y;
+      prevOppOff = oppOff;
+      const oInKnockback = inKnockback(opp.state);
+      if (oInKnockback && !prevOInKnockback) { oKoActive = true; oKoStartedOn = !oppOff; }
+      else if (!oInKnockback)                { oKoActive = false; }
+      prevOInKnockback = oInKnockback;
 
       if (prevOppStocksR >= 0 && opp.stocks < prevOppStocksR) {
         respawnSit++; respawnEnd = snap.frame + RESPAWN_WINDOW; respawnPct = snap.percent;
@@ -182,16 +196,24 @@ function computeAdvancedStats(playerFrames, oppByFrame, result) {
       prevOppStocksR = opp.stocks;
     }
 
-    // Recovery (grounded/ledge state): success = you reach a grounded or ledge
-    // state (sweetspot ledge grab counts) before losing the stock.
-    const pOff = snap.y < OFFSTAGE_Y;
-    if (recFrame < 0 && pOff && prevPY >= OFFSTAGE_Y) { recSit++; recFrame = snap.frame; recStocks = snap.stocks; }
+    // Recovery: mirror of edgeguard from your side. Success = you make it back
+    // (over the stage or on the ledge) before losing the stock. Blast kill
+    // excluded. Offstage = |x| past the ledge or y < -5.
+    const pOff = Math.abs(snap.x) > LEDGE_X || snap.y < OFFSTAGE_Y;
+    if (recFrame < 0 && pOff && !prevPOff) { recSit++; recFrame = snap.frame; recStocks = snap.stocks; }
     if (recFrame >= 0) {
-      if (snap.stocks < recStocks)                              { recFrame = -1; } // died
-      else if (isGrounded(snap.state) || isOnLedge(snap.state)) { recSuccess++; recFrame = -1; } // made it back
-      else if (snap.frame > recFrame + EG_WINDOW)               { recFrame = -1; } // timed out
+      if (snap.stocks < recStocks) {                              // died offstage
+        if (pKoActive && pKoStartedOn) recSit--;                  //   blast kill → exclude
+        recFrame = -1;                                            //   else: failed recovery
+      }
+      else if (!pOff || madeItBack(snap.state))   { recSuccess++; recFrame = -1; } // made it back
+      else if (snap.frame > recFrame + EG_WINDOW) {               recFrame = -1; } // timed out
     }
-    prevPY = snap.y;
+    prevPOff = pOff;
+    const pInKnockback = inKnockback(snap.state);
+    if (pInKnockback && !prevPInKnockback) { pKoActive = true; pKoStartedOn = !pOff; }
+    else if (!pInKnockback)                { pKoActive = false; }
+    prevPInKnockback = pInKnockback;
 
     if (snap.state !== prevPState) {
       if (JUMP_STATES.has(snap.state) && snap.y < WD_JUMP_Y) {
@@ -473,7 +495,7 @@ function parseGame(filepath, connectCode) {
   // ── Advanced stats ────────────────────────────────────────────────────────
   const oppByFrame = new Map();
   for (const snap of frameData[oppPort] ?? []) oppByFrame.set(snap.frame, snap);
-  const adv = computeAdvancedStats(playerFrames, oppByFrame, result);
+  const adv = computeAdvancedStats(playerFrames, oppByFrame, result, stageId);
 
   return {
     file: filepath.split('/').pop(),
