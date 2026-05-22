@@ -60,7 +60,7 @@ ALL_CHAR_DIRS = [
 SPAWN_STATES   = {0, 12}
 RESPAWN_WINDOW = 120  # frames after opponent becomes actionable (matches slp_parser.ts)
 
-DL_WORKERS       = 8
+DL_WORKERS       = 32
 BATCH_SIZE       = 200
 CHECKPOINT_FILE  = "scripts/parse_hf_respawn_checkpoint.json"
 BASELINES_PATH   = "scripts/grade_baselines.json"
@@ -103,7 +103,10 @@ def compute_respawn_defense_both_ports(filepath: str) -> list[tuple[str, str, fl
         p_post  = frames.ports[player_port].leader.post
         o_post  = frames.ports[opp_port].leader.post
 
-        p_pct    = np.array(p_post.damage, copy=False)
+        # peppi-py renamed post.damage -> post.percent in 0.8.x. Support both
+        # so this runs against whatever version is installed on either machine.
+        p_dmg    = p_post.percent if hasattr(p_post, "percent") else p_post.damage
+        p_pct    = np.array(p_dmg, copy=False)
         o_stocks = np.array(o_post.stocks, copy=False)
         o_state  = np.array(o_post.state,  copy=False)
 

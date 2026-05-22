@@ -125,12 +125,16 @@ HF_TOKEN="..." .venv/Scripts/python.exe -u scripts/parse_hf_replays.py --charact
 .venv/Scripts/python.exe scripts/regen_benchmarks.py
 ```
 
-**⚠ respawn_defense_rate baselines still missing (2026-05-21):** The 2026-05-21 rescan ran with the wrong state IDs ({10,11}) before the root cause was identified — all `respawn_defense_rate` entries in `grade_baselines.json` have `sample_size: 0`. The TS parser (`slp_parser.ts`) is fixed and computes correct values for users, but the grading bar cannot fill until baselines are populated. Run the targeted rescan to fix this:
+~~**⚠ respawn_defense_rate baselines still missing (2026-05-21)**~~ **Resolved 2026-05-22.** Targeted rescan completed on the **macOS machine**: **197/197 entries populated** (was all `sample_size: 0`), 418,846 samples over 221,943 replays, ~7.9 hrs. Used corrected `SPAWN_STATES = {0, 12}` (matches `slp_parser.ts`). `grade_baselines.json` + `grade-benchmarks.ts` regenerated. Run command (note `.venv/bin/python` on macOS, **not** the Windows `.venv/Scripts/python.exe`):
 ```bash
-HF_TOKEN="..." .venv/Scripts/python.exe -u scripts/rescan_respawn_only.py
-.venv/Scripts/python.exe scripts/regen_benchmarks.py
+HF_TOKEN="..." caffeinate -i bash scripts/run_respawn_supervised.sh
 ```
-`rescan_respawn_only.py` downloads all ~129k replays, computes only `respawn_defense_rate`, and patches just that stat into `grade_baselines.json` without touching any other baselines. Supports resume via `scripts/parse_hf_respawn_checkpoint.json`. Expected runtime: similar to the full scan (~3 hrs) since downloads dominate. HF cache was cleared by the prior scan, so files must be re-downloaded.
+The supervisor wraps `rescan_respawn_only.py` (patches only `respawn_defense_rate`, resumable via `scripts/parse_hf_respawn_checkpoint.json`) and auto-runs `regen_benchmarks.py` + a verify step on completion.
+
+**Operational notes from this run (read before the next big rescan):**
+- **peppi-py 0.8.x renamed `post.damage` → `post.percent`.** `rescan_respawn_only.py` handles both; the Windows venv's older peppi-py still exposes `.damage`.
+- **The Xet backend wedges:** individual download threads hang indefinitely (the per-batch `as_completed(timeout=300)` does not reliably fire), freezing a batch with no error. `run_respawn_supervised.sh` detects log silence > 300 s, kills, and resumes from the checkpoint — lossless. Disabling Xet (`HF_HUB_DISABLE_XET=1` + `HF_HUB_DOWNLOAD_TIMEOUT=30`) is reliable but ~5× slower.
+- **Download is bandwidth-bound**, not parse-bound. Throughput plateaus ~75 Mbps on this connection; `DL_WORKERS` raised 8 → 32 (sweet spot; 64 barely helps). A faster connection is the only real speed lever.
 
 ### Stat descriptions and in-app methodology panel
 

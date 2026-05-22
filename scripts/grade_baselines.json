@@ -171,15 +171,15 @@
         "p95": 4511.2292
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 337,
+        "avg": 0.7349,
+        "p5": 0.0,
+        "p10": 0.2,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 49,
@@ -372,15 +372,15 @@
         "p95": 3824.825
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 58970,
+        "avg": 0.7404,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 12125,
@@ -573,15 +573,15 @@
         "p95": 4225.2
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 2133,
+        "avg": 0.6803,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.5,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 417,
@@ -774,15 +774,15 @@
         "p95": 4281.3
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 3266,
+        "avg": 0.7392,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 699,
@@ -975,15 +975,15 @@
         "p95": 3903.25
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 79002,
+        "avg": 0.747,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 45617,
@@ -1176,15 +1176,15 @@
         "p95": 4052.5
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 109738,
+        "avg": 0.7675,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 57699,
@@ -1377,15 +1377,15 @@
         "p95": 3894.725
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 5996,
+        "avg": 0.7124,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.5,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 1228,
@@ -1578,15 +1578,15 @@
         "p95": 4712.025
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 5303,
+        "avg": 0.8126,
+        "p5": 0.3333,
+        "p10": 0.5,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 1228,
@@ -1779,15 +1779,15 @@
         "p95": 4444.5
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 10535,
+        "avg": 0.7221,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 2430,
@@ -1980,15 +1980,15 @@
         "p95": 4835.6667
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 743,
+        "avg": 0.8544,
+        "p5": 0.3333,
+        "p10": 0.6667,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 152,
@@ -2181,15 +2181,15 @@
         "p95": 4287.9333
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 1538,
+        "avg": 0.7436,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 370,
@@ -2382,15 +2382,15 @@
         "p95": 4328.05
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 4944,
+        "avg": 0.7537,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 1160,
@@ -2583,15 +2583,15 @@
         "p95": 4477.6
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 1507,
+        "avg": 0.7848,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 280,
@@ -2784,15 +2784,15 @@
         "p95": 4303.5
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 64839,
+        "avg": 0.7409,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 33194,
@@ -2985,15 +2985,15 @@
         "p95": 5147.0
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 517,
+        "avg": 0.7966,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 97,
@@ -3186,15 +3186,15 @@
         "p95": 3729.9375
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 1376,
+        "avg": 0.7499,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 270,
@@ -3387,15 +3387,15 @@
         "p95": 4955.2
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 659,
+        "avg": 0.8121,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 89,
@@ -3588,15 +3588,15 @@
         "p95": 4613.9125
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 14283,
+        "avg": 0.7536,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 3414,
@@ -3789,15 +3789,15 @@
         "p95": 4538.0
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 227,
+        "avg": 0.7606,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 44,
@@ -3990,15 +3990,15 @@
         "p95": 4352.95
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 3452,
+        "avg": 0.7526,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 877,
@@ -4191,15 +4191,15 @@
         "p95": 3917.6833
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 817,
+        "avg": 0.7364,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 157,
@@ -4392,15 +4392,15 @@
         "p95": 4847.2083
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 7859,
+        "avg": 0.7436,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 1721,
@@ -4593,15 +4593,15 @@
         "p95": 4367.2
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 32840,
+        "avg": 0.8016,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 6506,
@@ -4794,15 +4794,15 @@
         "p95": 4389.55
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 3979,
+        "avg": 0.7557,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 853,
@@ -4995,15 +4995,15 @@
         "p95": 3755.4333
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 847,
+        "avg": 0.7414,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 178,
@@ -5196,15 +5196,15 @@
         "p95": 3984.5333
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 3139,
+        "avg": 0.7728,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 643,
@@ -5397,15 +5397,15 @@
         "p95": 4125.0
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 418846,
+        "avg": 0.7551,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 171497,
@@ -5600,15 +5600,15 @@
         "p95": 4930.25
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 345,
+        "avg": 0.8232,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 26,
@@ -5801,15 +5801,15 @@
         "p95": 3964.7
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 58994,
+        "avg": 0.7429,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 12667,
@@ -6002,15 +6002,15 @@
         "p95": 4501.3333
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 2113,
+        "avg": 0.7973,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 450,
@@ -6203,15 +6203,15 @@
         "p95": 4352.125
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 3269,
+        "avg": 0.762,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 753,
@@ -6404,15 +6404,15 @@
         "p95": 3989.0
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 79557,
+        "avg": 0.7461,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 42941,
@@ -6605,15 +6605,15 @@
         "p95": 3919.9333
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 109303,
+        "avg": 0.7506,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 59683,
@@ -6806,15 +6806,15 @@
         "p95": 3983.0
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 5927,
+        "avg": 0.7661,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 1398,
@@ -7007,15 +7007,15 @@
         "p95": 4797.425
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 5229,
+        "avg": 0.9045,
+        "p5": 0.5,
+        "p10": 0.6667,
+        "p25": 1.0,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 1368,
@@ -7208,15 +7208,15 @@
         "p95": 4544.8333
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 10444,
+        "avg": 0.7447,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 2866,
@@ -7409,15 +7409,15 @@
         "p95": 4378.4
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 754,
+        "avg": 0.8115,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 171,
@@ -7610,15 +7610,15 @@
         "p95": 4731.5667
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 1585,
+        "avg": 0.7769,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 331,
@@ -7811,15 +7811,15 @@
         "p95": 4205.75
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 4952,
+        "avg": 0.8168,
+        "p5": 0.3333,
+        "p10": 0.5,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 1000,
@@ -8012,15 +8012,15 @@
         "p95": 4313.5
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 1503,
+        "avg": 0.7441,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 304,
@@ -8213,15 +8213,15 @@
         "p95": 4390.175
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 64938,
+        "avg": 0.7391,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 32352,
@@ -8414,15 +8414,15 @@
         "p95": 4726.55
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 559,
+        "avg": 0.7803,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 74,
@@ -8615,15 +8615,15 @@
         "p95": 4404.2375
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 1417,
+        "avg": 0.7779,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 213,
@@ -8816,15 +8816,15 @@
         "p95": 4999.5
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 653,
+        "avg": 0.7947,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 78,
@@ -9017,15 +9017,15 @@
         "p95": 4504.2
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 14090,
+        "avg": 0.8261,
+        "p5": 0.3333,
+        "p10": 0.5,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 3631,
@@ -9218,15 +9218,15 @@
         "p95": 4577.5667
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 242,
+        "avg": 0.7686,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 27,
@@ -9419,15 +9419,15 @@
         "p95": 4787.2167
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 3568,
+        "avg": 0.8591,
+        "p5": 0.3333,
+        "p10": 0.5,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 783,
@@ -9620,15 +9620,15 @@
         "p95": 4603.95
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 825,
+        "avg": 0.7931,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 116,
@@ -9821,15 +9821,15 @@
         "p95": 4747.3958
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 7796,
+        "avg": 0.8133,
+        "p5": 0.3333,
+        "p10": 0.5,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 2040,
@@ -10022,15 +10022,15 @@
         "p95": 4349.9125
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 32683,
+        "avg": 0.7451,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 6649,
@@ -10223,15 +10223,15 @@
         "p95": 4362.175
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 4026,
+        "avg": 0.747,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 850,
@@ -10424,15 +10424,15 @@
         "p95": 4585.6
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 869,
+        "avg": 0.7301,
+        "p5": 0.3333,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 0.6667,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 131,
@@ -10625,15 +10625,15 @@
         "p95": 4487.65
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 3205,
+        "avg": 0.8089,
+        "p5": 0.3333,
+        "p10": 0.5,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 595,
@@ -10826,15 +10826,15 @@
         "p95": 4125.0
       },
       "respawn_defense_rate": {
-        "sample_size": 0,
-        "avg": null,
-        "p5": null,
-        "p10": null,
-        "p25": null,
-        "p50": null,
-        "p75": null,
-        "p90": null,
-        "p95": null
+        "sample_size": 418846,
+        "avg": 0.7551,
+        "p5": 0.0,
+        "p10": 0.3333,
+        "p25": 0.6667,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0
       },
       "comeback_rate": {
         "sample_size": 171497,
@@ -11030,15 +11030,15 @@
           "p95": 3547.9375
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 34,
+          "avg": 0.7451,
+          "p5": 0.0,
+          "p10": 0.1,
+          "p25": 0.3333,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 18,
@@ -11231,15 +11231,15 @@
           "p95": 4960.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 61,
+          "avg": 0.8005,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 21,
@@ -11434,15 +11434,15 @@
           "p95": 3732.65
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 11253,
+          "avg": 0.7348,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 3880,
@@ -11635,15 +11635,15 @@
           "p95": 3770.1167
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 17584,
+          "avg": 0.7369,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 5517,
@@ -11836,15 +11836,15 @@
           "p95": 4031.975
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 10214,
+          "avg": 0.7206,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 2728,
@@ -12039,15 +12039,15 @@
           "p95": 3890.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 396,
+          "avg": 0.6755,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 139,
@@ -12240,15 +12240,15 @@
           "p95": 3799.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 395,
+          "avg": 0.6367,
+          "p5": 0.0,
+          "p10": 0.0,
+          "p25": 0.3333,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 162,
@@ -12441,15 +12441,15 @@
           "p95": 5263.125
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 385,
+          "avg": 0.6307,
+          "p5": 0.0,
+          "p10": 0.0,
+          "p25": 0.3333,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 116,
@@ -12644,15 +12644,15 @@
           "p95": 4098.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 507,
+          "avg": 0.6821,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 188,
@@ -12845,15 +12845,15 @@
           "p95": 4123.9583
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 939,
+          "avg": 0.7396,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 361,
@@ -13046,15 +13046,15 @@
           "p95": 4748.9
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 458,
+          "avg": 0.7303,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 150,
@@ -13249,15 +13249,15 @@
           "p95": 4418.375
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 36,
+          "avg": 0.713,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 8,
@@ -13450,15 +13450,15 @@
           "p95": 3839.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 11295,
+          "avg": 0.7233,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 3991,
@@ -13651,15 +13651,15 @@
           "p95": 3792.2667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 384,
+          "avg": 0.7704,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 169,
@@ -13852,15 +13852,15 @@
           "p95": 4571.025
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 496,
+          "avg": 0.7641,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 206,
@@ -14053,15 +14053,15 @@
           "p95": 3699.2
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 7749,
+          "avg": 0.7374,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 5494,
@@ -14254,15 +14254,15 @@
           "p95": 3712.6
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 25124,
+          "avg": 0.746,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 18444,
@@ -14455,15 +14455,15 @@
           "p95": 3709.05
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1177,
+          "avg": 0.7761,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 547,
@@ -14656,15 +14656,15 @@
           "p95": 4340.0667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 869,
+          "avg": 0.8809,
+          "p5": 0.3333,
+          "p10": 0.6333,
+          "p25": 1.0,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 401,
@@ -14857,15 +14857,15 @@
           "p95": 4164.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1856,
+          "avg": 0.7592,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 820,
@@ -15058,15 +15058,15 @@
           "p95": 3941.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 126,
+          "avg": 0.7923,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 54,
@@ -15259,15 +15259,15 @@
           "p95": 4452.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 284,
+          "avg": 0.7928,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 120,
@@ -15460,15 +15460,15 @@
           "p95": 4189.475
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 891,
+          "avg": 0.8264,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 337,
@@ -15661,15 +15661,15 @@
           "p95": 4245.325
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 284,
+          "avg": 0.7224,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 125,
@@ -15862,15 +15862,15 @@
           "p95": 4056.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 14749,
+          "avg": 0.7244,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 9888,
@@ -16063,15 +16063,15 @@
           "p95": 4258.6667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 73,
+          "avg": 0.7237,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 23,
@@ -16264,15 +16264,15 @@
           "p95": 3680.0958
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 186,
+          "avg": 0.7903,
+          "p5": 0.0833,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 74,
@@ -16465,15 +16465,15 @@
           "p95": 5058.375
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 81,
+          "avg": 0.8148,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 25,
@@ -16666,15 +16666,15 @@
           "p95": 4212.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 2528,
+          "avg": 0.8285,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1049,
@@ -16867,15 +16867,15 @@
           "p95": 4595.6333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 647,
+          "avg": 0.8792,
+          "p5": 0.3833,
+          "p10": 0.6667,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 246,
@@ -17068,15 +17068,15 @@
           "p95": 3839.6667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 115,
+          "avg": 0.8043,
+          "p5": 0.3333,
+          "p10": 0.4,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 45,
@@ -17269,15 +17269,15 @@
           "p95": 4583.35
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1623,
+          "avg": 0.8316,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 676,
@@ -17470,15 +17470,15 @@
           "p95": 4225.625
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 6732,
+          "avg": 0.7409,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 2221,
@@ -17671,15 +17671,15 @@
           "p95": 4238.8667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 826,
+          "avg": 0.7207,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 378,
@@ -17872,15 +17872,15 @@
           "p95": 4077.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 147,
+          "avg": 0.8005,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 69,
@@ -18073,15 +18073,15 @@
           "p95": 4336.9667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 703,
+          "avg": 0.7973,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 203,
@@ -18276,15 +18276,15 @@
           "p95": 3958.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 17541,
+          "avg": 0.7475,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 5685,
@@ -18477,15 +18477,15 @@
           "p95": 4280.2833
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 390,
+          "avg": 0.8051,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 141,
@@ -18678,15 +18678,15 @@
           "p95": 4302.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 946,
+          "avg": 0.7884,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 388,
@@ -18879,15 +18879,15 @@
           "p95": 3871.2667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 25391,
+          "avg": 0.7574,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 17287,
@@ -19080,15 +19080,15 @@
           "p95": 3902.575
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 16959,
+          "avg": 0.7664,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 11913,
@@ -19281,15 +19281,15 @@
           "p95": 3908.8333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1326,
+          "avg": 0.7631,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 507,
@@ -19482,15 +19482,15 @@
           "p95": 4417.0917
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1679,
+          "avg": 0.9093,
+          "p5": 0.5,
+          "p10": 0.6667,
+          "p25": 1.0,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 627,
@@ -19683,15 +19683,15 @@
           "p95": 4416.05
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 3462,
+          "avg": 0.7612,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1403,
@@ -19884,15 +19884,15 @@
           "p95": 4378.4
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 171,
+          "avg": 0.8099,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 67,
@@ -20085,15 +20085,15 @@
           "p95": 5021.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 324,
+          "avg": 0.7654,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 106,
@@ -20286,15 +20286,15 @@
           "p95": 4087.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1265,
+          "avg": 0.8112,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 454,
@@ -20487,15 +20487,15 @@
           "p95": 3579.8
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 292,
+          "avg": 0.7671,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 121,
@@ -20688,15 +20688,15 @@
           "p95": 4194.2
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 19627,
+          "avg": 0.7568,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 12224,
@@ -20889,15 +20889,15 @@
           "p95": 4365.625
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 116,
+          "avg": 0.8075,
+          "p5": 0.3333,
+          "p10": 0.4167,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 31,
@@ -21090,15 +21090,15 @@
           "p95": 4098.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 243,
+          "avg": 0.8032,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 72,
@@ -21291,15 +21291,15 @@
           "p95": 4469.9167
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 102,
+          "avg": 0.866,
+          "p5": 0.3333,
+          "p10": 0.3667,
+          "p25": 1.0,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 40,
@@ -21492,15 +21492,15 @@
           "p95": 4190.5167
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 4393,
+          "avg": 0.8388,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1684,
@@ -21693,15 +21693,15 @@
           "p95": 4471.6
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 39,
+          "avg": 0.7863,
+          "p5": 0.3,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 9,
@@ -21894,15 +21894,15 @@
           "p95": 4718.85
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 992,
+          "avg": 0.8735,
+          "p5": 0.3333,
+          "p10": 0.6667,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 345,
@@ -22095,15 +22095,15 @@
           "p95": 4518.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 108,
+          "avg": 0.8302,
+          "p5": 0.1167,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 33,
@@ -22296,15 +22296,15 @@
           "p95": 4682.9417
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 2220,
+          "avg": 0.8198,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 901,
@@ -22497,15 +22497,15 @@
           "p95": 4253.55
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 10013,
+          "avg": 0.756,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 2971,
@@ -22698,15 +22698,15 @@
           "p95": 4350.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1041,
+          "avg": 0.8028,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 351,
@@ -22899,15 +22899,15 @@
           "p95": 4913.75
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 133,
+          "avg": 0.7519,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 33,
@@ -23100,15 +23100,15 @@
           "p95": 4461.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 945,
+          "avg": 0.8079,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 303,
@@ -23303,15 +23303,15 @@
           "p95": 3666.4208
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1215,
+          "avg": 0.7477,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 412,
@@ -23504,15 +23504,15 @@
           "p95": 3771.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1322,
+          "avg": 0.7007,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 490,
@@ -23705,15 +23705,15 @@
           "p95": 4474.6
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1017,
+          "avg": 0.6929,
+          "p5": 0.0,
+          "p10": 0.0,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 326,
@@ -23908,15 +23908,15 @@
           "p95": 4393.1375
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 902,
+          "avg": 0.8147,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 287,
@@ -24109,15 +24109,15 @@
           "p95": 4459.1
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1687,
+          "avg": 0.8041,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 656,
@@ -24310,15 +24310,15 @@
           "p95": 5198.6667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 833,
+          "avg": 0.7879,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 285,
@@ -24513,15 +24513,15 @@
           "p95": 4165.9
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1851,
+          "avg": 0.6796,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 650,
@@ -24714,15 +24714,15 @@
           "p95": 4181.1
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 3490,
+          "avg": 0.7052,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1237,
@@ -24915,15 +24915,15 @@
           "p95": 4964.6667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1702,
+          "avg": 0.7551,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 543,
@@ -25118,15 +25118,15 @@
           "p95": 4105.4667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 133,
+          "avg": 0.8722,
+          "p5": 0.4333,
+          "p10": 0.6667,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 54,
@@ -25319,15 +25319,15 @@
           "p95": 5407.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 166,
+          "avg": 0.8755,
+          "p5": 0.3333,
+          "p10": 0.5833,
+          "p25": 1.0,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 60,
@@ -25520,15 +25520,15 @@
           "p95": 4854.5625
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 125,
+          "avg": 0.8293,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 38,
@@ -25723,15 +25723,15 @@
           "p95": 4287.6667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 289,
+          "avg": 0.7618,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 114,
@@ -25924,15 +25924,15 @@
           "p95": 3950.7292
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 316,
+          "avg": 0.7801,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 133,
@@ -26125,15 +26125,15 @@
           "p95": 4751.2
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 308,
+          "avg": 0.7116,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 123,
@@ -26328,15 +26328,15 @@
           "p95": 4301.5833
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 890,
+          "avg": 0.7476,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 378,
@@ -26529,15 +26529,15 @@
           "p95": 4164.2
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1273,
+          "avg": 0.7358,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 533,
@@ -26730,15 +26730,15 @@
           "p95": 4462.6167
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 619,
+          "avg": 0.734,
+          "p5": 0.0,
+          "p10": 0.2667,
+          "p25": 0.5,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 249,
@@ -26933,15 +26933,15 @@
           "p95": 4142.0667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 289,
+          "avg": 0.797,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 118,
@@ -27134,15 +27134,15 @@
           "p95": 4179.45
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 286,
+          "avg": 0.7879,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 100,
@@ -27335,15 +27335,15 @@
           "p95": 5030.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 171,
+          "avg": 0.7388,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 62,
@@ -27538,15 +27538,15 @@
           "p95": 4957.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 63,
+          "avg": 0.8439,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 15,
@@ -27739,15 +27739,15 @@
           "p95": 4150.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 10234,
+          "avg": 0.7455,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 2991,
@@ -27940,15 +27940,15 @@
           "p95": 5084.45
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 382,
+          "avg": 0.8085,
+          "p5": 0.3333,
+          "p10": 0.35,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 140,
@@ -28141,15 +28141,15 @@
           "p95": 4274.45
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 457,
+          "avg": 0.7214,
+          "p5": 0.0,
+          "p10": 0.0,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 159,
@@ -28342,15 +28342,15 @@
           "p95": 4188.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 14884,
+          "avg": 0.7247,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 9330,
@@ -28543,15 +28543,15 @@
           "p95": 4031.5458
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 19449,
+          "avg": 0.7313,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 12953,
@@ -28744,15 +28744,15 @@
           "p95": 4349.4
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1001,
+          "avg": 0.7801,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 344,
@@ -28945,15 +28945,15 @@
           "p95": 5341.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 820,
+          "avg": 0.8967,
+          "p5": 0.5,
+          "p10": 0.5,
+          "p25": 1.0,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 340,
@@ -29146,15 +29146,15 @@
           "p95": 5029.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1668,
+          "avg": 0.6841,
+          "p5": 0.0,
+          "p10": 0.0,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 643,
@@ -29347,15 +29347,15 @@
           "p95": 5862.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 132,
+          "avg": 0.8472,
+          "p5": 0.1833,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 50,
@@ -29548,15 +29548,15 @@
           "p95": 4382.2667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 327,
+          "avg": 0.7645,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 105,
@@ -29749,15 +29749,15 @@
           "p95": 4516.3125
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 645,
+          "avg": 0.8214,
+          "p5": 0.0667,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 209,
@@ -29950,15 +29950,15 @@
           "p95": 5606.3
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 174,
+          "avg": 0.7672,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 58,
@@ -30151,15 +30151,15 @@
           "p95": 4516.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 4156,
+          "avg": 0.7249,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.575,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 2456,
@@ -30352,15 +30352,15 @@
           "p95": 5728.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 51,
+          "avg": 0.7516,
+          "p5": 0.5,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 20,
@@ -30553,15 +30553,15 @@
           "p95": 4754.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 233,
+          "avg": 0.7954,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 67,
@@ -30754,15 +30754,15 @@
           "p95": 8259.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 43,
+          "avg": 0.9147,
+          "p5": 0.6667,
+          "p10": 0.6667,
+          "p25": 1.0,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 13,
@@ -30955,15 +30955,15 @@
           "p95": 5220.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 2296,
+          "avg": 0.7921,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 898,
@@ -31156,15 +31156,15 @@
           "p95": 4397.4333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 34,
+          "avg": 0.6863,
+          "p5": 0.0,
+          "p10": 0.1,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 14,
@@ -31357,15 +31357,15 @@
           "p95": 5210.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 574,
+          "avg": 0.8142,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 192,
@@ -31558,15 +31558,15 @@
           "p95": 5058.2
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 146,
+          "avg": 0.8037,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 38,
@@ -31759,15 +31759,15 @@
           "p95": 5005.1667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1130,
+          "avg": 0.7673,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 463,
@@ -31960,15 +31960,15 @@
           "p95": 4697.15
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 5119,
+          "avg": 0.745,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1457,
@@ -32161,15 +32161,15 @@
           "p95": 4898.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 362,
+          "avg": 0.7603,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 121,
@@ -32362,15 +32362,15 @@
           "p95": 4619.2
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 95,
+          "avg": 0.7035,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 29,
@@ -32563,15 +32563,15 @@
           "p95": 4900.7292
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 364,
+          "avg": 0.8187,
+          "p5": 0.3333,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 89,
@@ -32766,15 +32766,15 @@
           "p95": 4025.4667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 71,
+          "avg": 0.7535,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 31,
@@ -32967,15 +32967,15 @@
           "p95": 4317.2125
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 109,
+          "avg": 0.7875,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 53,
@@ -33168,15 +33168,15 @@
           "p95": 5734.775
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 53,
+          "avg": 0.8302,
+          "p5": 0.3333,
+          "p10": 0.6667,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 13,
@@ -33371,15 +33371,15 @@
           "p95": 3911.125
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 187,
+          "avg": 0.7308,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 74,
@@ -33572,15 +33572,15 @@
           "p95": 3092.975
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 232,
+          "avg": 0.7299,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.8333,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 115,
@@ -33773,15 +33773,15 @@
           "p95": 4113.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 227,
+          "avg": 0.7841,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 81,
@@ -33976,15 +33976,15 @@
           "p95": 4177.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 81,
+          "avg": 0.7284,
+          "p5": 0.0,
+          "p10": 0.0,
+          "p25": 0.5,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 28,
@@ -34177,15 +34177,15 @@
           "p95": 4217.86
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 103,
+          "avg": 0.8301,
+          "p5": 0.0,
+          "p10": 0.5,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 44,
@@ -34378,15 +34378,15 @@
           "p95": 5195.62
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 40,
+          "avg": 0.8333,
+          "p5": 0.4917,
+          "p10": 0.65,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 17,
@@ -34581,15 +34581,15 @@
           "p95": 4159.15
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 2569,
+          "avg": 0.7366,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 954,
@@ -34782,15 +34782,15 @@
           "p95": 4037.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 4456,
+          "avg": 0.7531,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1683,
@@ -34983,15 +34983,15 @@
           "p95": 5650.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 2332,
+          "avg": 0.7573,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 777,
@@ -35186,15 +35186,15 @@
           "p95": 3836.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 32,
+          "avg": 0.8646,
+          "p5": 0.3667,
+          "p10": 0.6667,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 20,
@@ -35387,15 +35387,15 @@
           "p95": 4972.5
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 32,
+          "avg": 0.7292,
+          "p5": 0.275,
+          "p10": 0.5,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 15,
@@ -35590,15 +35590,15 @@
           "p95": 4162.5417
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 624,
+          "avg": 0.7158,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 251,
@@ -35791,15 +35791,15 @@
           "p95": 4034.4
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 982,
+          "avg": 0.785,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 420,
@@ -35992,15 +35992,15 @@
           "p95": 4768.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 541,
+          "avg": 0.72,
+          "p5": 0.0,
+          "p10": 0.0,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 206,
@@ -36195,15 +36195,15 @@
           "p95": 3528.5625
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 115,
+          "avg": 0.7362,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 52,
@@ -36396,15 +36396,15 @@
           "p95": 3989.625
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 99,
+          "avg": 0.7946,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 47,
@@ -36597,15 +36597,15 @@
           "p95": 4185.8
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 144,
+          "avg": 0.7106,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 58,
@@ -36800,15 +36800,15 @@
           "p95": 4542.3
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1654,
+          "avg": 0.7288,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 596,
@@ -37001,15 +37001,15 @@
           "p95": 4663.7
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 2208,
+          "avg": 0.7465,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 781,
@@ -37202,15 +37202,15 @@
           "p95": 5531.25
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1153,
+          "avg": 0.7022,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 344,
@@ -37405,15 +37405,15 @@
           "p95": 4290.3
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 6799,
+          "avg": 0.7991,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1997,
@@ -37606,15 +37606,15 @@
           "p95": 4083.775
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 9990,
+          "avg": 0.805,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 3144,
@@ -37807,15 +37807,15 @@
           "p95": 4872.0125
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 5186,
+          "avg": 0.7663,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 1365,
@@ -38010,15 +38010,15 @@
           "p95": 4399.05
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 825,
+          "avg": 0.7487,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 290,
@@ -38211,15 +38211,15 @@
           "p95": 4010.0
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 1020,
+          "avg": 0.7858,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 442,
@@ -38412,15 +38412,15 @@
           "p95": 4856.675
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 354,
+          "avg": 0.7072,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 121,
@@ -38615,15 +38615,15 @@
           "p95": 3440.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 147,
+          "avg": 0.7132,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.5,
+          "p50": 0.6667,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 68,
@@ -38816,15 +38816,15 @@
           "p95": 3308.38
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 123,
+          "avg": 0.7317,
+          "p5": 0.0,
+          "p10": 0.0667,
+          "p25": 0.5,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 69,
@@ -39017,15 +39017,15 @@
           "p95": 4580.3333
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 91,
+          "avg": 0.7363,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.4167,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 41,
@@ -39220,15 +39220,15 @@
           "p95": 3981.8667
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 683,
+          "avg": 0.7833,
+          "p5": 0.3333,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 242,
@@ -39421,15 +39421,15 @@
           "p95": 3953.675
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 940,
+          "avg": 0.7587,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 296,
@@ -39622,15 +39622,15 @@
           "p95": 4477.725
         },
         "respawn_defense_rate": {
-          "sample_size": 0,
-          "avg": null,
-          "p5": null,
-          "p10": null,
-          "p25": null,
-          "p50": null,
-          "p75": null,
-          "p90": null,
-          "p95": null
+          "sample_size": 360,
+          "avg": 0.7532,
+          "p5": 0.0,
+          "p10": 0.3333,
+          "p25": 0.6667,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p90": 1.0,
+          "p95": 1.0
         },
         "comeback_rate": {
           "sample_size": 105,
@@ -39656,5 +39656,10 @@
         }
       }
     }
+  },
+  "respawn_defense_rescan": {
+    "generated_at": "2026-05-22T10:24:45.409756+00:00",
+    "files_processed": 221943,
+    "overall_samples": 418846
   }
 }
