@@ -318,6 +318,11 @@
         </div>
       </div>
     {/if}
+    {#if $connectCode}
+      <button class="btn btn-secondary" style="font-size:12px" onclick={() => openUrl(`https://slippi.gg/user/${$connectCode.toLowerCase().replace("#", "-")}`)}>
+        Go to your Slippi profile ↗
+      </button>
+    {/if}
   </div>
 
   <!-- Progress bar -->

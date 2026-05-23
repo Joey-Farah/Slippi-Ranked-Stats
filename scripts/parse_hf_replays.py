@@ -448,7 +448,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # Opens when the opponent goes offstage (|x| past the ledge, or y < -5).
     # Success = they die there. Dropped = they make it back (grounded OR ledge —
     # a ledge grab counts as recovered). A blast kill (death from one on-stage-
-    # origin knockback) is excluded from the stat entirely. 3 s timeout closes
+    # origin knockback) is excluded from the stat entirely. 8 s timeout closes
     # without a success. Overlapping dips collapsed to one trip (matches slp_parser.ts).
     edgeguard_success_rate = None
     if o_x is not None and o_y is not None:
@@ -461,8 +461,8 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                 if fo < next_allowed:
                     continue
                 eg_sit += 1
-                ss = int(o_stocks[fo]); resolved = fo + 180
-                for fw in range(fo + 1, min(fo + 180, n_frames)):
+                ss = int(o_stocks[fo]); resolved = fo + 480
+                for fw in range(fo + 1, min(fo + 480, n_frames)):
                     if int(o_stocks[fw]) < ss:                         # died offstage
                         if _blast_kill(o_state, o_offstage, fw):
                             eg_sit -= 1                                 #   blast kill → exclude trip
@@ -477,7 +477,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # ── Recovery success rate ────────────────────────────────────────────────
     # Mirror of edgeguard, from your side. Opens when you go offstage. Success =
     # you make it back (grounded OR ledge — a sweetspot ledge grab counts) before
-    # losing the stock. Failure = you died there, or 3 s passed without making it
+    # losing the stock. Failure = you died there, or 8 s passed without making it
     # back. A blast kill (death from one on-stage-origin knockback) is excluded.
     # Overlapping dips collapsed to one trip (matches slp_parser.ts).
     recovery_success_rate = None
@@ -491,8 +491,8 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                 if fo < next_allowed:
                     continue
                 rec_sit += 1
-                ss = int(p_stocks[fo]); resolved = fo + 180
-                for fw in range(fo + 1, min(fo + 180, n_frames)):
+                ss = int(p_stocks[fo]); resolved = fo + 480
+                for fw in range(fo + 1, min(fo + 480, n_frames)):
                     if int(p_stocks[fw]) < ss:                         # died offstage
                         if _blast_kill(p_state, p_offstage, fw):
                             rec_sit -= 1                                #   blast kill → exclude trip

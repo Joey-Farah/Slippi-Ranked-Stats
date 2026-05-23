@@ -410,7 +410,7 @@ function computeAdvancedStats(
 
   const OFFSTAGE_Y     = -5;
   const LEDGE_X        = STAGE_LEDGE_X[stageId] ?? DEFAULT_LEDGE_X;
-  const EG_WINDOW      = 180; // 3 s
+  const EG_WINDOW      = 480; // 8 s
   const TC_WINDOW      =  45; // 0.75 s
   const TC_HIT_DMG     =   3;
   const RESPAWN_WINDOW = 120; // 2 s after opponent becomes actionable
@@ -516,7 +516,7 @@ function computeAdvancedStats(
       // Opens when the opponent goes offstage. Success = they die there.
       // Dropped = they make it back (grounded OR ledge — a ledge grab counts as
       // recovered). A blast kill (death from one on-stage-origin knockback) is
-      // excluded from the stat entirely. 3 s timeout closes without a success.
+      // excluded from the stat entirely. 8 s timeout closes without a success.
       const oppOff = Math.abs(opp.x) > LEDGE_X || opp.y < OFFSTAGE_Y;
       if (egFrame < 0 && oppOff && !prevOppOff) { egSit++; egFrame = snap.frame; egStocks = opp.stocks; }
       if (egFrame >= 0) {
@@ -561,7 +561,7 @@ function computeAdvancedStats(
     // ── Recovery ───────────────────────────────────────────────────────────
     // Mirror of edgeguard, from your side. Opens when you go offstage. Success =
     // you make it back (grounded OR ledge — a sweetspot ledge grab counts) before
-    // losing the stock. Failure = you died there, or 3 s passed without making it
+    // losing the stock. Failure = you died there, or 8 s passed without making it
     // back. A blast kill (death from one on-stage-origin knockback) is excluded —
     // you never got the chance to recover.
     const pOff = Math.abs(snap.x) > LEDGE_X || snap.y < OFFSTAGE_Y;

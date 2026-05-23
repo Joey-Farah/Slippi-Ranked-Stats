@@ -6,6 +6,105 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-05-23 (READ FIRST)
+
+> **✅ RESOLVED & SHIPPED in v1.6.1 (2026-05-23).** The "regrade shows no change"
+> symptom was a measurement artifact, not a bug: the installed production app and the
+> `npm run tauri dev` build share one SQLite DB (`com.slippi.rankedstats`), so a regrade
+> in one overwrote the rows the other read — they could never show different grades at
+> once. The 8 s recalibration was verified correct via (1) an offline play-by-play audit
+> where the 8 s edgeguard count matches the actual replay kills, and (2) a 120-game
+> 3 s-vs-8 s sweep (edgeguard rose in 76/120, always upward, avg +8.3 pts; denominator
+> unchanged). Also note: installed **v1.6.0 predates the recovery/edgeguard *redefinition***
+> (commits `dfc4ba1`/`1a0df4f`), so a prod-vs-dev comparison conflates definition + window
+> + baselines — that's why edgeguard appeared to drop in side-by-side screenshots.
+> **v1.6.1 shipped:** 8 s recalibration + rebuilt baselines, S-tier hot-pink palette,
+> Slippi profile link in the sidebar, execution-stats section removed from "How Grading
+> Works". The **stream overlay prototype was removed** from the release (idea still banked
+> below). The dev-only `db.ts` `data_dev` split was reverted. Everything below is historical.
+
+Big multi-thread session. Everything below is historical context from the build-up to
+v1.6.1.
+
+### 🔴 OPEN BUG (where we stopped) — regrade shows no change
+After the 8 s recalibration, regrading sets in the **dev build still produces the
+same recovery/edgeguard %s AND grades as the 3 s production build.** The
+version-bump fix below was *necessary but did NOT fix this symptom.* Investigate next:
+- **Stale filter excludes nulls.** `GradeHistory.svelte` (~line 124 `staleCount`,
+  ~line 366 `regradeStale`) filters `r.baselineVersion !== null && r.baselineVersion
+  !== BENCHMARKS_VERSION`. If stored grades have `baseline_version = null`, they're
+  **never flagged stale** → "Regrade stale" skips them. **Check what
+  `baseline_version` existing grade rows actually have in the DB.**
+- **Confirm the regrade re-parses with the 8 s window.** Path: `parseSlpFile`
+  (parser.ts) → `parseSlpBytes` (slp_parser.ts:904/1037) → `computeAdvancedStats`
+  (slp_parser.ts:975/1097) where `EG_WINDOW = 480` (line 413). Call chain verified to
+  *exist*, but the values aren't moving — so either the parse isn't re-running, it's
+  cached, or recovery/edgeguard don't actually vary with EG_WINDOW as assumed.
+- **Decisive test:** parse ONE .slp with a known >3 s offstage gimp using the 8 s vs
+  3 s `slp_parser` and confirm recovery/edgeguard differ *at all*. If identical, the
+  parser edit isn't reaching the running build (wrong path / stale bundle).
+- Check whether `gradeAllSets`/regrade re-parses the `.slp` or re-scores stored stats.
+
+### What got done (uncommitted unless noted)
+1. **Recovery/edgeguard 8 s recalibration.** Measured (HF sample, throwaway script)
+   that the old **3 s** offstage-trip timeout missed **~39 % of real edgeguard kills**.
+   Changed `EG_WINDOW` 180→**480** (8 s) in `slp_parser.ts:413`, `parse_hf_replays.py`
+   (`fo + 480` ×4), `rescan_recovery_edgeguard_only.py:70`. Full HF rescan done
+   (**221,603 files, 429,344 samples, ~3.9 hr** on the Windows wired box via
+   `run_recov_eg_supervised.py`). Verified ONLY recovery/edgeguard changed:
+   _overall recovery **0.850→0.884**, edgeguard **0.068→0.108**.
+2. **BENCHMARKS_VERSION bug — fixed in data+script (but didn't fix the regrade
+   symptom, see above).** Targeted rescans never bumped grade_baselines.json's
+   **top-level `generated_at`**, which `regen_benchmarks.py:183` turns into
+   `BENCHMARKS_VERSION`. Bumped it → `2026-05-23T17:50:41`, regenerated; patched
+   `rescan_recovery_edgeguard_only.py` `patch_baselines` to bump it going forward.
+   (The 5-22 respawn rescan had the same latent issue.)
+3. **Grade colors → pink palette, centralized.** Added `GRADE_COLORS` + `gradeColor()`
+   to `grading.ts` (single source). New default: **S `#FF1493` (hot pink + glow)**,
+   A `#00C853`, B `#00B0FF`, **C `#FFC400`**, **D `#FF7300`**, F `#FF1744`. All 4 grade
+   UIs now import it (was 4 duplicated maps; LiveRankedSession's separate flat palette
+   unified). **User approved as the release default** ("test it this release").
+4. **UI fixes:** removed the "Execution Stats (display only)" block from
+   `GradingMethodology` ("How Grading Works"); added **"Go to your Slippi profile ↗"**
+   button in `Sidebar` under the rating → `slippi.gg/user/<connectCode lowercased,
+   # → ->` (e.g. `JOEY#870` → `joey-870`).
+5. **Stream Overlay PROTOTYPE — UI ONLY, NO BACKEND** (`LiveRankedSession.svelte` +
+   `store.ts` `overlayEnabled`/`overlayExpanded` persisted). Single-toggle UX,
+   collapsible when on (Hide/Setup chevron), ranked-set-only framing, in-app grade
+   preview. **URL is a STUB** (`http://localhost:6789/overlay`). **Transport decision
+   PENDING — do NOT build backend without confirming:** `tiny_http` + polling
+   (recommended; small dep, what `tauri-plugin-localhost` uses) vs OBS **Text source**
+   (zero-dep, plain text, loses styling). Also banked in the "Streamer Overlay" section.
+
+### Commits (both UNPUSHED on `main`)
+- `eff9bfa` — the **3 s** baselines. **SUPERSEDED** by the working-tree 8 s data;
+  restructure (amend/soft-reset) so history carries 8 s, not 3 s-then-8 s. Also
+  contains `run_recov_eg_supervised.py` (the Windows rescan supervisor).
+- `0723475` — overlay idea doc.
+
+### Release plan — user chose "HOLD, review first"
+- Pending: **overlay in or out of this release** (recommend OUT/WIP — dead URL would
+  confuse users; preserve on a branch).
+- Restructure `eff9bfa` → 8 s recalibration commit.
+- Ship: 8 s baselines + pink colors + execution-removal + Slippi link.
+- Version bump + `release-notes.md` entry at release-cut time (per the release process).
+
+### Operational notes
+- **Bounce the dev app:** TaskStop the tauri-dev bg task → PowerShell `Stop-Process
+  -Name slippi-ranked-stats -Force` + free port 1420 (`Get-NetTCPConnection
+  -LocalPort 1420 | Stop-Process`) → relaunch `npm run tauri dev` (background, sandbox
+  disabled) → watcher greps the log for `Finished`/errors. **Current dev task:
+  `bd1eo2pns`.** Closing the app window exits the dev process cleanly (exit 0).
+- **HMR staleness:** Svelte HMR doesn't recompute inline-style strings keyed on a
+  stable value (grade colors keyed on `grade.letter`) and may skip changed module
+  constants → needs a **full reload**. Force one by editing `index.html` (Vite
+  full-reloads on it, no Rust rebuild). **Remove the temp comment before commit.**
+- **HF_TOKEN** was still valid through all scans; user intends to rotate now (fine).
+- Throwaway scripts (`_watch_recoveg.py`, `_analyze_eg_window.py`, `_smoke_recoveg.py`)
+  were deleted — recreate the HF-sample analyzer if you need to re-measure window tails.
+
+---
+
 ## Unranked & Direct Stats Tab (shipped v1.5.0)
 
 Premium-gated tab at the end of the tab bar. Reads `match_type = 'unranked'` games already stored in the DB — no parser changes needed.
@@ -44,6 +143,37 @@ Streamers playing ranked on Twitch want to show live ranked stats in their OBS o
 - Should the layout be fixed or user-customizable (colors, font size)?
 - Does it only update during a live watcher session, or show historical stats too?
 - Premium feature or free?
+
+### Set-grade overlay widget (idea — banked 2026-05-23)
+
+Show the set grade the moment it lands: when a ranked set completes mid-stream,
+pop the just-earned grade onto the OBS overlay — overall letter + score, the three
+category grades (Neutral / Punish / Defense), opponent char, and W/L — as a
+transient card that animates in and auto-hides after ~15–20 s.
+
+- **The data already exists.** The watcher computes `lastSetGrade` on set
+  completion (`src/lib/watcher.ts` `handleRankedGame` → `gradeSet`) and the Live
+  Session tab renders it. The overlay just surfaces that same store — no new stat
+  or grading work, so this is a display/transport feature.
+- **Transport: same infra as the live-stats overlay above.** Event-driven
+  (SSE/WebSocket) so the card appears exactly when the grade lands — the local
+  server pushes `lastSetGrade` to an OBS Browser Source. Disk-file fallback for a
+  plain Text source.
+- **It's one widget in a broader overlay system.** Build the local-server +
+  Browser-Source plumbing once; the grade card and the live-stats panel
+  (rating/streak/opponent) are widgets on top of it. Design them together.
+- **Premium-gated** — grades are a premium feature, so tie to `$isPremium` /
+  the Discord role check.
+- **New open questions:**
+  - Show after *every* set, or only at/above a chosen grade? (A streamer may not
+    want a D broadcast.) Make it opt-in / threshold-configurable.
+  - Transient per-set card vs. an always-on session summary (record + avg grade)
+    vs. both?
+  - Auto-hide duration + reveal animation; streamer-configurable position / size /
+    theme.
+  - Hide opponent identity (code/name) by default to avoid putting it on stream?
+  - In-app "Streaming / Overlay" settings panel that generates the OBS URL +
+    options.
 
 **Do not build without discussing the approach first.**
 
@@ -136,7 +266,7 @@ The supervisor wraps `rescan_respawn_only.py` (patches only `respawn_defense_rat
 - **The Xet backend wedges:** individual download threads hang indefinitely (the per-batch `as_completed(timeout=300)` does not reliably fire), freezing a batch with no error. `run_respawn_supervised.sh` detects log silence > 300 s, kills, and resumes from the checkpoint — lossless. Disabling Xet (`HF_HUB_DISABLE_XET=1` + `HF_HUB_DOWNLOAD_TIMEOUT=30`) is reliable but ~5× slower.
 - **Download is bandwidth-bound**, not parse-bound. Throughput plateaus ~75 Mbps on this connection; `DL_WORKERS` raised 8 → 32 (sweet spot; 64 barely helps). A faster connection is the only real speed lever.
 
-### Recovery & edgeguard redefinition (2026-05-22) — ⚠ RESCAN REQUIRED
+### Recovery & edgeguard redefinition (2026-05-22) — ✅ RESCAN COMPLETE (2026-05-23)
 
 **Plain English:** Recovery % and Edgeguard % were measuring the wrong things, so
 they were rewritten to be two views of the same event — *did the player who got
@@ -148,10 +278,13 @@ edgeguard** for your opponent. The one exception: getting hit on-stage and flyin
 *straight to the blast zone* doesn't count for either — there was no recovery to
 attempt and no edgeguard to perform.
 
-**Status: code is done and committed; the benchmark rescan is NOT.** Until the
-rescan runs, the displayed *values* are correct (they come from the live parser)
-but the *percentile scores / letter grades* for these two stats compare against
-stale benchmarks — eyeball the raw % only.
+**Status: DONE.** Code shipped 2026-05-22; the benchmark rescan completed
+2026-05-23 on the Windows wired-Ethernet machine (Xet on, supervised) —
+**221,577 files, 429,292 samples each stat, 252 min (~4.2 hr)**, 197/197
+matchup/char entries populated for both stats. `grade_baselines.json` patched
+(only these two stats touched; the other 15 baselines unchanged) and
+`grade-benchmarks.ts` regenerated. Sanity at scale: recovery avg 0.850 / p50
+0.867, edgeguard avg 0.068 / p50 0.056 — matches the local pre-run estimates.
 
 **Why we had to change them (the bugs):**
 - **Recovery** used to require getting back *above* the stage (`y > 5`). But
@@ -204,25 +337,31 @@ throwaway):**
 `scripts/rescan_recovery_edgeguard_only.py` (targeted rescan — kept in exact parity,
 verified on local replays), `scripts/our_stats.cjs` (audit port; **its respawn logic
 is still stale**, predates the `SPAWN_STATES={0,12}` fix), `src/lib/grading.ts`
-(`STAT_DESCRIPTIONS`). Typecheck clean, 42/42 tests pass, all parsers parity-checked.
+(`STAT_DESCRIPTIONS`). Typecheck clean, 14/14 tests pass (grading.test.ts), all parsers parity-checked.
 
-**The rescan (run on the wired-Ethernet machine):** the targeted script patches
-**only** these two stats in `grade_baselines.json`, leaving the other 15 untouched
-(batched download+delete, resumable checkpoint, dual `.percent`/`.damage` support).
+**The rescan — done 2026-05-23 on the Windows wired-Ethernet machine.** The
+targeted script patches **only** these two stats in `grade_baselines.json`,
+leaving the other 15 untouched (batched download+delete, resumable checkpoint).
+It was run under a supervisor — `scripts/run_recov_eg_supervised.py`, the
+cross-platform port of the macOS-only `run_respawn_supervised.sh` — which keeps
+Xet on, auto-restarts from the per-batch checkpoint if the log goes silent >300 s,
+and runs `regen_benchmarks.py` + a verify on clean completion:
 
 ```bash
-# macOS (.venv/bin/python; caffeinate so it doesn't sleep mid-run):
+# Windows (what was used — supervised, Xet on, finished in ~4.2 hr, no wedges):
+set HF_TOKEN=hf_... && .venv\Scripts\python.exe scripts\run_recov_eg_supervised.py
+# macOS equivalent (run the targeted script directly under caffeinate):
 HF_TOKEN="hf_..." caffeinate -i .venv/bin/python scripts/rescan_recovery_edgeguard_only.py
-# Windows:
-set HF_TOKEN=hf_... && .venv\Scripts\python.exe scripts\rescan_recovery_edgeguard_only.py
-
-# then regenerate the TS benchmarks and commit grade_baselines.json + grade-benchmarks.ts:
-python scripts/regen_benchmarks.py
+python scripts/regen_benchmarks.py   # supervisor does this automatically at the end
 ```
 
-Resumable via `scripts/parse_hf_recov_eg_checkpoint.json`. If the Xet backend wedges
-(see the respawn run notes), wrap it like `run_respawn_supervised.sh` or set
-`HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=30` (reliable but ~5× slower).
+Resumable via `scripts/parse_hf_recov_eg_checkpoint.json` (auto-removed on success).
+peppi 0.8.6 prints `arrow2 OutOfSpec` / `de.rs` panics for a few unparseable replays
+per character — caught (`except BaseException`) and skipped; ~98% of games yielded
+data (1.94 samples/file). This final script reads only `position`/`state`/`stocks`,
+so the peppi `.percent`/`.damage` rename doesn't apply here. If a future run does
+wedge, the supervisor handles it; disabling Xet (`HF_HUB_DISABLE_XET=1`
+`HF_HUB_DOWNLOAD_TIMEOUT=30`) is the reliable-but-~5×-slower fallback.
 
 **Still worth doing:** the rescan is download-bound (~8 h regardless of stat count).
 If we keep iterating on stat definitions, cache the dataset (or a representative

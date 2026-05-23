@@ -4,6 +4,7 @@
     snapshots, liveGameStats, sets, lastSetGrade,
   } from "../../lib/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
+  import { gradeColor } from "../../lib/grading";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
 
@@ -71,17 +72,6 @@
       return { x: String(i + WINDOW), y: (wins / WINDOW) * 100 };
     });
   })());
-
-  function gradeColor(letter: string): string {
-    switch (letter) {
-      case "S": return "#f1c40f";
-      case "A": return "#2ecc71";
-      case "B": return "#3498db";
-      case "C": return "#f39c12";
-      case "D": return "#e67e22";
-      default:  return "#e74c3c";
-    }
-  }
 
   function fmtRatio(v: number | null, decimals = 1): string {
     return v !== null ? v.toFixed(decimals) : "—";

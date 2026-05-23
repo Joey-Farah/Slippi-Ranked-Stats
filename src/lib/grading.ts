@@ -180,6 +180,23 @@ const STAT_LABELS: Record<string, string> = {
   wavedash_miss_rate:      "Missed WD Rate",
 };
 
+// ── Grade letter colors (single source of truth; imported by every grade UI) ──
+
+export const GRADE_COLORS: Record<GradeLetter, string> = {
+  S: "#FF1493", // hot pink (rendered with a glow on the S grade card)
+  A: "#00C853", // rich green
+  B: "#00B0FF", // sky blue
+  C: "#FFC400", // yellow
+  D: "#FF7300", // orange
+  F: "#FF1744", // red
+};
+
+export function gradeColor(letter: string | null | undefined): string {
+  return letter && letter in GRADE_COLORS
+    ? GRADE_COLORS[letter as GradeLetter]
+    : "var(--muted)";
+}
+
 // ── Percentile scoring ─────────────────────────────────────────────────────
 
 function percentileScore(value: number, t: StatThresholds, inverted: boolean): number {

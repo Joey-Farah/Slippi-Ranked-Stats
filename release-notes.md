@@ -1,3 +1,20 @@
+## What's New in v1.6.1
+
+### 🛡️ Edgeguard & Recovery now counted correctly (Premium)
+
+Fixed a bug that **undercounted your edgeguards and recoveries**. The grader stopped tracking an offstage exchange after 3 seconds — so kills that took longer to finish (chasing someone out and closing it at 4–6 seconds) were silently dropped, and slow recoveries weren't credited. The window is now 8 seconds, which covers virtually every real offstage exchange, and the community baselines were rebuilt to match. Your **Edgeguard %** and **Recovery %** now reflect what actually happened in your games.
+
+### 🎨 Refreshed grade colors (Premium)
+
+The **S grade is now hot pink** with a soft glow, so it's easy to tell apart from the yellow C grade at a glance. A couple of the other grade colors were nudged for clearer contrast.
+
+### ✨ Quality of life
+
+- **Jump to your Slippi profile**: a new button under your rating in the sidebar opens your slippi.gg profile page in one click.
+- **Tidier "How Grading Works" panel**: removed the display-only execution-stats section to keep the focus on the stats that are actually scored.
+
+---
+
 ## What's New in v1.6.0
 
 ### 🚀 Guided setup for new users (new)

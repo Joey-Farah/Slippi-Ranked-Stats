@@ -9,7 +9,7 @@
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { invoke } from "@tauri-apps/api/core";
   import { CHARACTERS, parseSlpFile } from "../../lib/parser";
-  import { gradeSet, scoreToGrade, formatStatValue, CATEGORY_DEFS, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
+  import { gradeSet, scoreToGrade, formatStatValue, gradeColor, CATEGORY_DEFS, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, type SetGradeRow } from "../../lib/db";
   import { BENCHMARKS_VERSION } from "../../lib/grade-benchmarks";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
@@ -88,17 +88,8 @@
     isRechecking = false;
   }
 
-  const GRADE_COLORS: Record<string, string> = {
-    S: "#FFD700",
-    A: "#00C853",
-    B: "#00B0FF",
-    C: "#FFB300",
-    D: "#FF6D00",
-    F: "#FF1744",
-  };
-
   function gc(letter: string | null): string {
-    return letter ? (GRADE_COLORS[letter] ?? "var(--muted)") : "var(--muted)";
+    return gradeColor(letter);
   }
 
   let completedSets = $derived(

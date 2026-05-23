@@ -10,12 +10,14 @@ existing scripts/grade_baselines.json — every other stat is left untouched.
 Then run regen_benchmarks.py to regenerate src/lib/grade-benchmarks.ts.
 
 Logic is kept byte-for-byte in sync with the new blocks in
-scripts/parse_hf_replays.py and src/lib/slp_parser.ts:
-  • Recovery  — opens when YOU go offstage (y < -5). Success = you reach a
-    grounded OR ledge state before losing the stock. Overlapping dips collapsed.
-  • Edgeguard — opens when the OPPONENT goes offstage. Success = you landed a
-    hit (their % rose) OR took the stock, before they made it back onto the
-    stage (grounded only — ledge-hang stays open). Overlapping dips collapsed.
+scripts/parse_hf_replays.py and src/lib/slp_parser.ts. Recovery and edgeguard
+are exact mirrors of one offstage trip (|x| past the stage ledge OR y < -5):
+  • Recovery  — YOUR trip. Success = you make it back (no longer offstage, or a
+    grounded/ledge state) before losing the stock. Overlapping dips collapsed.
+  • Edgeguard — the OPPONENT's trip. Success = they die offstage (you took the
+    stock); dropped if they make it back. Overlapping dips collapsed.
+  • Blast kills (death from one continuous knockback, states 75-91, that began
+    ON-STAGE) are excluded from both.
 
 Usage (run on the wired-Ethernet machine — download is bandwidth-bound):
     macOS:    HF_TOKEN="hf_..." caffeinate -i .venv/bin/python scripts/rescan_recovery_edgeguard_only.py
@@ -65,7 +67,7 @@ ALL_CHAR_DIRS = [
 ]
 
 OFFSTAGE_Y  = -5.0
-EG_WINDOW   = 180   # 3 s (matches slp_parser.ts)
+EG_WINDOW   = 480   # 8 s (matches slp_parser.ts)
 STATS       = ["recovery_success_rate", "edgeguard_success_rate"]
 
 DL_WORKERS          = 32
@@ -349,8 +351,14 @@ def patch_baselines(accum: dict, baselines_path: str, total_processed: int):
                     continue
                 baselines["by_matchup"][player_char][opp_char][stat] = compute_percentiles(vals)
 
+    ts = datetime.now(timezone.utc).isoformat()
+    # Bump the TOP-LEVEL generated_at too: BENCHMARKS_VERSION is derived from it
+    # (regen_benchmarks.py), and the app only flags stored grades as stale / re-grades
+    # them when that version string changes. A targeted rescan that patches stats but
+    # leaves generated_at untouched silently never invalidates existing grades.
+    baselines["generated_at"] = ts
     baselines["recovery_edgeguard_rescan"] = {
-        "generated_at":    datetime.now(timezone.utc).isoformat(),
+        "generated_at":    ts,
         "files_processed": total_processed,
         "overall_samples": {stat: len(accum[stat]["overall"]) for stat in STATS},
     }

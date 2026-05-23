@@ -69,8 +69,6 @@ def emit_char_entry(name: str, data: dict, *, indent: int = 2) -> str:
 HEADER = '''/**
  * grade-benchmarks.ts — Stat percentile thresholds for the Set Grading System.
  *
- * !! DEV ONLY — not shipped to users yet !!
- *
  * Generated from scripts/grade_baselines.json via scripts/regen_benchmarks.py.
  * Source: {source} ({replay_count} replays).
  * Characters with fewer than {min_samples} samples fall back to by_player_char["_overall"].

@@ -1,18 +1,9 @@
 <script lang="ts">
   import { open as openUrl } from "@tauri-apps/plugin-shell";
-  import { CATEGORY_DEFS, DISPLAY_ONLY_STATS, STAT_DESCRIPTIONS, type SetGrade, type GradeLetter, type CategoryKey } from "../lib/grading";
+  import { CATEGORY_DEFS, DISPLAY_ONLY_STATS, STAT_DESCRIPTIONS, GRADE_COLORS, type SetGrade, type GradeLetter, type CategoryKey } from "../lib/grading";
   import Tooltip from "./Tooltip.svelte";
 
   let { grade, detailed = true }: { grade: SetGrade; detailed?: boolean } = $props();
-
-  const GRADE_COLORS: Record<GradeLetter, string> = {
-    S: "#FFD700",   // gold
-    A: "#00C853",   // rich green
-    B: "#00B0FF",   // sky blue
-    C: "#FFB300",   // amber
-    D: "#FF6D00",   // deep orange
-    F: "#FF1744",   // red
-  };
 
   function gc(g: GradeLetter | null): string {
     return g ? (GRADE_COLORS[g] ?? "var(--muted)") : "var(--muted)";

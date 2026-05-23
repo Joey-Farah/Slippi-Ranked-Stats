@@ -1,16 +1,16 @@
 <script lang="ts">
   import {
-    CATEGORY_DEFS, CATEGORY_WEIGHTS, STAT_WEIGHTS, STAT_DESCRIPTIONS, DISPLAY_ONLY_STATS,
-    type CategoryKey, type SetGrade,
+    CATEGORY_DEFS, CATEGORY_WEIGHTS, STAT_WEIGHTS, STAT_DESCRIPTIONS,
+    GRADE_COLORS, type CategoryKey, type SetGrade,
   } from "../lib/grading";
 
   const GRADE_THRESHOLDS = [
-    { letter: "S", min: 75,  color: "#FFD700" },
-    { letter: "A", min: 63,  color: "#00C853" },
-    { letter: "B", min: 52,  color: "#00B0FF" },
-    { letter: "C", min: 40,  color: "#FFB300" },
-    { letter: "D", min: 28,  color: "#FF6D00" },
-    { letter: "F", min: 0,   color: "#FF1744" },
+    { letter: "S", min: 75,  color: GRADE_COLORS.S },
+    { letter: "A", min: 63,  color: GRADE_COLORS.A },
+    { letter: "B", min: 52,  color: GRADE_COLORS.B },
+    { letter: "C", min: 40,  color: GRADE_COLORS.C },
+    { letter: "D", min: 28,  color: GRADE_COLORS.D },
+    { letter: "F", min: 0,   color: GRADE_COLORS.F },
   ];
 
   const CATEGORY_ORDER: CategoryKey[] = ["neutral", "punish", "defense"];
@@ -122,20 +122,5 @@
       </div>
     </div>
   {/each}
-
-  <!-- Execution / display-only note -->
-  <div style="margin-bottom: 4px">
-    <div style="font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px">
-      Execution Stats (display only — not scored)
-    </div>
-    <div class="card" style="padding: 10px 14px; font-size: 11px; color: var(--muted); line-height: 1.6">
-      <strong style="color: var(--text)">L-Cancel %</strong>,
-      <strong style="color: var(--text)">Inputs/Min</strong>, and
-      <strong style="color: var(--text)">Missed WD Rate</strong>
-      are shown for context but excluded from scoring.
-      L-cancel benchmarks are degenerate in the dataset (median 0%). Inputs/min has low variance at
-      competitive level. Wavedash miss rate is too situational to weight fairly across all characters.
-    </div>
-  </div>
 
 </div>
