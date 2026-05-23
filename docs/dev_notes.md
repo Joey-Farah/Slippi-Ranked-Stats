@@ -23,8 +23,10 @@ hand-off mechanism between work sessions and across machines.
 > Works". The **stream overlay prototype was removed** from the release (idea still banked
 > below). The dev-only `db.ts` `data_dev` split was reverted. Everything below is historical.
 
-Big multi-thread session. Everything below is historical context from the build-up to
-v1.6.1.
+This file is the cross-machine handoff doc. The banner above records the last shipped
+state; everything below is durable reference — active backlog (see NEXT UP),
+shipped-feature architecture, the baseline pipeline, the release process, and the
+cross-machine workflow.
 
 ---
 
@@ -60,85 +62,6 @@ do not ship/un-gate without explicit instruction." That's stale as of v1.6.0 —
 shipped as a **Premium** feature (gated by `$isPremium`, tab always rendered). The
 matching comment in `grade-benchmarks.ts` was corrected; the `CLAUDE.md` line was left
 for the owner to update.
-
----
-
-### (historical — RESOLVED, see banner) regrade shows no change
-After the 8 s recalibration, regrading sets in the **dev build still produces the
-same recovery/edgeguard %s AND grades as the 3 s production build.** The
-version-bump fix below was *necessary but did NOT fix this symptom.* Investigate next:
-- **Stale filter excludes nulls.** `GradeHistory.svelte` (~line 124 `staleCount`,
-  ~line 366 `regradeStale`) filters `r.baselineVersion !== null && r.baselineVersion
-  !== BENCHMARKS_VERSION`. If stored grades have `baseline_version = null`, they're
-  **never flagged stale** → "Regrade stale" skips them. **Check what
-  `baseline_version` existing grade rows actually have in the DB.**
-- **Confirm the regrade re-parses with the 8 s window.** Path: `parseSlpFile`
-  (parser.ts) → `parseSlpBytes` (slp_parser.ts:904/1037) → `computeAdvancedStats`
-  (slp_parser.ts:975/1097) where `EG_WINDOW = 480` (line 413). Call chain verified to
-  *exist*, but the values aren't moving — so either the parse isn't re-running, it's
-  cached, or recovery/edgeguard don't actually vary with EG_WINDOW as assumed.
-- **Decisive test:** parse ONE .slp with a known >3 s offstage gimp using the 8 s vs
-  3 s `slp_parser` and confirm recovery/edgeguard differ *at all*. If identical, the
-  parser edit isn't reaching the running build (wrong path / stale bundle).
-- Check whether `gradeAllSets`/regrade re-parses the `.slp` or re-scores stored stats.
-
-### What got done (uncommitted unless noted)
-1. **Recovery/edgeguard 8 s recalibration.** Measured (HF sample, throwaway script)
-   that the old **3 s** offstage-trip timeout missed **~39 % of real edgeguard kills**.
-   Changed `EG_WINDOW` 180→**480** (8 s) in `slp_parser.ts:413`, `parse_hf_replays.py`
-   (`fo + 480` ×4), `rescan_recovery_edgeguard_only.py:70`. Full HF rescan done
-   (**221,603 files, 429,344 samples, ~3.9 hr** on the Windows wired box via
-   `run_recov_eg_supervised.py`). Verified ONLY recovery/edgeguard changed:
-   _overall recovery **0.850→0.884**, edgeguard **0.068→0.108**.
-2. **BENCHMARKS_VERSION bug — fixed in data+script (but didn't fix the regrade
-   symptom, see above).** Targeted rescans never bumped grade_baselines.json's
-   **top-level `generated_at`**, which `regen_benchmarks.py:183` turns into
-   `BENCHMARKS_VERSION`. Bumped it → `2026-05-23T17:50:41`, regenerated; patched
-   `rescan_recovery_edgeguard_only.py` `patch_baselines` to bump it going forward.
-   (The 5-22 respawn rescan had the same latent issue.)
-3. **Grade colors → pink palette, centralized.** Added `GRADE_COLORS` + `gradeColor()`
-   to `grading.ts` (single source). New default: **S `#FF1493` (hot pink + glow)**,
-   A `#00C853`, B `#00B0FF`, **C `#FFC400`**, **D `#FF7300`**, F `#FF1744`. All 4 grade
-   UIs now import it (was 4 duplicated maps; LiveRankedSession's separate flat palette
-   unified). **User approved as the release default** ("test it this release").
-4. **UI fixes:** removed the "Execution Stats (display only)" block from
-   `GradingMethodology` ("How Grading Works"); added **"Go to your Slippi profile ↗"**
-   button in `Sidebar` under the rating → `slippi.gg/user/<connectCode lowercased,
-   # → ->` (e.g. `JOEY#870` → `joey-870`).
-5. **Stream Overlay PROTOTYPE — UI ONLY, NO BACKEND** (`LiveRankedSession.svelte` +
-   `store.ts` `overlayEnabled`/`overlayExpanded` persisted). Single-toggle UX,
-   collapsible when on (Hide/Setup chevron), ranked-set-only framing, in-app grade
-   preview. **URL is a STUB** (`http://localhost:6789/overlay`). **Transport decision
-   PENDING — do NOT build backend without confirming:** `tiny_http` + polling
-   (recommended; small dep, what `tauri-plugin-localhost` uses) vs OBS **Text source**
-   (zero-dep, plain text, loses styling). Also banked in the "Streamer Overlay" section.
-
-### Commits (both UNPUSHED on `main`)
-- `eff9bfa` — the **3 s** baselines. **SUPERSEDED** by the working-tree 8 s data;
-  restructure (amend/soft-reset) so history carries 8 s, not 3 s-then-8 s. Also
-  contains `run_recov_eg_supervised.py` (the Windows rescan supervisor).
-- `0723475` — overlay idea doc.
-
-### Release plan — user chose "HOLD, review first"
-- Pending: **overlay in or out of this release** (recommend OUT/WIP — dead URL would
-  confuse users; preserve on a branch).
-- Restructure `eff9bfa` → 8 s recalibration commit.
-- Ship: 8 s baselines + pink colors + execution-removal + Slippi link.
-- Version bump + `release-notes.md` entry at release-cut time (per the release process).
-
-### Operational notes
-- **Bounce the dev app:** TaskStop the tauri-dev bg task → PowerShell `Stop-Process
-  -Name slippi-ranked-stats -Force` + free port 1420 (`Get-NetTCPConnection
-  -LocalPort 1420 | Stop-Process`) → relaunch `npm run tauri dev` (background, sandbox
-  disabled) → watcher greps the log for `Finished`/errors. **Current dev task:
-  `bd1eo2pns`.** Closing the app window exits the dev process cleanly (exit 0).
-- **HMR staleness:** Svelte HMR doesn't recompute inline-style strings keyed on a
-  stable value (grade colors keyed on `grade.letter`) and may skip changed module
-  constants → needs a **full reload**. Force one by editing `index.html` (Vite
-  full-reloads on it, no Rust rebuild). **Remove the temp comment before commit.**
-- **HF_TOKEN** was still valid through all scans; user intends to rotate now (fine).
-- Throwaway scripts (`_watch_recoveg.py`, `_analyze_eg_window.py`, `_smoke_recoveg.py`)
-  were deleted — recreate the HF-sample analyzer if you need to re-measure window tails.
 
 ---
 
@@ -292,15 +215,11 @@ HF_TOKEN="..." .venv/Scripts/python.exe -u scripts/parse_hf_replays.py --charact
 .venv/Scripts/python.exe scripts/regen_benchmarks.py
 ```
 
-~~**⚠ respawn_defense_rate baselines still missing (2026-05-21)**~~ **Resolved 2026-05-22.** Targeted rescan completed on the **macOS machine**: **197/197 entries populated** (was all `sample_size: 0`), 418,846 samples over 221,943 replays, ~7.9 hrs. Used corrected `SPAWN_STATES = {0, 12}` (matches `slp_parser.ts`). `grade_baselines.json` + `grade-benchmarks.ts` regenerated. Run command (note `.venv/bin/python` on macOS, **not** the Windows `.venv/Scripts/python.exe`):
-```bash
-HF_TOKEN="..." caffeinate -i bash scripts/run_respawn_supervised.sh
-```
-The supervisor wraps `rescan_respawn_only.py` (patches only `respawn_defense_rate`, resumable via `scripts/parse_hf_respawn_checkpoint.json`) and auto-runs `regen_benchmarks.py` + a verify step on completion.
+~~**⚠ respawn_defense_rate baselines still missing (2026-05-21)**~~ **Resolved 2026-05-22.** Targeted rescan completed on the **macOS machine**: **197/197 entries populated** (was all `sample_size: 0`), 418,846 samples over 221,943 replays, ~7.9 hrs. Used corrected `SPAWN_STATES = {0, 12}` (matches `slp_parser.ts`). `grade_baselines.json` + `grade-benchmarks.ts` regenerated. (The targeted rescan + supervisor scripts used here have since been removed — recoverable from git history.)
 
 **Operational notes from this run (read before the next big rescan):**
-- **peppi-py 0.8.x renamed `post.damage` → `post.percent`.** `rescan_respawn_only.py` handles both; the Windows venv's older peppi-py still exposes `.damage`.
-- **The Xet backend wedges:** individual download threads hang indefinitely (the per-batch `as_completed(timeout=300)` does not reliably fire), freezing a batch with no error. `run_respawn_supervised.sh` detects log silence > 300 s, kills, and resumes from the checkpoint — lossless. Disabling Xet (`HF_HUB_DISABLE_XET=1` + `HF_HUB_DOWNLOAD_TIMEOUT=30`) is reliable but ~5× slower.
+- **peppi-py 0.8.x renamed `post.damage` → `post.percent`** — handle both; older venvs still expose `.damage`.
+- **The Xet backend wedges:** individual download threads hang indefinitely (the per-batch `as_completed(timeout=300)` does not reliably fire), freezing a batch with no error. A supervisor that detects log silence > 300 s, kills, and resumes from the checkpoint avoids data loss. Disabling Xet (`HF_HUB_DISABLE_XET=1` + `HF_HUB_DOWNLOAD_TIMEOUT=30`) is reliable but ~5× slower.
 - **Download is bandwidth-bound**, not parse-bound. Throughput plateaus ~75 Mbps on this connection; `DL_WORKERS` raised 8 → 32 (sweet spot; 64 barely helps). A faster connection is the only real speed lever.
 
 ### Recovery & edgeguard redefinition (2026-05-22) — ✅ RESCAN COMPLETE (2026-05-23)
@@ -370,40 +289,11 @@ throwaway):**
   trip and most are recovered — that's expected and matches the chosen definition.
 
 **Files changed:** `src/lib/slp_parser.ts` (live parser, `stageId` now threaded into
-`computeAdvancedStats`), `scripts/parse_hf_replays.py` (benchmark parser),
-`scripts/rescan_recovery_edgeguard_only.py` (targeted rescan — kept in exact parity,
-verified on local replays), `scripts/our_stats.cjs` (audit port; **its respawn logic
+`computeAdvancedStats`), `scripts/parse_hf_replays.py` (benchmark parser), `scripts/our_stats.cjs` (audit port; **its respawn logic
 is still stale**, predates the `SPAWN_STATES={0,12}` fix), `src/lib/grading.ts`
 (`STAT_DESCRIPTIONS`). Typecheck clean, 14/14 tests pass (grading.test.ts), all parsers parity-checked.
 
-**The rescan — done 2026-05-23 on the Windows wired-Ethernet machine.** The
-targeted script patches **only** these two stats in `grade_baselines.json`,
-leaving the other 15 untouched (batched download+delete, resumable checkpoint).
-It was run under a supervisor — `scripts/run_recov_eg_supervised.py`, the
-cross-platform port of the macOS-only `run_respawn_supervised.sh` — which keeps
-Xet on, auto-restarts from the per-batch checkpoint if the log goes silent >300 s,
-and runs `regen_benchmarks.py` + a verify on clean completion:
-
-```bash
-# Windows (what was used — supervised, Xet on, finished in ~4.2 hr, no wedges):
-set HF_TOKEN=hf_... && .venv\Scripts\python.exe scripts\run_recov_eg_supervised.py
-# macOS equivalent (run the targeted script directly under caffeinate):
-HF_TOKEN="hf_..." caffeinate -i .venv/bin/python scripts/rescan_recovery_edgeguard_only.py
-python scripts/regen_benchmarks.py   # supervisor does this automatically at the end
-```
-
-Resumable via `scripts/parse_hf_recov_eg_checkpoint.json` (auto-removed on success).
-peppi 0.8.6 prints `arrow2 OutOfSpec` / `de.rs` panics for a few unparseable replays
-per character — caught (`except BaseException`) and skipped; ~98% of games yielded
-data (1.94 samples/file). This final script reads only `position`/`state`/`stocks`,
-so the peppi `.percent`/`.damage` rename doesn't apply here. If a future run does
-wedge, the supervisor handles it; disabling Xet (`HF_HUB_DISABLE_XET=1`
-`HF_HUB_DOWNLOAD_TIMEOUT=30`) is the reliable-but-~5×-slower fallback.
-
-**Still worth doing:** the rescan is download-bound (~8 h regardless of stat count).
-If we keep iterating on stat definitions, cache the dataset (or a representative
-subset) on local disk so re-parsing any stat is ~15 min instead of ~8 h — it's
-download+delete today only to save disk (~128k replays ≈ 150–200 GB).
+**The rescan** patched only recovery + edgeguard in `grade_baselines.json` (the other 15 baselines untouched), ran ~4.2 hr on the Windows wired box, and `grade-benchmarks.ts` was regenerated. The one-off targeted-rescan + supervisor scripts used for it have since been removed — recoverable from git; for any future stat rescan use the primary `parse_hf_replays.py` pipeline (see **Baseline pipeline** / `PIPELINE_RUN.md`).
 
 ### TODO: revisit `hit_advantage_rate` (cut from scoring 2026-05-22)
 
@@ -512,73 +402,11 @@ No build step — single `index.js`. Logs visible in Cloudflare dashboard or
 
 ## Baseline pipeline (`scripts/`)
 
-Three Python scripts build the percentile benchmarks consumed by the in-app grading code.
+The grading benchmarks are built from the HuggingFace dataset. **Runbook: [`scripts/PIPELINE_RUN.md`](../scripts/PIPELINE_RUN.md).**
 
-### `scripts/fetch_slippilab_replays.py`
-
-Pulls 1v1 replays from the SlippiLab public API, parses each one with py-slippi, computes the same stats the in-app TS parser computes, and writes `scripts/grade_baselines.json`.
-
-Output structure:
-- `by_player_char[char][stat]` — percentiles for each player character
-- `by_opponent_char[char][stat]` — percentiles vs each opponent character
-- `by_matchup[playerChar][oppChar][stat]` — matchup-specific percentiles (only entries with ≥20 samples)
-
-```bash
-python3 -u scripts/fetch_slippilab_replays.py --limit 5000 --workers 4 --output scripts/grade_baselines.json
-```
-
-- `--workers` defaults to 4. `ProcessPoolExecutor` parallelizes download + parse + stat compute.
-- Download URL must use `file_name` (UUID.slp), not numeric `id` — `/api/replay/{id}` 404s.
-- Action-state helpers (`is_in_control`, `is_vulnerable`, `is_attacking`, `DEFENSIVE_STATES`) are kept identical to `src/lib/slp_parser.ts`.
-
-### `scripts/baseline_generator.py`
-
-Alternative script that reads from the user's local SQLite DB instead of SlippiLab. Useful for generating personal baselines. Outputs same `by_player_char` + `by_matchup` structure as the fetch script.
-
-### `scripts/parse_hf_replays.py` (primary pipeline)
-
-Parses replays from the HuggingFace `erickfm/slippi-public-dataset-v3.7` dataset using **peppi-py** (Rust backend, ~170 parses/sec). Computes all 9 stats including `inputs_per_minute` (from `pre.buttons_physical`), `counter_hit_rate`, and `defensive_option_rate`.
-
-**Key design decisions:**
-- **peppi-py** uses external character IDs (CSS order), NOT internal IDs. The CHARACTERS dict in this script maps accordingly (e.g. 20 = Falco, 0 = Captain Falcon).
-- **Vectorized stats** via numpy on PyArrow struct-of-arrays (no per-frame Python loop)
-- **Batch download+delete** to conserve disk space (~500 files / ~1 GB per batch)
-- **Concurrent downloads** via ThreadPoolExecutor (8 threads) — download is I/O-bound
-- **Checkpointing** every batch for resume on interruption
-- **counter_hit_rate** fix: requires `o_ctrl & o_atk & o_vuln` (counter hits ⊆ neutral wins)
-
-**Pipeline reliability notes (2026-05-21):**
-- **ThreadPoolExecutor shutdown hang (fixed):** Old code used `with ThreadPoolExecutor(...) as dl_pool` which calls `shutdown(wait=True)` on `__exit__`. When `as_completed` timed out with threads stuck in HuggingFace 429 retry loops (up to 744s/retry), the `with` block silently blocked for hours. Fix: manage executor manually with `dl_pool.shutdown(wait=False, cancel_futures=True)` in a `finally` block.
-- **HF token required:** Without an authenticated token, HuggingFace rate-limits downloads (HTTP 429). Always run with `HF_TOKEN="hf_..."` env var set. Store permanently with `huggingface-cli login` to avoid needing to pass it each run.
-- **Always use `.venv/Scripts/python.exe`**, not system `py -3`. The `.venv` at the project root has all required packages (peppi-py, huggingface_hub, numpy) pre-installed.
-
-```bash
-# Requires Python 3.10+ venv with peppi-py, numpy, huggingface_hub
-python3 scripts/parse_hf_replays.py --character ALL --batch-size 500 --dl-workers 8
-```
-
-Supports `--character ALL` to loop through all 25 character directories in a single run with shared accumulators. Per-character checkpoints for resume, global checkpoint tracks completed characters. Writes intermediate `grade_baselines.json` after each character completes.
-
-### `scripts/global_baseline_parser.py`
-
-Streams a hypothetical 140 GB JSON dump of global Slippi match data using `ijson` (constant memory). **Superseded** by `parse_hf_replays.py` for the HuggingFace dataset (which is raw .slp files, not pre-computed JSON). Kept for reference.
-
-### `scripts/regen_benchmarks.py`
-
-Reads `scripts/grade_baselines.json` and emits `src/lib/grade-benchmarks.ts`. Run after every fresh parse. Handles all 18 stats and the `by_matchup` structure. Stats with no data (null p50) are skipped and marked optional in the TS interface.
-
-```bash
-python3 scripts/regen_benchmarks.py
-```
-
-### Ground-truth comparison scripts
-
-Used to audit our parser against `@slippi/slippi-js` (the same library Slippi Launcher uses). Only run on the Windows machine where the replay paths in `SETS` are valid.
-
-- **`scripts/compare_stats.cjs`** / **`scripts/compare_stats.mjs`** — same tool, CommonJS and ESM variants. Parses the hard-coded list of recent sets with `SlippiGame` and prints the stats slippi-js computes (OPK, L-cancel, IPM, NWR, damage-per-opening). Run: `node scripts/compare_stats.cjs`.
-- **`scripts/our_stats.cjs`** — self-contained Node port of `src/lib/slp_parser.ts` (UBJSON parser + all 18 stat helpers). Prints every graded stat so we can line them up next to slippi-js output. Run: `node scripts/our_stats.cjs`.
-
-Workflow: edit the `SETS` array in all three files with matching replay paths, run both, diff. Any stat slippi-js also emits must match within the tolerances listed under "Stat fixes applied" above. Stats only in `our_stats.cjs` (stage control, edgeguards, etc.) are custom — sanity-check values manually.
+- **`scripts/parse_hf_replays.py`** (primary) — parses the HuggingFace `erickfm/slippi-public-dataset-v3.7` dataset with peppi-py (~170 parses/sec) and writes `scripts/grade_baselines.json`. Use `.venv/Scripts/python.exe`; needs `HF_TOKEN`. `--character ALL` loops all characters with shared accumulators + per-character checkpoints. peppi-py uses EXTERNAL character IDs (CSS order). Manage the download ThreadPoolExecutor manually (`shutdown(wait=False, cancel_futures=True)`) to avoid the HF 429-retry hang.
+- **`scripts/regen_benchmarks.py`** — reads `grade_baselines.json`, emits `src/lib/grade-benchmarks.ts`. Run after every parse. `BENCHMARKS_VERSION` = the JSON's top-level `generated_at`, which drives stale-grade detection — any targeted rescan MUST bump it.
+- **Ground-truth comparison:** `scripts/compare_stats.cjs` (what slippi-js computes) vs `scripts/our_stats.cjs` (a Node port of our TS parser). Edit the `SETS` array in both with matching local replay paths, run both, diff. Only meaningful on a machine where those paths exist.
 
 ---
 
@@ -592,11 +420,18 @@ The release workflow (`.github/workflows/release.yml`) publishes **only the late
 
 ## Cross-machine workflow
 
-Anything that needs to travel between machines must be in git. Per-machine state that does NOT travel:
+**Git is the ONLY channel between machines.** Per-machine state that does NOT travel — never treat it as shared truth:
+- **Claude Code's auto-memory** (`~/.claude/...`, gitignored). Each machine has its own; *this file* is the real handoff. (This is why "context discrepancies" happen across machines.)
+- **App data / SQLite DBs** (`%APPDATA%\\com.slippi.rankedstats\\...` on Windows; `~/Library/Application Support/Slippi Ranked Stats/...` on macOS).
+- `scripts/logs/`, `.venv/`, build output (all gitignored).
 
-- Claude's auto-memory (`~/.claude/projects/.../memory/`)
-- App data (`~/Library/Application Support/Slippi Ranked Stats/data/{CONNECT_CODE}.db`)
-- `scripts/logs/` (gitignored)
+**Session start (every machine, every time):**
+1. `git pull`
+2. Read this file — the SESSION HANDOFF banner + NEXT UP (CLAUDE.md enforces this).
+3. `git status` — and write any leftover uncommitted work into the SESSION HANDOFF banner.
 
-When picking up work on a different machine, this file plus `git log --oneline` is the source of truth. See also [`docs/session-log.md`](./session-log.md) for chronological session summaries (intent + decisions, not just diffs).
+**Session end:**
+1. Commit + push everything. If work must stay uncommitted, note it in the SESSION HANDOFF banner and push that note.
+2. If a feature's status/gating changed, update `CLAUDE.md` **in the same commit** — the stale "grading is dev-only" line happened because this wasn't done.
 
+Source of truth on a new machine: this file + `git log --oneline` + `release-notes.md`.
