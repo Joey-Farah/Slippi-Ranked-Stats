@@ -26,7 +26,44 @@ hand-off mechanism between work sessions and across machines.
 Big multi-thread session. Everything below is historical context from the build-up to
 v1.6.1.
 
-### 🔴 OPEN BUG (where we stopped) — regrade shows no change
+---
+
+## ▶ NEXT UP — OBS / Stream Overlay (priority for next session)
+
+**Goal:** show the set grade on a streamer's OBS overlay the moment a ranked SET
+completes (overall letter + score, opponent char, W/L) as a transient card that
+animates in and auto-hides after ~15–20 s. Full design is banked below under
+**"Streamer Overlay"** and **"Set-grade overlay widget"**.
+
+**State going in:**
+- A **prototype UI was built this session and then REMOVED before the v1.6.1 release —
+  it was never committed, so it must be rebuilt from these notes** (it was a quick build).
+  Rebuild target: a "Stream Overlay" card in `LiveRankedSession.svelte` (premium-only),
+  a single on/off toggle, collapsible-when-on ("Hide ▴ / Setup ▾"), ranked-set-only
+  framing, an in-app grade **preview**, a stub Browser-Source URL
+  `http://localhost:6789/overlay`, and `overlayEnabled` / `overlayExpanded` persisted
+  stores in `store.ts`. The data already exists — the watcher computes `lastSetGrade`
+  on set completion.
+- **Premium-gated**, fires ONLY on completed **ranked sets** (not single games, not
+  unranked/direct).
+
+**THE open decision (discuss before building — do not just pick):** the transport that
+feeds OBS.
+  1. **`tiny_http` + polling** (recommended) — small Rust dep, the same crate
+     `tauri-plugin-localhost` uses; serves a tiny auto-updating HTML page added as an
+     OBS Browser Source. Keeps the styled card.
+  2. **OBS Text source via a JSON/text file on disk** — zero-dep, but plain text only.
+  Keep the app lightweight (explicit constraint). Settle #1 vs #2 first.
+
+**Documented-but-not-fixed:** `CLAUDE.md` still says "the grading feature is dev-only …
+do not ship/un-gate without explicit instruction." That's stale as of v1.6.0 — grading
+shipped as a **Premium** feature (gated by `$isPremium`, tab always rendered). The
+matching comment in `grade-benchmarks.ts` was corrected; the `CLAUDE.md` line was left
+for the owner to update.
+
+---
+
+### (historical — RESOLVED, see banner) regrade shows no change
 After the 8 s recalibration, regrading sets in the **dev build still produces the
 same recovery/edgeguard %s AND grades as the 3 s production build.** The
 version-bump fix below was *necessary but did NOT fix this symptom.* Investigate next:
