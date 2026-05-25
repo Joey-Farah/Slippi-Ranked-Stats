@@ -29,6 +29,12 @@ hand-off mechanism between work sessions and across machines.
 > on `overall_score` is), so a reloaded-from-DB grade can't show the comeback/closeout/blown-lead
 > chip until it's regraded in-session. Persisting it would need a new DB column (persistence
 > change → discuss first).
+>
+> **⏳ OBS stream overlay is BUILT on branch `obs-overlay` (pushed) — NOT on main, NOT released.**
+> Server-less local-file overlay (premium); validated in OBS via the in-app Test button. Held
+> pending a real **ranked-set** test of the auto-trigger; target **v1.7.0**. To resume:
+> `git checkout obs-overlay`, then read that branch's dev_notes "▶ NEXT UP" for the as-built
+> details + finish/release steps (bump 1.6.2→1.7.0 in 4 files, add release notes, merge, tag).
 
 This file is the cross-machine handoff doc. The banner above records the last shipped
 state; everything below is durable reference — active backlog (see NEXT UP),
