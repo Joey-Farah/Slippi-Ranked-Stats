@@ -32,13 +32,11 @@ cross-machine workflow.
 
 ## ⏳ ACTIVE (2026-05-24) — Comeback Rate & Lead Maintenance redesign (design in progress)
 
-> **⏸ Interrupted 2026-05-24 — PC crashed mid-grill.** Everything committed through
-> `5e169bd` (the **LOCKED so far** list + `CONTEXT.md` glossary + ADR 0001) is safe on
-> GitHub; working tree is clean. **Resume from "STILL OPEN (grill continues)" below** —
-> that's the live edge of the discussion. Caveat: this note was written from the **macOS**
-> machine, which holds no record of the grill conversation itself, so any decisions reached
-> on the PC *after* the 20:46 commit were not captured here and should be re-derived from
-> the open questions.
+> **⏸ Paused 2026-05-24 — the grill machine (this macOS box) died after Q3 of ~7.** The session
+> was recovered from the local Claude Code transcript. The `5e169bd` checkpoint was committed
+> *before* the Q3 outcome was written down, so the **Q3 decision below was re-extracted from the
+> transcript and folded into LOCKED in this follow-up commit.** **Resume at the ▶ NEXT open
+> question:** the size of the Set Comeback bonus and how it stacks with the existing +5 win bonus.
 
 **Why:** Both stats are binary per game (were-behind→won=1/lost=0; were-ahead→won=1/lost=0)
 and percentile-scored against a degenerate binary population. Result: a real set (Falco vs
@@ -62,16 +60,24 @@ and the new root `CONTEXT.md` glossary (Set, Stock margin, Comeback, Lead Mainte
 - **Absolute curve, not percentile** → no HF rescan, no `parse_hf_replays.py` changes;
   comeback/lead drop out of `grade-benchmarks.ts`. (ADR 0001.)
 - **Stock-only**; percent never factors in.
-- Both have a **game-level** component and a **separate set-level** component (comeback =
-  down a game then won the set; mirror for lead).
 - Set format confirmed **best-of-3, first-to-2** (`watcher.ts:267`) — so the only set-comeback
   path is lose-G1 → win 2–1.
+- **Set-level comeback/lead = a separate composite modifier, NOT folded into the per-game stat
+  row** (Q3, agreed 2026-05-24). Bo3 is first-to-2, so the set level has *no degree* — it's
+  **binary**: you either came back from a game down (lost G1, won 2–1) or you didn't. Concretely:
+  - **Comeback stat** stays the per-game continuous degree (in Neutral, gets a letter), averaged
+    across the set's games — exactly as above.
+  - **Set Comeback** is a fixed composite-level bump (like the existing +5 win bonus), applied
+    when you win 2–1 after dropping game 1 — not crammed into the per-game row.
+  - **Mirror for lead:** closing out a 1–0 lead → small closeout credit; **blowing** a 1–0 lead
+    (losing 1–2) → a composite penalty. Symmetric to set-comeback.
 
-**STILL OPEN (grill continues):**
-- Exact absolute curve: how stocks-climbed × win-multiplier maps to 0–100.
-- How the game-level and set-level components combine into one stat score.
-- Interaction with the existing +5 win bonus (avoid over-counting "you won").
-- Lead maintenance: should blowing a lead **penalize**, or only fail to reward?
+**STILL OPEN (grill paused at Q3 of ~7 — resume at the ▶ NEXT item):**
+- ▶ **NEXT:** the **size of the Set Comeback / closeout bonus** and how it **stacks with the
+  existing +5 win bonus** (avoid over-counting "you won").
+- Exact absolute curve: how stocks-climbed × win-multiplier maps to 0–100 (per-game degree).
+- Lead maintenance: should blowing a lead **penalize**, or only fail to reward? (Settled at the
+  *set* level above — composite penalty; still open for the *per-game* degree.)
 - Display: an absolute degree is no longer a clean percentile row — how to show it.
 - Stale-grade handling: a logic-only change won't trip the benchmark-version stale check, so
   it must force a regrade.
