@@ -52,6 +52,28 @@
     </div>
   </div>
 
+  <!-- Composite adjustments: explains why the overall score differs from the
+       weighted category average (win bonus + set-level comeback/closeout/blown-lead). -->
+  {#if grade.winBonus > 0 || grade.setModifier !== 0}
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: -8px 0 16px">
+      {#if grade.winBonus > 0}
+        <span style="
+          font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+          color: #2ecc71; background: #2ecc7115; border: 1px solid #2ecc7140;
+        ">Win +{grade.winBonus}</span>
+      {/if}
+      {#if grade.setModifier !== 0}
+        {@const pos = grade.setModifier > 0}
+        <span style="
+          font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+          color: {pos ? '#2ecc71' : '#e74c3c'};
+          background: {pos ? '#2ecc7115' : '#e74c3c15'};
+          border: 1px solid {pos ? '#2ecc7140' : '#e74c3c40'};
+        ">{grade.setModifierLabel} {pos ? '+' : ''}{grade.setModifier}</span>
+      {/if}
+    </div>
+  {/if}
+
   {#if !detailed}
     {@const scoredCats = CATEGORY_ORDER
       .map((k) => ({ key: k, ...grade.categories[k] }))

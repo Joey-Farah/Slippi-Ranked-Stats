@@ -193,3 +193,78 @@ describe("category definitions", () => {
     expect(Object.keys(CATEGORY_DEFS)).toHaveLength(3);
   });
 });
+
+// ── Comeback / lead absolute scoring ───────────────────────────────────────
+
+describe("comeback/lead absolute scoring", () => {
+  it("scores the comeback degree directly (degree × 100), not against a benchmark", () => {
+    const g = gradeSet([mockGame({ comeback_rate: 0.8, lead_maintenance_rate: 0.3 })],
+      "Fox", "Falco", "win", 2, 0);
+    expect(g.breakdown.comeback_rate.score).toBeCloseTo(80, 1);
+    expect(g.breakdown.comeback_rate.grade).toBe("S");          // 80 ≥ 75
+    expect(g.breakdown.lead_maintenance_rate.score).toBeCloseTo(30, 1);
+    expect(g.breakdown.lead_maintenance_rate.grade).toBe("D");  // 28 ≤ 30 < 40
+  });
+
+  it("keeps comeback/lead null (not zero) when the player was never behind/ahead", () => {
+    const g = gradeSet([mockGame({ comeback_rate: null, lead_maintenance_rate: null })],
+      "Fox", "Falco", "win", 2, 0);
+    expect(g.breakdown.comeback_rate.score).toBeNull();
+    expect(g.breakdown.lead_maintenance_rate.score).toBeNull();
+  });
+});
+
+// ── Set-level comeback / closeout / blown-lead modifier ─────────────────────
+
+describe("gradeSet set modifier", () => {
+  const base = () => mockGame();
+
+  it("awards +4 'Set comeback' when Game 1 was lost but the set was won", () => {
+    const g = gradeSet([base()], "Fox", "Falco", "win", 2, 1, /* wonGame1 */ false);
+    expect(g.setModifier).toBe(4);
+    expect(g.setModifierLabel).toBe("Set comeback");
+  });
+
+  it("awards +2 'Closeout' when Game 1 was won and the set was won", () => {
+    const g = gradeSet([base()], "Fox", "Falco", "win", 2, 0, /* wonGame1 */ true);
+    expect(g.setModifier).toBe(2);
+    expect(g.setModifierLabel).toBe("Closeout");
+  });
+
+  it("applies −4 'Blown lead' when Game 1 was won but the set was lost", () => {
+    const g = gradeSet([base()], "Fox", "Falco", "loss", 1, 2, /* wonGame1 */ true);
+    expect(g.setModifier).toBe(-4);
+    expect(g.setModifierLabel).toBe("Blown lead");
+  });
+
+  it("applies no modifier for a clean/failed-comeback loss (Game 1 lost, set lost)", () => {
+    const g = gradeSet([base()], "Fox", "Falco", "loss", 0, 2, /* wonGame1 */ false);
+    expect(g.setModifier).toBe(0);
+    expect(g.setModifierLabel).toBeNull();
+  });
+
+  it("applies no modifier when Game 1 result is undeterminable (null)", () => {
+    const g = gradeSet([base()], "Fox", "Falco", "win", 2, 1, /* wonGame1 */ null);
+    expect(g.setModifier).toBe(0);
+  });
+
+  it("stacks the comeback bonus on top of the win bonus (≈ +4 over a plain win)", () => {
+    const plainWin    = gradeSet([base()], "Fox", "Falco", "win", 2, 0, null);
+    const comebackWin = gradeSet([base()], "Fox", "Falco", "win", 2, 1, false);
+    if (plainWin.score < 96) {  // avoid the 100 cap
+      expect(comebackWin.score).toBeCloseTo(plainWin.score + 4, 1);
+    }
+  });
+
+  it("floors the overall score at 0 even with a blown-lead penalty on a weak set", () => {
+    const awful = mockGame({
+      neutral_win_ratio: 0, opening_conversion_rate: 0, stage_control_ratio: 0,
+      damage_per_opening: 0, openings_per_kill: 99, avg_kill_percent: 200,
+      edgeguard_success_rate: 0, tech_chase_rate: 0, avg_death_percent: 0,
+      recovery_success_rate: 0, avg_stock_duration: 1, respawn_defense_rate: 0,
+      comeback_rate: 0, lead_maintenance_rate: 0,
+    });
+    const g = gradeSet([awful], "Fox", "Falco", "loss", 1, 2, /* wonGame1 */ true);
+    expect(g.score).toBeGreaterThanOrEqual(0);
+  });
+});

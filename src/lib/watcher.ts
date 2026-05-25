@@ -29,9 +29,8 @@ import {
   lastSetGrade,
 } from "./store";
 import { CHARACTERS } from "./parser";
-import { gradeSet } from "./grading";
+import { gradeSet, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
-import { BENCHMARKS_VERSION } from "./grade-benchmarks";
 
 let _unwatchers: UnwatchFn[] = [];
 let _snapshotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -320,11 +319,15 @@ async function handleRankedGame(
     const playerChar   = CHARACTERS[g.player_char_id]   ?? "Unknown";
     const opponentChar = CHARACTERS[g.opponent_char_id] ?? "Unknown";
     const setResult = wins > losses ? "win" : "loss";
+    // Game 1 result (earliest by timestamp) drives the set-level comeback modifier.
+    // Use the unfiltered list so a no-frames Game 1 still anchors the order.
+    const orderedSet = [...allSetStats].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const wonGame1   = orderedSet.length > 0 ? orderedSet[0].result === "win" : null;
     try {
       if (setStats.length === 0) {
         lastSetGrade.set(null);
       } else {
-        const grade = gradeSet(setStats, playerChar, opponentChar, setResult, wins, losses);
+        const grade = gradeSet(setStats, playerChar, opponentChar, setResult, wins, losses, wonGame1);
         // Skip caching if all categories are null — stats were bad (e.g. live store
         // hadn't populated both games yet). The set will appear ungraded and the user
         // can regrade from the history tab to get real results.
@@ -336,7 +339,7 @@ async function handleRankedGame(
               match_id:         g.match_id,
               generated_at:     new Date().toISOString(),
               set_timestamp:    g.timestamp,
-              baseline_version: BENCHMARKS_VERSION,
+              baseline_version: GRADE_VERSION,
               player_char:      playerChar,
               opponent_char:    opponentChar,
               opponent_code:    g.opponent_code,

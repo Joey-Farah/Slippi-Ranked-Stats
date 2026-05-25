@@ -6,22 +6,29 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-05-23 (READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-05-25 (READ FIRST)
 
-> **✅ RESOLVED & SHIPPED in v1.6.1 (2026-05-23).** The "regrade shows no change"
-> symptom was a measurement artifact, not a bug: the installed production app and the
-> `npm run tauri dev` build share one SQLite DB (`com.slippi.rankedstats`), so a regrade
-> in one overwrote the rows the other read — they could never show different grades at
-> once. The 8 s recalibration was verified correct via (1) an offline play-by-play audit
-> where the 8 s edgeguard count matches the actual replay kills, and (2) a 120-game
-> 3 s-vs-8 s sweep (edgeguard rose in 76/120, always upward, avg +8.3 pts; denominator
-> unchanged). Also note: installed **v1.6.0 predates the recovery/edgeguard *redefinition***
-> (commits `dfc4ba1`/`1a0df4f`), so a prod-vs-dev comparison conflates definition + window
-> + baselines — that's why edgeguard appeared to drop in side-by-side screenshots.
-> **v1.6.1 shipped:** 8 s recalibration + rebuilt baselines, S-tier hot-pink palette,
-> Slippi profile link in the sidebar, execution-stats section removed from "How Grading
-> Works". The **stream overlay prototype was removed** from the release (idea still banked
-> below). The dev-only `db.ts` `data_dev` split was reverted. Everything below is historical.
+> **✅ SHIPPED in v1.6.2 (2026-05-25): Comeback & Lead Maintenance redesign.** Both stats
+> were rebuilt from binary (were-you-behind/ahead → did-you-win = 1/0, percentile-scored
+> against a degenerate distribution) to a **continuous stock-margin "degree" on an absolute
+> curve** — no benchmark, no HF rescan (see `docs/adr/0001`). Comeback = stocks climbed back
+> from the deepest sub-zero trough; Lead = stocks held vs. given back from the peak; both ×
+> a win multiplier. Added a **set-level modifier** layered on the unchanged +5 win bonus,
+> keyed on (Game 1 result × set result): lost-G1→won-set **+4** (comeback), won-G1→won-set
+> **+2** (closeout), won-G1→lost-set **−4** (blown lead). New `GRADING_LOGIC_VERSION` is
+> folded into the stored stale token (`GRADE_VERSION = <bench>+L<n>`) so logic-only changes
+> force a regrade with **no DB migration**. Tuning constants — `COMEBACK_FULL_STOCKS` /
+> `LEAD_FULL_STOCKS` = 2 and `CB_LOSS_MULT` = 0.75 (slp_parser.ts), `SET_*` bonuses
+> (grading.ts) — are first-guesses, accepted as-is; revisit if grades feel off. Files:
+> slp_parser.ts, grading.ts, watcher.ts, GradeHistory.svelte, SetGradeDisplay.svelte,
+> grading.test.ts (23/23 pass, svelte-check clean).
+>
+> **Still durable from v1.6.1:** the prod app and `npm run tauri dev` **share one SQLite DB**
+> (`com.slippi.rankedstats`) — a regrade in one overwrites the other; never trust a
+> prod-vs-dev side-by-side. **Known gap:** the set modifier is NOT persisted (only its effect
+> on `overall_score` is), so a reloaded-from-DB grade can't show the comeback/closeout/blown-lead
+> chip until it's regraded in-session. Persisting it would need a new DB column (persistence
+> change → discuss first).
 
 This file is the cross-machine handoff doc. The banner above records the last shipped
 state; everything below is durable reference — active backlog (see NEXT UP),
@@ -30,13 +37,12 @@ cross-machine workflow.
 
 ---
 
-## ⏳ ACTIVE (2026-05-24) — Comeback Rate & Lead Maintenance redesign (design in progress)
+## ✅ DONE — Comeback Rate & Lead Maintenance redesign (shipped v1.6.2, 2026-05-25)
 
-> **⏸ Paused 2026-05-24 — the grill machine (this macOS box) died after Q3 of ~7.** The session
-> was recovered from the local Claude Code transcript. The `5e169bd` checkpoint was committed
-> *before* the Q3 outcome was written down, so the **Q3 decision below was re-extracted from the
-> transcript and folded into LOCKED in this follow-up commit.** **Resume at the ▶ NEXT open
-> question:** the size of the Set Comeback bonus and how it stacks with the existing +5 win bonus.
+> **Built, tested, and shipped 2026-05-25.** The remaining open questions were resolved this
+> session (see RESOLVED at the bottom of this section) and the redesign went out in v1.6.2 —
+> the SESSION HANDOFF banner above has the as-shipped summary. The LOCKED design rationale
+> below is retained as reference.
 
 **Why:** Both stats are binary per game (were-behind→won=1/lost=0; were-ahead→won=1/lost=0)
 and percentile-scored against a degenerate binary population. Result: a real set (Falco vs
@@ -72,21 +78,30 @@ and the new root `CONTEXT.md` glossary (Set, Stock margin, Comeback, Lead Mainte
   - **Mirror for lead:** closing out a 1–0 lead → small closeout credit; **blowing** a 1–0 lead
     (losing 1–2) → a composite penalty. Symmetric to set-comeback.
 
-**STILL OPEN (grill paused at Q3 of ~7 — resume at the ▶ NEXT item):**
-- ▶ **NEXT:** the **size of the Set Comeback / closeout bonus** and how it **stacks with the
-  existing +5 win bonus** (avoid over-counting "you won").
-- Exact absolute curve: how stocks-climbed × win-multiplier maps to 0–100 (per-game degree).
-- Lead maintenance: should blowing a lead **penalize**, or only fail to reward? (Settled at the
-  *set* level above — composite penalty; still open for the *per-game* degree.)
-- Display: an absolute degree is no longer a clean percentile row — how to show it.
-- Stale-grade handling: a logic-only change won't trip the benchmark-version stale check, so
-  it must force a regrade.
+**RESOLVED (all shipped in v1.6.2):**
+- **Set Comeback / closeout / blown-lead bonus** = **+4 / +2 / −4**, keyed on (Game 1 result ×
+  set result), layered on top of the unchanged +5 win bonus (a difficulty premium on the win,
+  not a re-payment for it). Clean mirror: comeback +4 ↔ blown-lead −4. `SET_*` consts in
+  grading.ts; the composite is now floored at 0 as well as capped at 100.
+- **Absolute curve (per-game degree):** the parser emits a 0–1 degree =
+  `min(stocks / FULL_STOCKS, 1) × (win ? 1 : CB_LOSS_MULT)`; grading maps degree × 100 with no
+  benchmark lookup. `COMEBACK_FULL_STOCKS`/`LEAD_FULL_STOCKS` = 2, `CB_LOSS_MULT` = 0.75
+  (first-guess constants, accepted as-is — easy to retune in slp_parser.ts).
+- **Blowing a lead — penalize or just fail to reward?** Per-game = **fail to reward** (degree
+  floors at 0, can't drag the category negative); the active **penalty** lives at the *set*
+  level (−4 blown lead). No double-dip.
+- **Display:** comeback/lead show a 0–100 **degree** (no % sign), the letter, and a set-modifier
+  chip on the overall card; tooltip notes the score is absolute, not benchmarked.
+- **Stale handling:** `GRADING_LOGIC_VERSION` is folded into `GRADE_VERSION` (the token stored
+  per grade and compared at the 5 stale sites). Bumping it flags every existing grade stale →
+  the existing "Regrade stale (N)" flow refreshes them. No benchmark-version change, no DB
+  migration. **Known gap:** the set modifier itself isn't persisted (see handoff banner).
 
 **Future enhancement (banked):** matchup-aware comeback/lead — score the continuous degree by
 percentile per matchup. Deferred per ADR 0001 (needs the rescan + Python parser parity).
 Additive later; nothing built now is wasted.
 
-This is the current focus, ahead of the OBS overlay below.
+Shipped in v1.6.2. The OBS / stream overlay below is the next focus again.
 
 ---
 

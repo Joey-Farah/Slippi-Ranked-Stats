@@ -421,6 +421,20 @@ function computeAdvancedStats(
   const WD_DODGE_F     =   4;
   const WD_LAND_F      =   4;
 
+  // Comeback / lead-maintenance degree (continuous, absolute — see ADR 0001).
+  // Both are emitted as a 0–1 per-game degree; grading.ts maps degree → 0–100
+  // with no benchmark lookup. These three shape that degree and are the knobs to
+  // calibrate against real sets:
+  //   *_FULL_STOCKS — stocks of margin climbed back (comeback) / given back (lead)
+  //                   that count as a "full" 1.0 degree before the win multiplier.
+  //   CB_LOSS_MULT  — multiplier when the game was lost; winning is the full 1.0,
+  //                   so a climb/hold still earns most of its credit in a loss but
+  //                   winning scales it higher (glossary: "strong credit even
+  //                   without the win").
+  const COMEBACK_FULL_STOCKS = 2;
+  const LEAD_FULL_STOCKS     = 2;
+  const CB_LOSS_MULT         = 0.75;
+
   let centerFrames  = 0;
   let onStageFrames = 0;
 
@@ -463,8 +477,16 @@ function computeAdvancedStats(
   let prevOppStocksR = -1;
   let prevOppStateR  = -1;
 
-  let wasEverDown = false;
-  let wasEverUp   = false;
+  // Stock-margin (yourStocks − oppStocks) tracking for comeback / lead degree.
+  // marginMin/Max are the deepest deficit / highest lead reached so far;
+  // comebackClimb is the largest recovery above a sub-zero trough, leadGiveBack
+  // the largest slide down from a positive peak.
+  let wasEverDown   = false;
+  let wasEverUp     = false;
+  let marginMin     = 0;
+  let marginMax     = 0;
+  let comebackClimb = 0;
+  let leadGiveBack  = 0;
 
   let wdAttempts = 0; let wdSuccesses = 0;
   let jumpFrame  = -1; let dodgeFrame  = -1;
@@ -488,8 +510,15 @@ function computeAdvancedStats(
 
     if (opp) {
       // ── Comeback / lead maintenance ────────────────────────────────────
-      if (snap.stocks < opp.stocks) wasEverDown = true;
-      if (snap.stocks > opp.stocks) wasEverUp   = true;
+      // Continuous degree from stock margin: comeback = stocks climbed back from
+      // the deepest sub-zero trough; lead = stocks given back from the highest peak.
+      const margin = snap.stocks - opp.stocks;
+      if (margin < 0) wasEverDown = true;
+      if (margin > 0) wasEverUp   = true;
+      if (margin < marginMin) marginMin = margin;
+      if (margin > marginMax) marginMax = margin;
+      if (marginMin < 0) comebackClimb = Math.max(comebackClimb, margin - marginMin);
+      if (marginMax > 0) leadGiveBack  = Math.max(leadGiveBack,  marginMax - margin);
 
       // ── Hit advantage rate: did player attack within 30f of each hit? ────
       const oppVuln = isVulnerable(opp.state);
@@ -610,8 +639,12 @@ function computeAdvancedStats(
     hit_advantage_rate:     hitOpps       > 0 ? hitFollowups / hitOpps       : null,
     avg_stock_duration:     stockDurations.reduce((a, b) => a + b, 0) / stockDurations.length,
     respawn_defense_rate:   respawnSit    > 0 ? respawnSuccess / respawnSit  : null,
-    comeback_rate:          wasEverDown ? (result === "win" ? 1 : 0) : null,
-    lead_maintenance_rate:  wasEverUp   ? (result === "win" ? 1 : 0) : null,
+    comeback_rate:          wasEverDown
+      ? Math.min(comebackClimb / COMEBACK_FULL_STOCKS, 1) * (result === "win" ? 1 : CB_LOSS_MULT)
+      : null,
+    lead_maintenance_rate:  wasEverUp
+      ? (1 - Math.min(leadGiveBack / LEAD_FULL_STOCKS, 1)) * (result === "win" ? 1 : CB_LOSS_MULT)
+      : null,
     wavedash_miss_rate:     wdAttempts    > 0 ? (wdAttempts - wdSuccesses) / wdAttempts : null,
   };
 }

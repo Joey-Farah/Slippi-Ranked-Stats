@@ -34,7 +34,7 @@
  */
 
 import type { LiveGameStats } from "./store";
-import { BENCHMARKS, type StatThresholds } from "./grade-benchmarks";
+import { BENCHMARKS, BENCHMARKS_VERSION, type StatThresholds } from "./grade-benchmarks";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -84,6 +84,9 @@ export interface SetGrade {
   setResult:      "win" | "loss";
   wins:           number;
   losses:         number;
+  winBonus:       number;          // +5 for a set win, else 0
+  setModifier:    number;          // +4 / +2 / −4 / 0 — see SET_* constants
+  setModifierLabel: string | null; // "Set comeback" / "Closeout" / "Blown lead" / null
 }
 
 // ── Stat configuration ─────────────────────────────────────────────────────
@@ -93,6 +96,14 @@ const INVERTED_STATS = new Set([
   "openings_per_kill",
   "avg_kill_percent",
   "wavedash_miss_rate",
+]);
+
+/** Stats scored on an absolute 0–1 → 0–100 curve, NOT by benchmark percentile.
+ *  The parser emits these as a continuous per-game degree (see ADR 0001); we map
+ *  degree → score directly with no benchmark lookup. */
+const ABSOLUTE_STATS = new Set<keyof SetGrade["breakdown"]>([
+  "comeback_rate",
+  "lead_maintenance_rate",
 ]);
 
 /** Stats shown in the breakdown display but not included in any category score. */
@@ -132,6 +143,29 @@ export const CATEGORY_WEIGHTS: Record<CategoryKey, number> = {
   defense: 0.20,
 };
 
+/** Set-level comeback / lead modifier, applied to the composite on top of the
+ *  +5 win bonus. Determined by (Game 1 result × set result):
+ *    lost G1 → won set   = set comeback  (+)
+ *    won  G1 → won set   = closeout      (+)
+ *    won  G1 → lost set  = blown lead    (−, the mirror of the comeback bonus)
+ *    else                = 0
+ *  Sized as a difficulty premium on the win, not a re-payment for winning. */
+const SET_COMEBACK_BONUS     =  4;
+const SET_CLOSEOUT_BONUS     =  2;
+const SET_BLOWN_LEAD_PENALTY = -4;
+
+/** Bumped whenever scoring LOGIC changes (independent of the benchmark data
+ *  version). Folded into GRADE_VERSION so a logic-only change — which doesn't
+ *  move BENCHMARKS_VERSION — still forces a regrade. Bump on any change to
+ *  weights, curves, bonuses, or stat math. */
+export const GRADING_LOGIC_VERSION = "2";
+
+/** The version token stored with each grade and compared to detect stale grades.
+ *  Combines the benchmark-data version with the scoring-logic version so EITHER
+ *  changing flags existing grades stale. Replaces bare BENCHMARKS_VERSION at the
+ *  persistence/stale-check sites. */
+export const GRADE_VERSION = `${BENCHMARKS_VERSION}+L${GRADING_LOGIC_VERSION}`;
+
 /** Category definitions — stats listed in display order within each category.
  *  Exported so the display component can iterate the same mapping.
  *  Execution stats (l_cancel_ratio, inputs_per_minute, wavedash_miss_rate) are
@@ -146,8 +180,8 @@ export const STAT_DESCRIPTIONS: Partial<Record<string, string>> = {
   neutral_win_ratio:       "Fraction of neutral exchanges you won. A neutral win is counted when you started a conversion while the opponent wasn't already converting on you.",
   opening_conversion_rate: "Of your conversions (landing the opponent in hitstun or a grab), how often you landed at least one follow-up hit before they regained control.",
   stage_control_ratio:     "How often your position was closer to center stage than your opponent's, measured only while both players were on stage.",
-  lead_maintenance_rate:   "Whether you won — only counted in games where you held a stock lead at some point. Null if you never had a lead.",
-  comeback_rate:           "Whether you won — only counted in games where you were down a stock at some point. Null (scored as perfect) if you were never behind.",
+  lead_maintenance_rate:   "How well you held a stock-margin lead instead of giving it back from its peak, scaled up when you closed out the win. Scored on an absolute scale, not against a benchmark. Null if you never led in stocks.",
+  comeback_rate:           "How much of a stock-margin deficit you climbed back within a game, weighted by how deep the hole was and scaled up when you won. Scored on an absolute scale, not against a benchmark. Null if you were never behind in stocks.",
   damage_per_opening:      "Average damage dealt per conversion, where a conversion ends when the opponent regains control for 45+ consecutive frames.",
   openings_per_kill:       "Average number of conversions required to take a stock. Lower is better.",
   avg_kill_percent:        "Average percent at which you killed the opponent. Lower means you're finishing stocks earlier.",
@@ -232,11 +266,14 @@ export function scoreToGrade(score: number): GradeLetter {
 
 export function formatStatValue(key: string, value: number | null): string {
   if (value === null) return "—";
+  // Comeback / lead are an absolute 0–1 degree, not a rate — show as a 0–100
+  // score (no % sign, since it isn't a fraction of anything observable).
+  if (key === "comeback_rate" || key === "lead_maintenance_rate") return (value * 100).toFixed(0);
   const PCT_STATS = new Set([
     "neutral_win_ratio", "l_cancel_ratio",
-    "opening_conversion_rate", "stage_control_ratio", "lead_maintenance_rate",
+    "opening_conversion_rate", "stage_control_ratio",
     "edgeguard_success_rate", "tech_chase_rate",
-    "recovery_success_rate", "respawn_defense_rate", "comeback_rate", "wavedash_miss_rate",
+    "recovery_success_rate", "respawn_defense_rate", "wavedash_miss_rate",
   ]);
   if (PCT_STATS.has(key))                return (value * 100).toFixed(0) + "%";
   if (key === "damage_per_opening")      return value.toFixed(1);
@@ -280,6 +317,10 @@ function averageSetStats(games: LiveGameStats[]): Record<string, number | null> 
  * @param setResult    Whether the player won or lost the set
  * @param wins         Number of games won
  * @param losses       Number of games lost
+ * @param wonGame1     Result of the set's first game (by timestamp), used for the
+ *                     set-level comeback/closeout/blown-lead modifier. Pass null
+ *                     when undeterminable (e.g. Game 1 had no parseable frames) —
+ *                     the modifier is then 0.
  */
 export function gradeSet(
   games: LiveGameStats[],
@@ -288,6 +329,7 @@ export function gradeSet(
   setResult: "win" | "loss",
   wins: number,
   losses: number,
+  wonGame1: boolean | null = null,
 ): SetGrade {
   // ── Three-tier benchmark lookup ────────────────────────────────────────────
   // matchup (player × opp) → player char → _overall
@@ -321,7 +363,14 @@ export function gradeSet(
     let score: number | null = null;
     let grade: GradeLetter | null = null;
 
-    if (!skip && value !== null && thresholds) {
+    if (ABSOLUTE_STATS.has(key)) {
+      // Continuous degree (0–1) → 0–100 on an absolute curve. No benchmark
+      // lookup — these deliberately don't percentile-score (ADR 0001).
+      if (value !== null) {
+        score = Math.max(0, Math.min(100, value * 100));
+        grade = scoreToGrade(score);
+      }
+    } else if (!skip && value !== null && thresholds) {
       score = percentileScore(value, thresholds, inverted);
       grade = scoreToGrade(score);
     }
@@ -367,8 +416,21 @@ export function gradeSet(
 
   // +5 for a win — winning a set demonstrates adaptability and reads even when
   // raw metrics don't fully capture it.
-  const winBonus    = setResult === "win" ? 5 : 0;
-  const overallScore = Math.min(100, rawScore + winBonus);
+  const winBonus = setResult === "win" ? 5 : 0;
+
+  // Set-level comeback / closeout / blown-lead modifier, keyed on (Game 1 result
+  // × set result). Layered on top of the win bonus as a difficulty premium, not a
+  // second payment for winning. The blown-lead penalty is the mirror of comeback.
+  const wonSet = setResult === "win";
+  let setModifier = 0;
+  let setModifierLabel: string | null = null;
+  if (wonGame1 !== null) {
+    if      (!wonGame1 && wonSet)  { setModifier = SET_COMEBACK_BONUS;     setModifierLabel = "Set comeback"; }
+    else if (wonGame1 && wonSet)   { setModifier = SET_CLOSEOUT_BONUS;     setModifierLabel = "Closeout"; }
+    else if (wonGame1 && !wonSet)  { setModifier = SET_BLOWN_LEAD_PENALTY; setModifierLabel = "Blown lead"; }
+  }
+
+  const overallScore = Math.max(0, Math.min(100, rawScore + winBonus + setModifier));
 
   return {
     letter:     scoreToGrade(overallScore),
@@ -381,5 +443,8 @@ export function gradeSet(
     setResult,
     wins,
     losses,
+    winBonus,
+    setModifier,
+    setModifierLabel,
   };
 }

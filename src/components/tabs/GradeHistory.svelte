@@ -9,9 +9,8 @@
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { invoke } from "@tauri-apps/api/core";
   import { CHARACTERS, parseSlpFile } from "../../lib/parser";
-  import { gradeSet, scoreToGrade, formatStatValue, gradeColor, CATEGORY_DEFS, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
+  import { gradeSet, scoreToGrade, formatStatValue, gradeColor, CATEGORY_DEFS, GRADE_VERSION, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, type SetGradeRow } from "../../lib/db";
-  import { BENCHMARKS_VERSION } from "../../lib/grade-benchmarks";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
   import GradingMethodology from "../GradingMethodology.svelte";
 
@@ -32,6 +31,12 @@
       setResult:      row.set_result as "win" | "loss",
       wins:           row.wins,
       losses:         row.losses,
+      // winBonus is derivable from the stored result; the set modifier is already
+      // baked into overall_score but isn't persisted as a column, so reconstructed
+      // rows can't show the comeback/closeout/blown-lead chip until regraded.
+      winBonus:         row.set_result === "win" ? 5 : 0,
+      setModifier:      0,
+      setModifierLabel: null,
     };
     return {
       matchId:         row.match_id,
@@ -121,7 +126,7 @@
   let uniqueOppChars    = $derived([...new Set(activeHistory.map((r) => r.opponentChar))].sort());
 
   let staleCount = $derived(
-    activeHistory.filter((r) => r.baselineVersion !== null && r.baselineVersion !== BENCHMARKS_VERSION).length
+    activeHistory.filter((r) => r.baselineVersion !== null && r.baselineVersion !== GRADE_VERSION).length
   );
 
   let sortedHistory = $derived((() => {
@@ -300,8 +305,12 @@
         const gradableGames = liveGames.filter((g) => g.avg_stock_duration !== null);
 
         if (gradableGames.length > 0) {
-          entry.grade = gradeSet(gradableGames, playerChar, opponentChar, target.result, target.wins, target.losses);
-          entry.baselineVersion = BENCHMARKS_VERSION;
+          // Game 1 result (earliest by timestamp) drives the set-level comeback
+          // modifier. Use the full parsed list, not the gradable-filtered one.
+          const orderedGames = [...liveGames].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+          const wonGame1 = orderedGames.length > 0 ? orderedGames[0].result === "win" : null;
+          entry.grade = gradeSet(gradableGames, playerChar, opponentChar, target.result, target.wins, target.losses, wonGame1);
+          entry.baselineVersion = GRADE_VERSION;
 
           const targetCode = target.sourceCode ?? code;
           const targetDb = dbMap.get(targetCode) ?? null;
@@ -312,7 +321,7 @@
               match_id:         target.match_id,
               generated_at:     new Date().toISOString(),
               set_timestamp:    target.timestamp,
-              baseline_version: BENCHMARKS_VERSION,
+              baseline_version: GRADE_VERSION,
               player_char:      playerChar,
               opponent_char:    opponentChar,
               opponent_code:    target.opponent_code,
@@ -363,7 +372,7 @@
     if (!code) return;
     const staleIds = new Set(
       activeHistory
-        .filter((r) => r.baselineVersion !== null && r.baselineVersion !== BENCHMARKS_VERSION)
+        .filter((r) => r.baselineVersion !== null && r.baselineVersion !== GRADE_VERSION)
         .map((r) => r.matchId)
     );
     if (staleIds.size === 0) return;
@@ -937,7 +946,7 @@
         {@const isWin = r.result === "win"}
         {@const isSelected = selectedMatchId === r.matchId}
         {@const letter = r.grade?.letter ?? null}
-        {@const isStale = r.baselineVersion !== null && r.baselineVersion !== BENCHMARKS_VERSION}
+        {@const isStale = r.baselineVersion !== null && r.baselineVersion !== GRADE_VERSION}
 
         <!-- Row -->
         <div style="border-bottom: 1px solid var(--border)">

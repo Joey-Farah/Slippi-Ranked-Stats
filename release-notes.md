@@ -1,3 +1,20 @@
+## What's New in v1.6.2
+
+### 🔄 Comeback & Lead Maintenance, rebuilt (Premium)
+
+Fixed a bug where these two grades could flatly contradict the number next to them — a set could show **0% comeback graded S**, or a 0% lead maintenance graded F. The old stats were a blunt yes/no ("were you ever behind, and did you win?") scored against a lopsided curve, which produced nonsense in close matchups.
+
+They now measure the **degree** of the swing, from stock count alone:
+
+- **Comeback** rewards how much of a stock deficit you clawed back within a game — coming back from two stocks down counts for more than one — and scales up when you actually win the game.
+- **Lead Maintenance** is the mirror: how well you held a stock lead instead of handing it back, scaled up when you close out the win.
+
+On top of that, winning a set the hard way now shows in your grade: **coming back to win after dropping game 1 earns a bonus, calmly closing out a lead earns a smaller one, and blowing a game-1 lead costs you.**
+
+Your existing grades will show the **stale** marker — hit **Regrade** to refresh them with the new scoring.
+
+---
+
 ## What's New in v1.6.1
 
 ### 🛡️ Edgeguard & Recovery now counted correctly (Premium)
