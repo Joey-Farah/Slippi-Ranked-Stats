@@ -30,7 +30,53 @@ cross-machine workflow.
 
 ---
 
-## ▶ NEXT UP — OBS / Stream Overlay (priority for next session)
+## ⏳ ACTIVE (2026-05-24) — Comeback Rate & Lead Maintenance redesign (design in progress)
+
+**Why:** Both stats are binary per game (were-behind→won=1/lost=0; were-ahead→won=1/lost=0)
+and percentile-scored against a degenerate binary population. Result: a real set (Falco vs
+Jigglypuff, L 0–2) graded **0% comeback as S (75)** while **0% lead maintenance scored F (25)**
+— identical raw values, opposite grades, because the matchup populations lean opposite ways
+(comeback p75=0.0, lead p50=1.0). The grade contradicts the number printed next to it.
+
+**Approach:** redefine both as a CONTINUOUS "degree" measured from stock margin, scored on an
+ABSOLUTE curve (no benchmark/rescan). See `docs/adr/0001-absolute-scoring-for-comeback-lead.md`
+and the new root `CONTEXT.md` glossary (Set, Stock margin, Comeback, Lead Maintenance).
+
+**LOCKED so far:**
+- Comeback stays a graded stat on the 0–100 spectrum (not a separate additive modifier);
+  its value becomes continuous.
+- Per-game comeback credit = **stocks of margin climbed back from your worst point**
+  (depth-weighted, so down-2→even beats down-1→even), with **winning the game as a
+  multiplier** on top. (Does not distinguish down-3→down-1 from down-2→even — both "climbed
+  2"; accepted as a rare tie.)
+- **Lead Maintenance = the mirror** (recovery/edgeguard precedent): degree of margin *held*
+  from your best point; closing out in a win multiplies; blowing a lead scores low.
+- **Absolute curve, not percentile** → no HF rescan, no `parse_hf_replays.py` changes;
+  comeback/lead drop out of `grade-benchmarks.ts`. (ADR 0001.)
+- **Stock-only**; percent never factors in.
+- Both have a **game-level** component and a **separate set-level** component (comeback =
+  down a game then won the set; mirror for lead).
+- Set format confirmed **best-of-3, first-to-2** (`watcher.ts:267`) — so the only set-comeback
+  path is lose-G1 → win 2–1.
+
+**STILL OPEN (grill continues):**
+- Exact absolute curve: how stocks-climbed × win-multiplier maps to 0–100.
+- How the game-level and set-level components combine into one stat score.
+- Interaction with the existing +5 win bonus (avoid over-counting "you won").
+- Lead maintenance: should blowing a lead **penalize**, or only fail to reward?
+- Display: an absolute degree is no longer a clean percentile row — how to show it.
+- Stale-grade handling: a logic-only change won't trip the benchmark-version stale check, so
+  it must force a regrade.
+
+**Future enhancement (banked):** matchup-aware comeback/lead — score the continuous degree by
+percentile per matchup. Deferred per ADR 0001 (needs the rescan + Python parser parity).
+Additive later; nothing built now is wasted.
+
+This is the current focus, ahead of the OBS overlay below.
+
+---
+
+## ▶ NEXT UP — OBS / Stream Overlay (after the comeback/lead redesign)
 
 **Goal:** show the set grade on a streamer's OBS overlay the moment a ranked SET
 completes (overall letter + score, opponent char, W/L) as a transient card that
