@@ -29,6 +29,15 @@ hand-off mechanism between work sessions and across machines.
 > on `overall_score` is), so a reloaded-from-DB grade can't show the comeback/closeout/blown-lead
 > chip until it's regraded in-session. Persisting it would need a new DB column (persistence
 > change → discuss first).
+>
+> **⏳ IN PROGRESS — OBS stream overlay (branch `obs-overlay`, NOT on main, NOT released).**
+> Built end-to-end this session and validated in OBS via the in-app **Test button** (real app
+> file write → animated colored letter). **Release is on hold** until it's verified with a
+> *real* completed ranked set — the watcher's auto-trigger calls the same `writeOverlayState`
+> as the Test button (low-risk, but not yet exercised live). Target **v1.7.0**. To finish:
+> `git checkout obs-overlay`, `npm run tauri dev`, play a ranked set, confirm the overlay
+> fires; then bump 1.6.2→1.7.0 (package.json, tauri.conf.json, Cargo.toml, Cargo.lock), add
+> v1.7.0 release notes, merge to main, tag `v1.7.0`. Full design + as-built notes under "▶ NEXT UP".
 
 This file is the cross-machine handoff doc. The banner above records the last shipped
 state; everything below is durable reference — active backlog (see NEXT UP),
@@ -105,7 +114,18 @@ Shipped in v1.6.2. The OBS / stream overlay below is the next focus again.
 
 ---
 
-## ▶ NEXT UP — OBS / Stream Overlay (scope + transport decided 2026-05-25)
+## ▶ NEXT UP — OBS / Stream Overlay (BUILT on `obs-overlay`, pending live-set test — 2026-05-25)
+
+> **AS BUILT (branch `obs-overlay`, not on main, target v1.7.0):** server-less local file,
+> exactly as designed below. New `src/lib/overlay.ts` writes `overlay.html` + `state.js`
+> to `<appDataDir>/stream-overlay/` via `@tauri-apps/plugin-fs` (`fs:allow-write-text-file`
+> added to capabilities, scoped `$APPDATA/**`). `watcher.ts` calls `writeOverlayState(grade.letter)`
+> on completed ranked sets when `isPremium && overlayEnabled`. Premium "Stream Overlay" card
+> in `LiveRankedSession.svelte` (toggle, collapsible, dynamic path + copy, **Test button**,
+> grade-chip preview); `overlayEnabled`/`overlayExpanded` persisted in `store.ts`. Validated
+> in OBS via the Test button (write → animated colored letter). svelte-check clean, 23/23
+> tests pass. **Remaining before release: verify the auto-trigger fires on a real ranked
+> set** (same code path as the Test button), then release as v1.7.0.
 
 **v1 scope (DECIDED 2026-05-25): the set's overall LETTER GRADE only, in its grade
 color, revealed with a short entrance animation the moment a ranked set completes.**

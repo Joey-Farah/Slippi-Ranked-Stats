@@ -49,6 +49,11 @@ export const effectiveCodes = derived(
 export const primaryCode = derived(connectCode, ($code) => $code);
 export const dateRange = persisted<"30d" | "90d" | "all">("srs_dateRange", "all");
 export const isPremium = persisted<boolean>("srs_isPremium", false);
+
+// OBS stream overlay (premium): write the set grade to a local file OBS reads as a
+// Browser Source. overlayEnabled gates the watcher's write; overlayExpanded is UI state.
+export const overlayEnabled  = persisted<boolean>("srs_overlayEnabled", false);
+export const overlayExpanded = persisted<boolean>("srs_overlayExpanded", false);
 export const discordToken = persisted<string | null>("srs_discordToken", null);
 export const discordUsername = persisted<string | null>("srs_discordUsername", null);
 

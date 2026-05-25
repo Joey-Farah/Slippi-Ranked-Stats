@@ -2,11 +2,48 @@
   import {
     isPremium, watcherActive, activeSet, liveSessionStartRating,
     snapshots, liveGameStats, sets, lastSetGrade,
+    overlayEnabled, overlayExpanded,
   } from "../../lib/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
-  import { gradeColor } from "../../lib/grading";
+  import { gradeColor, type GradeLetter } from "../../lib/grading";
+  import { ensureOverlayFiles, writeOverlayState, overlayHtmlPath } from "../../lib/overlay";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
+
+  // ── Stream overlay (OBS) ───────────────────────────────────────────────────
+  const OVERLAY_GRADES: GradeLetter[] = ["S", "A", "B", "C", "D", "F"];
+  let overlayPath    = $state("");
+  let pathCopied     = $state(false);
+  let previewLetter  = $state<GradeLetter | null>(null);
+
+  // Resolve the on-disk overlay.html path for display (per-machine).
+  $effect(() => { overlayHtmlPath().then((p) => (overlayPath = p)).catch(() => {}); });
+
+  async function toggleOverlay() {
+    const next = !$overlayEnabled;
+    overlayEnabled.set(next);
+    if (next) {
+      overlayExpanded.set(true);
+      try { await ensureOverlayFiles(); } catch (e) { console.error("overlay setup failed", e); }
+    }
+  }
+
+  async function copyOverlayPath() {
+    try {
+      await navigator.clipboard.writeText(overlayPath);
+      pathCopied = true;
+      setTimeout(() => (pathCopied = false), 1500);
+    } catch (e) { console.error(e); }
+  }
+
+  // Send a sample grade so the streamer can verify their OBS setup without playing.
+  async function testOverlay(letter: GradeLetter) {
+    previewLetter = letter;
+    try {
+      await ensureOverlayFiles();
+      await writeOverlayState(letter);
+    } catch (e) { console.error("overlay test failed", e); }
+  }
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -102,6 +139,101 @@
   />
 
 {:else}
+
+  <!-- Stream Overlay (OBS) — writes the set grade to a local file OBS reads as a
+       Browser Source. Fires on completed ranked sets when enabled. -->
+  <div class="card" style="margin-bottom: 16px">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+      <div>
+        <div style="font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px">
+          <span>📺</span> Stream Overlay
+          <span style="font-size: 10px; font-weight: 700; color: #29ABE0; border: 1px solid #29ABE055; border-radius: 4px; padding: 1px 6px">OBS</span>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 3px">
+          Pops your set grade onto your stream the moment a ranked set finishes.
+        </div>
+      </div>
+      <button
+        type="button"
+        onclick={toggleOverlay}
+        aria-pressed={$overlayEnabled}
+        style="
+          flex-shrink: 0; min-width: 64px; padding: 6px 14px; border-radius: 6px;
+          font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+          border: 1px solid {$overlayEnabled ? '#2ecc7155' : 'var(--border)'};
+          background: {$overlayEnabled ? '#2ecc7122' : 'var(--bg)'};
+          color: {$overlayEnabled ? '#2ecc71' : 'var(--muted)'};
+        "
+      >{$overlayEnabled ? "On" : "Off"}</button>
+    </div>
+
+    {#if $overlayEnabled}
+      <button
+        type="button"
+        onclick={() => overlayExpanded.set(!$overlayExpanded)}
+        style="
+          margin-top: 10px; background: none; border: none; padding: 0; cursor: pointer;
+          font-family: inherit; font-size: 11px; color: var(--muted);
+          text-decoration: underline; text-underline-offset: 2px;
+        "
+      >{$overlayExpanded ? "Hide setup ▴" : "Setup ▾"}</button>
+
+      {#if $overlayExpanded}
+        <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px">
+          <!-- Step 1: the file path -->
+          <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">
+            1. In OBS: <strong>Sources → + → Browser</strong>, check <strong>Local file</strong>, and select:
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center">
+            <code style="
+              flex: 1; font-size: 11px; background: var(--bg); border: 1px solid var(--border);
+              border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: nowrap;
+            ">{overlayPath || "resolving…"}</code>
+            <button
+              type="button"
+              onclick={copyOverlayPath}
+              style="
+                flex-shrink: 0; padding: 8px 12px; border-radius: 6px; cursor: pointer;
+                font-family: inherit; font-size: 12px; font-weight: 600;
+                border: 1px solid var(--border); background: var(--bg); color: var(--text);
+              "
+            >{pathCopied ? "Copied" : "Copy"}</button>
+          </div>
+          <div class="muted" style="font-size: 11px; margin-top: 5px">
+            Set the source size to your canvas; the background is transparent.
+          </div>
+
+          <!-- Step 2: preview / test -->
+          <div style="font-size: 12px; font-weight: 600; margin: 14px 0 6px">
+            2. Test it — click a grade to send it to your overlay:
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            {#each OVERLAY_GRADES as g}
+              <button
+                type="button"
+                onclick={() => testOverlay(g)}
+                style="
+                  width: 36px; height: 36px; border-radius: 6px; cursor: pointer;
+                  font-family: inherit; font-size: 16px; font-weight: 800;
+                  color: {gradeColor(g)}; background: {gradeColor(g)}1a;
+                  border: 1px solid {gradeColor(g)}55;
+                "
+              >{g}</button>
+            {/each}
+          </div>
+          {#if previewLetter}
+            <div class="muted" style="font-size: 11px; margin-top: 8px">
+              Sent <span style="color: {gradeColor(previewLetter)}; font-weight: 800">{previewLetter}</span> to your overlay — check OBS.
+            </div>
+          {/if}
+
+          <div class="muted" style="font-size: 11px; margin-top: 14px; line-height: 1.5">
+            After this, it fires automatically on every completed <strong>ranked set</strong> — not single games or unranked.
+          </div>
+        </div>
+      {/if}
+    {/if}
+  </div>
 
   {#if !$watcherActive}
     <p class="muted" style="margin-bottom: 16px">

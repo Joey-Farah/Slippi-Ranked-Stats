@@ -27,10 +27,13 @@ import {
   statusMessage,
   liveGameStats,
   lastSetGrade,
+  isPremium,
+  overlayEnabled,
 } from "./store";
 import { CHARACTERS } from "./parser";
 import { gradeSet, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
+import { writeOverlayState } from "./overlay";
 
 let _unwatchers: UnwatchFn[] = [];
 let _snapshotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -333,6 +336,11 @@ async function handleRankedGame(
         // can regrade from the history tab to get real results.
         const hasRealData = Object.values(grade.categories).some((c) => c.score !== null);
         lastSetGrade.set(hasRealData ? grade : null);
+        // Stream overlay (premium): push the grade letter to the local file OBS reads
+        // as a Browser Source. Fire-and-forget so a write hiccup never blocks grading.
+        if (hasRealData && get(isPremium) && get(overlayEnabled)) {
+          writeOverlayState(grade.letter).catch((e) => console.error("overlay write failed", e));
+        }
         if (hasRealData) {
           try {
             await saveSetGrade(db, {
