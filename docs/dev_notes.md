@@ -32,6 +32,14 @@ cross-machine workflow.
 
 ## ⏳ ACTIVE (2026-05-24) — Comeback Rate & Lead Maintenance redesign (design in progress)
 
+> **⏸ Interrupted 2026-05-24 — PC crashed mid-grill.** Everything committed through
+> `5e169bd` (the **LOCKED so far** list + `CONTEXT.md` glossary + ADR 0001) is safe on
+> GitHub; working tree is clean. **Resume from "STILL OPEN (grill continues)" below** —
+> that's the live edge of the discussion. Caveat: this note was written from the **macOS**
+> machine, which holds no record of the grill conversation itself, so any decisions reached
+> on the PC *after* the 20:46 commit were not captured here and should be re-derived from
+> the open questions.
+
 **Why:** Both stats are binary per game (were-behind→won=1/lost=0; were-ahead→won=1/lost=0)
 and percentile-scored against a degenerate binary population. Result: a real set (Falco vs
 Jigglypuff, L 0–2) graded **0% comeback as S (75)** while **0% lead maintenance scored F (25)**
