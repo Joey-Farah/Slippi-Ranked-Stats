@@ -105,32 +105,60 @@ Shipped in v1.6.2. The OBS / stream overlay below is the next focus again.
 
 ---
 
-## ▶ NEXT UP — OBS / Stream Overlay (after the comeback/lead redesign)
+## ▶ NEXT UP — OBS / Stream Overlay (scope + transport decided 2026-05-25)
 
-**Goal:** show the set grade on a streamer's OBS overlay the moment a ranked SET
-completes (overall letter + score, opponent char, W/L) as a transient card that
-animates in and auto-hides after ~15–20 s. Full design is banked below under
-**"Streamer Overlay"** and **"Set-grade overlay widget"**.
+**v1 scope (DECIDED 2026-05-25): the set's overall LETTER GRADE only, in its grade
+color, revealed with a short entrance animation the moment a ranked set completes.**
+Score, category grades, and opponent/W–L are **deferred** — the fuller multi-element
+card stays banked below under "Streamer Overlay" / "Set-grade overlay widget".
+Deliberately minimal: one animated colored letter, nothing else.
 
-**State going in:**
-- A **prototype UI was built this session and then REMOVED before the v1.6.1 release —
-  it was never committed, so it must be rebuilt from these notes** (it was a quick build).
-  Rebuild target: a "Stream Overlay" card in `LiveRankedSession.svelte` (premium-only),
-  a single on/off toggle, collapsible-when-on ("Hide ▴ / Setup ▾"), ranked-set-only
-  framing, an in-app grade **preview**, a stub Browser-Source URL
-  `http://localhost:6789/overlay`, and `overlayEnabled` / `overlayExpanded` persisted
-  stores in `store.ts`. The data already exists — the watcher computes `lastSetGrade`
-  on set completion.
-- **Premium-gated**, fires ONLY on completed **ranked sets** (not single games, not
-  unranked/direct).
+**Usage model (user, 2026-05-25):** the streamer has SRS running (watcher active) on a
+second monitor or behind Melee; they finish a ranked set mid-stream; the OBS Browser
+Source pops the just-earned letter onto the stream with a little animation.
 
-**THE open decision (discuss before building — do not just pick):** the transport that
-feeds OBS.
-  1. **`tiny_http` + polling** (recommended) — small Rust dep, the same crate
-     `tauri-plugin-localhost` uses; serves a tiny auto-updating HTML page added as an
-     OBS Browser Source. Keeps the styled card.
-  2. **OBS Text source via a JSON/text file on disk** — zero-dep, but plain text only.
-  Keep the app lightweight (explicit constraint). Settle #1 vs #2 first.
+**Transport: DECIDED — server-less local FILE → OBS Browser Source** (revised 2026-05-25;
+the local-HTTP-server idea was dropped). Rationale: a listening server adds a socket, a
+port, and a likely Windows Firewall / AV prompt — unwanted friction while gaming +
+streaming (its actual CPU cost would've been ~nil, but the surface area isn't worth it).
+The plain OBS Text-source option was also rejected: static color (a pink S and a red F
+look identical) and manual-refresh only. So: the app **writes a small local state file**
+on ranked-set completion, and OBS loads a local **`overlay.html`** as a **Browser Source**
+(Browser Sources support transparency natively → clear background).
+
+**How it updates without a server:** the app writes `{ letter, setId }` to a state file in
+its app-data folder each time a ranked set completes; `overlay.html` watches that file
+client-side and, when `setId` changes, animates the colored letter in, holds, then fades.
+The letter is **transient**, so between sets the page is empty/transparent — nothing to
+flicker. ⚠ **Risk to validate FIRST (prototype before anything else):** OBS's embedded
+browser (CEF) restricts `file://` pages from cleanly re-reading sibling files, so the
+file-watch mechanism — timed full reload + a `localStorage` setId-guard, vs. a re-injected
+`<script src>`, vs. `fetch` with the right flags — needs a real OBS test to confirm a
+written change reliably re-triggers the animation. This is the make-or-break unknown.
+
+**The page (v1):** one centered letter on a transparent background, colored via the SAME
+palette as the app — `GRADE_COLORS` / `gradeColor()` in `grading.ts` (S = `#FF1493` hot
+pink, etc.). CSS entrance animation on a new `setId`. Source = the watcher's
+`lastSetGrade.letter`, already computed on ranked-set completion (expose a per-set id so
+the page can tell sets apart). (Verified 2026-05-25: no overlay code exists yet — clean
+rebuild; the earlier prototype was never committed.)
+
+**In-app:** a premium-only "Stream Overlay" card in `LiveRankedSession.svelte` — single
+on/off toggle, collapsible-when-on, an in-app **preview** of the colored letter, and the
+local file path + instructions for adding it as an OBS Browser Source. Persist
+`overlayEnabled` (+ `overlayExpanded`) in `store.ts`. **Premium-gated; fires ONLY on
+completed ranked sets** (not single games, not unranked/direct).
+
+**Build order:** (1) prototype the file-watch → OBS reliability in isolation on the dev
+machine; (2) only then wire the watcher to write the state file + build the in-app card.
+**Test fully in a dev instance before any push** (user, 2026-05-25).
+
+**Still to decide (sub-details, not blockers):**
+- After the entrance animation: auto-hide (fade out after ~10–20 s) or hold until the next
+  set? (Leaning: hold briefly, then fade — keeps the stream uncluttered.)
+- Exact file location + format, and whether `overlay.html` ships as a bundled asset or is
+  written by the app alongside the state file.
+- Whether toggling the overlay off stops the app from writing the state file.
 
 **Documented-but-not-fixed:** `CLAUDE.md` still says "the grading feature is dev-only …
 do not ship/un-gate without explicit instruction." That's stale as of v1.6.0 — grading
