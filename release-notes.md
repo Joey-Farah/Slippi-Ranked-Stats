@@ -1,3 +1,19 @@
+## What's New in v1.7.0
+
+### 📺 Stream Overlay for OBS (Premium)
+
+Show your set grade live on stream. The moment you finish a ranked set, your overall letter grade — in its grade color — **spins onto your overlay**, holds for a few seconds, then spins back off. Perfect for reacting to a fresh **S** on camera.
+
+Setup is quick and runs entirely on your machine (no server, no extra window):
+
+- Turn on **Stream Overlay** in the **Live Session** tab.
+- Copy the file path it shows you.
+- In **OBS**, add a **Browser Source** → check **Local file** → choose `overlay.html`. Done.
+
+It only fires on completed **ranked sets** (not single games or unranked), the background is transparent so it sits cleanly over your gameplay, and it shows nothing between sets to keep things uncluttered.
+
+---
+
 ## What's New in v1.6.2
 
 ### 🔄 Comeback & Lead Maintenance, rebuilt (Premium)

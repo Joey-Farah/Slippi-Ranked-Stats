@@ -30,14 +30,19 @@ hand-off mechanism between work sessions and across machines.
 > chip until it's regraded in-session. Persisting it would need a new DB column (persistence
 > change → discuss first).
 >
-> **⏳ IN PROGRESS — OBS stream overlay (branch `obs-overlay`, NOT on main, NOT released).**
-> Built end-to-end this session and validated in OBS via the in-app **Test button** (real app
-> file write → animated colored letter). **Release is on hold** until it's verified with a
-> *real* completed ranked set — the watcher's auto-trigger calls the same `writeOverlayState`
-> as the Test button (low-risk, but not yet exercised live). Target **v1.7.0**. To finish:
-> `git checkout obs-overlay`, `npm run tauri dev`, play a ranked set, confirm the overlay
-> fires; then bump 1.6.2→1.7.0 (package.json, tauri.conf.json, Cargo.toml, Cargo.lock), add
-> v1.7.0 release notes, merge to main, tag `v1.7.0`. Full design + as-built notes under "▶ NEXT UP".
+> **⏳ READY FOR RELEASE — OBS stream overlay (branch `obs-overlay`, NOT on main, NOT released).**
+> Built, polished, and pushed this session, and the **auto-trigger is now validated**: fed a real
+> completed ranked set (CHAB#749, a lost-G1 2–1 comeback) through the *live watcher* without playing
+> — deleted that set from the dev DB, then re-dropped its three `.slp` files into the watched folder;
+> the watcher detected the 2–1, graded it **A**, and fired `writeOverlayState`, which animated in OBS.
+> (A one-time test-only tweak to `watcher.ts`'s session-gap reset — needed because the replayed files
+> carry 4-day-old timestamps — was **reverted**; not in the commit.) Animation finalized to the owner's
+> pick: **spin-in / spin-out**, **25 s hold** (`HOLD_MS`), letter sized **62vh** (down from 72vh) + caption
+> **6vh** so the 1.1× scale + rotation no longer clips against `overflow:hidden`. Version already
+> **bumped 1.6.2→1.7.0** (package.json, tauri.conf.json, Cargo.toml, Cargo.lock) and **v1.7.0 release
+> notes written** — all committed to `obs-overlay`. **Remaining = ONE final real ranked-set test on the
+> second machine** (owner's call), then: merge `obs-overlay`→main, push, tag `v1.7.0` (triggers the signed
+> CI release), and record the now-shipped overlay in `CLAUDE.md` in that same merge. As-built under "▶ NEXT UP".
 
 This file is the cross-machine handoff doc. The banner above records the last shipped
 state; everything below is durable reference — active backlog (see NEXT UP),
@@ -114,18 +119,23 @@ Shipped in v1.6.2. The OBS / stream overlay below is the next focus again.
 
 ---
 
-## ▶ NEXT UP — OBS / Stream Overlay (BUILT on `obs-overlay`, pending live-set test — 2026-05-25)
+## ▶ NEXT UP — OBS / Stream Overlay (BUILT + animated on `obs-overlay`; final cross-machine test → v1.7.0 — 2026-05-25)
 
-> **AS BUILT (branch `obs-overlay`, not on main, target v1.7.0):** server-less local file,
-> exactly as designed below. New `src/lib/overlay.ts` writes `overlay.html` + `state.js`
-> to `<appDataDir>/stream-overlay/` via `@tauri-apps/plugin-fs` (`fs:allow-write-text-file`
+> **AS BUILT (branch `obs-overlay`, not on main, target v1.7.0 — version bumped + notes written):**
+> server-less local file, exactly as designed below. New `src/lib/overlay.ts` writes `overlay.html`
+> + `state.js` to `<appDataDir>/stream-overlay/` via `@tauri-apps/plugin-fs` (`fs:allow-write-text-file`
 > added to capabilities, scoped `$APPDATA/**`). `watcher.ts` calls `writeOverlayState(grade.letter)`
 > on completed ranked sets when `isPremium && overlayEnabled`. Premium "Stream Overlay" card
 > in `LiveRankedSession.svelte` (toggle, collapsible, dynamic path + copy, **Test button**,
-> grade-chip preview); `overlayEnabled`/`overlayExpanded` persisted in `store.ts`. Validated
-> in OBS via the Test button (write → animated colored letter). svelte-check clean, 23/23
-> tests pass. **Remaining before release: verify the auto-trigger fires on a real ranked
-> set** (same code path as the Test button), then release as v1.7.0.
+> grade-chip preview); `overlayEnabled`/`overlayExpanded` persisted in `store.ts`. **Animation
+> (finalized):** `spin-in` keyframes (720ms, rotate-and-scale from 0) → hold `HOLD_MS = 25000` →
+> `spin-out` (620ms); `#letter` is `62vh` and `#caption` `6vh` so the entrance's 1.1× scale +
+> rotation stays inside the viewport (at 72vh the rotated diagonal clipped against `overflow:hidden`).
+> `overlay.ts` is the single source of truth (no committed `overlay-prototype/`). **Auto-trigger
+> validated** this session via replay-injection of a real completed set (method in the SESSION HANDOFF
+> banner) — watcher graded + fired + animated in OBS. svelte-check clean, 23/23 tests pass.
+> **Remaining before release: one final real ranked-set test on the second machine, then merge
+> `obs-overlay`→main, push, tag `v1.7.0`** (and record the shipped overlay in `CLAUDE.md`).
 
 **v1 scope (DECIDED 2026-05-25): the set's overall LETTER GRADE only, in its grade
 color, revealed with a short entrance animation the moment a ranked set completes.**

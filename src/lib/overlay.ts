@@ -14,9 +14,10 @@ import { writeTextFile, mkdir, BaseDirectory } from "@tauri-apps/plugin-fs";
 
 const DIR = "stream-overlay";
 
-/** The OBS Browser Source page. Mirrors overlay-prototype/overlay.html (the version
- *  validated in OBS), with its inline script using string concatenation only so it
- *  embeds cleanly here. Edit both together if the look changes. */
+/** The OBS Browser Source page. This string is the single source of truth for the
+ *  overlay (no separate prototype file). Its inline script uses string concatenation
+ *  only so it embeds cleanly here. Animation: spin-in on a new setId, hold HOLD_MS,
+ *  spin-out. */
 const OVERLAY_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -35,18 +36,24 @@ const OVERLAY_HTML = `<!doctype html>
       will-change: transform, opacity;
     }
     #caption {
-      font-size: 10vh; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+      font-size: 6vh; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
       color: rgba(255, 255, 255, 0.9); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
       margin-bottom: 0.5vh;
     }
-    #letter { font-size: 72vh; font-weight: 800; line-height: 1; }
-    @keyframes pop-in {
-      0%   { opacity: 0; transform: scale(0.3); }
-      60%  { opacity: 1; transform: scale(1.12); }
-      100% { opacity: 1; transform: scale(1); }
+    /* 62vh (not larger) so the spin's 1.1x scale + rotation stays inside the
+       viewport — at ~72vh the rotated diagonal clipped against overflow:hidden. */
+    #letter { font-size: 62vh; font-weight: 800; line-height: 1; }
+    @keyframes spin-in {
+      0%   { opacity: 0; transform: rotate(-540deg) scale(0); }
+      70%  { opacity: 1; transform: rotate(20deg) scale(1.1); }
+      100% { opacity: 1; transform: rotate(0) scale(1); }
     }
-    .show { animation: pop-in 520ms cubic-bezier(0.18, 0.9, 0.32, 1.2) forwards; }
-    .fade { opacity: 0 !important; transition: opacity 700ms ease; }
+    @keyframes spin-out {
+      0%   { opacity: 1; transform: rotate(0) scale(1); }
+      100% { opacity: 0; transform: rotate(540deg) scale(0); }
+    }
+    .show { animation: spin-in 720ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+    .hide { animation: spin-out 620ms cubic-bezier(0.6, 0, 0.7, 0.2) forwards; }
   </style>
 </head>
 <body>
@@ -58,7 +65,7 @@ const OVERLAY_HTML = `<!doctype html>
   </div>
   <script>
     var POLL_MS = 1000;
-    var HOLD_MS = 12000;
+    var HOLD_MS = 25000;
     // Grade colors — keep in sync with GRADE_COLORS in src/lib/grading.ts.
     var COLORS = { S: "#FF1493", A: "#00C853", B: "#00B0FF", C: "#FFC400", D: "#FF7300", F: "#FF1744" };
 
@@ -72,11 +79,15 @@ const OVERLAY_HTML = `<!doctype html>
       letterEl.textContent = letter;
       letterEl.style.color = color;
       letterEl.style.textShadow = letter === "S" ? ("0 0 6vh " + color + "aa") : "none";
-      cardEl.classList.remove("show", "fade");
+      cardEl.classList.remove("show", "hide");
       void cardEl.offsetWidth;
       cardEl.classList.add("show");
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(function () { cardEl.classList.add("fade"); }, HOLD_MS);
+      hideTimer = setTimeout(function () {
+        cardEl.classList.remove("show");
+        void cardEl.offsetWidth;   // reflow so the exit animation restarts cleanly
+        cardEl.classList.add("hide");
+      }, HOLD_MS);
     }
 
     function poll() {
