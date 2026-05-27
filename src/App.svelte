@@ -9,9 +9,10 @@
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout } from "./lib/store";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
+  import { ensureStatsOverlayFiles, writeStatsOverlayState } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
@@ -25,6 +26,38 @@
       if (_flashTimer) clearTimeout(_flashTimer);
       _flashTimer = setTimeout(() => setResultFlash.set(null), 5000);
     }
+  });
+
+  // Live Ranked Stats overlay: always-on, so the write lives at the app root (not a
+  // tab) and runs even when statsOverlayEnabled persisted true from a prior session.
+  // Ensures the files once per enable, then writes the payload whenever it changes.
+  let _statsOverlayReady = false;
+  let _lastStatsJson = "";
+  $effect(() => {
+    // A non-null preview override (set by the Live Stats card's test controls) wins over
+    // the live payload; layout always tracks the real toggle so it updates during preview.
+    const preview = $statsOverlayPreview;
+    const payload = preview ? { ...preview, layout: $statsOverlayLayout } : $statsOverlayPayload;
+    if (!($isPremium && $statsOverlayEnabled)) {
+      _statsOverlayReady = false;
+      _lastStatsJson = "";
+      return;
+    }
+    const json = JSON.stringify(payload);
+    const needEnsure = !_statsOverlayReady;
+    if (!needEnsure && json === _lastStatsJson) return;
+    // Record intent synchronously so rapid payload changes don't double-write.
+    _statsOverlayReady = true;
+    _lastStatsJson = json;
+    (async () => {
+      try {
+        if (needEnsure) await ensureStatsOverlayFiles();
+        await writeStatsOverlayState(payload);
+      } catch (e) {
+        _statsOverlayReady = false; // retry the file-ensure next change
+        console.error("stats overlay write failed", e);
+      }
+    })();
   });
   import { check } from "@tauri-apps/plugin-updater";
   import { relaunch } from "@tauri-apps/plugin-process";

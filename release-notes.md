@@ -1,3 +1,28 @@
+## What's New in v1.8.0
+
+### 📊 Live Stats Overlay for OBS (Premium)
+
+A new always-on overlay that puts your full ranked identity on stream — and the set-grade overlay is now **built right into it**, so it's one Browser Source instead of two.
+
+Always on, it shows:
+
+- Your **tag**, **rank medal**, **MMR** (with your live **session +/− change** right beside it), **global placement**, and **season W/L**.
+- A **Today's stats** line — your session record and rating change at a glance.
+
+And the moment a **ranked set** ends, the panel briefly fills in the action — your **opponent**, the **score**, and your **set grade** (the letter that used to be its own overlay) — then shows the **MMR change** as it lands, before settling back to your stats.
+
+**Two layouts** to fit your scene — a wide **side-by-side** card or a compact **stacked** one — switchable in the app. There's a **live preview** of exactly what's on your overlay, plus a **Simulate set result** button so you can set everything up without playing a game.
+
+Setup is the same quick, server-less approach (no server, no extra window):
+
+- Turn on **Live Stats Overlay** in the **Live Session** tab.
+- Copy the file path it shows you.
+- In **OBS**, add a **Browser Source** → check **Local file** → choose `stats.html`. Size it to taste; the background is transparent.
+
+> **Upgrading from v1.7.0?** This replaces the standalone Set Grade Overlay. If you added that as its own Browser Source, you can remove it — your grade now appears inside the Live Stats overlay.
+
+---
+
 ## What's New in v1.7.0
 
 ### 📺 Stream Overlay for OBS (Premium)

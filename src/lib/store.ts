@@ -1,6 +1,7 @@
 import { writable, derived } from "svelte/store";
 import type { GameRow, SnapshotRow, SeasonRow } from "./db";
 import type { SetGrade } from "./grading";
+import { getRankTier, CHARACTERS } from "./parser";
 
 // ── Persistent settings (auto-saved to localStorage) ───────────────────────
 
@@ -20,6 +21,11 @@ function randomId(): string {
 export const installId = persisted<string>("srs_installId", randomId());
 
 export const connectCode = persisted<string>("srs_connectCode", "");
+
+// The player's Slippi display tag (e.g. "Joey Dadnuts"). Fetched from the API
+// alongside each rating snapshot for the primary connect code; persisted so the
+// stream overlay can show it before the first fetch of a session.
+export const displayName = persisted<string>("srs_displayName", "");
 
 // Migrate single-folder key to multi-folder key (one-time, self-cleaning)
 {
@@ -50,10 +56,20 @@ export const primaryCode = derived(connectCode, ($code) => $code);
 export const dateRange = persisted<"30d" | "90d" | "all">("srs_dateRange", "all");
 export const isPremium = persisted<boolean>("srs_isPremium", false);
 
-// OBS stream overlay (premium): write the set grade to a local file OBS reads as a
-// Browser Source. overlayEnabled gates the watcher's write; overlayExpanded is UI state.
-export const overlayEnabled  = persisted<boolean>("srs_overlayEnabled", false);
-export const overlayExpanded = persisted<boolean>("srs_overlayExpanded", false);
+// Live Ranked Stats overlay (premium): the unified always-on OBS Browser Source showing
+// tag / rank / MMR / global placement / season + today's record, plus a post-set bridge
+// (result + grade + MMR change) when a set ends. statsOverlayEnabled gates the app-level
+// write; statsOverlayExpanded is UI state for the setup panel.
+export const statsOverlayEnabled  = persisted<boolean>("srs_statsOverlayEnabled", false);
+export const statsOverlayExpanded = persisted<boolean>("srs_statsOverlayExpanded", false);
+// Overlay layout: "stacked" (tall column) or "sidebyside" (square, medal beside identity).
+export const statsOverlayLayout = persisted<"stacked" | "sidebyside">("srs_statsOverlayLayout", "sidebyside");
+
+// Transient test/preview override (not persisted): when non-null, the app writes this to
+// the overlay instead of the live payload, so a streamer can study the overlay and
+// simulate a set result from the Live Stats card without playing. See statsOverlayPreview
+// usage in App.svelte. Type is StatsOverlayPayload (declared below — types hoist).
+export const statsOverlayPreview = writable<StatsOverlayPayload | null>(null);
 export const discordToken = persisted<string | null>("srs_discordToken", null);
 export const discordUsername = persisted<string | null>("srs_discordUsername", null);
 
@@ -136,6 +152,23 @@ export interface SetResultFlash {
   losses: number;
 }
 export const setResultFlash = writable<SetResultFlash | null>(null);
+
+// Most recently completed ranked set, for the stats overlay's post-set "bridge"
+// (hold the result while the MMR refetch lands, then show the per-set delta).
+// setId (Date.now at completion) lets the overlay detect a genuinely new set;
+// ratingBefore is the MMR at completion so the client can compute the per-set delta
+// once the refetched rating differs. Not persisted — null on a fresh launch.
+export interface OverlaySetResult {
+  setId: number;
+  result: "win" | "loss";
+  wins: number;
+  losses: number;
+  opponentCode: string;
+  opponentChar: string;
+  ratingBefore: number | null;
+  gradeLetter: string | null;  // null when the set couldn't be graded (bad/partial stats)
+}
+export const lastOverlaySet = writable<OverlaySetResult | null>(null);
 
 // ── Dev-only: set grading (not shipped until personally vetted) ───────────
 export const lastSetGrade = writable<SetGrade | null>(null);
@@ -333,3 +366,107 @@ function buildSession(sets: SetResult[]): Session {
     setLosses: sets.filter((s) => s.result === "loss").length,
   };
 }
+
+// ── Derived: live session set record (today's W/L) ─────────────────────────
+// Set W/L for the current watcher session, derived straight from liveGameStats so
+// it always reflects the games tracked this run. Shared by the Live Session tab and
+// the stats overlay. "Complete set" = a side reached 2 (best-of-3, first-to-2).
+
+export const liveSetRecord = derived(liveGameStats, ($stats) => {
+  const byMatch = new Map<string, LiveGameStats[]>();
+  for (const g of $stats) {
+    const arr = byMatch.get(g.match_id) ?? [];
+    arr.push(g);
+    byMatch.set(g.match_id, arr);
+  }
+  let wins = 0, losses = 0;
+  for (const [, gs] of byMatch) {
+    const w = gs.filter((g) => g.result === "win" || g.result === "lras_win").length;
+    const l = gs.length - w;
+    if (Math.max(w, l) < 2) continue; // set not complete yet
+    if (w >= 2) wins++; else losses++;
+  }
+  return { wins, losses, total: wins + losses };
+});
+
+// ── Derived: stream-overlay live-stats payload ─────────────────────────────
+// Everything the always-on "Live Ranked Stats" OBS panel renders. Recomputed when
+// any underlying store changes; the app-level subscription writes it to the overlay
+// state file (diff-guarded). See src/lib/stats-overlay.ts.
+
+export interface StatsOverlayOpponent {
+  code: string;
+  char: string;
+  tier: string | null;
+  rating: number | null;
+  gamesWon: number;
+  gamesLost: number;
+}
+
+export interface StatsOverlayPayload {
+  tag: string;
+  rankName: string;            // getRankTier().name — also selects the medal
+  rankColor: string;
+  rating: number | null;       // current MMR
+  globalRank: number | null;   // null when unplaced
+  region: string;              // continent code, e.g. "NA"
+  seasonWins: number | null;
+  seasonLosses: number | null;
+  sessionStartRating: number | null;
+  sessionDelta: number | null; // current rating − session start
+  sessionWins: number;         // today's set record
+  sessionLosses: number;
+  opponent: StatsOverlayOpponent | null; // present only during an active set
+  lastSet: OverlaySetResult | null;      // most recent completed set (post-set bridge)
+  layout: "stacked" | "sidebyside";
+}
+
+// Slippi `continent` enum → short region code for the overlay (e.g. NORTH_AMERICA → NA).
+// Unknown values fall back to the raw value with underscores replaced by spaces.
+const REGION_LABELS: Record<string, string> = {
+  NORTH_AMERICA: "NA", SOUTH_AMERICA: "SA", EUROPE: "EU", ASIA: "AS", OCEANIA: "OCE", AFRICA: "AF",
+};
+function regionLabel(continent: string | null | undefined): string {
+  if (!continent) return "";
+  return REGION_LABELS[continent] ?? continent.replace(/_/g, " ");
+}
+
+export const statsOverlayPayload = derived(
+  [displayName, connectCode, snapshots, liveSessionStartRating, liveSetRecord, activeSet, lastOverlaySet, statsOverlayLayout],
+  ([$tag, $code, $snaps, $startRating, $record, $active, $lastSet, $layout]): StatsOverlayPayload => {
+    const snap = $snaps.at(-1);
+    const rating = snap?.rating ?? null;
+    const tier = rating !== null ? getRankTier(rating, (snap?.global_rank ?? 0) > 0) : { name: "Unranked", color: "#9aa0a6" };
+    const sessionDelta =
+      rating !== null && $startRating !== null ? rating - $startRating : null;
+
+    const opponent: StatsOverlayOpponent | null = $active
+      ? {
+          code: $active.opponent_code,
+          char: CHARACTERS[$active.opponent_char_id] ?? "Unknown",
+          tier: $active.opponent_tier,
+          rating: $active.opponent_rating,
+          gamesWon: $active.games_won,
+          gamesLost: $active.games_lost,
+        }
+      : null;
+
+    return {
+      tag: $tag || $code || "",
+      rankName: tier.name,
+      rankColor: tier.color,
+      rating,
+      globalRank: snap?.global_rank ? snap.global_rank : null,
+      region: regionLabel(snap?.continent),
+      seasonWins: snap?.wins ?? null,
+      seasonLosses: snap?.losses ?? null,
+      sessionStartRating: $startRating,
+      sessionDelta,
+      sessionWins: $record.wins,
+      sessionLosses: $record.losses,
+      opponent,
+      lastSet: $lastSet,
+      layout: $layout,
+    };
+  }
+);

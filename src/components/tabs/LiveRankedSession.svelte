@@ -2,47 +2,70 @@
   import {
     isPremium, watcherActive, activeSet, liveSessionStartRating,
     snapshots, liveGameStats, sets, lastSetGrade,
-    overlayEnabled, overlayExpanded,
+    statsOverlayEnabled, statsOverlayExpanded, statsOverlayPayload, statsOverlayLayout,
+    statsOverlayPreview, liveSetRecord,
   } from "../../lib/store";
+  import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
-  import { gradeColor, type GradeLetter } from "../../lib/grading";
-  import { ensureOverlayFiles, writeOverlayState, overlayHtmlPath } from "../../lib/overlay";
+  import { gradeColor } from "../../lib/grading";
+  import { ensureStatsOverlayFiles, statsOverlayHtmlPath, overlayPreviewHtml } from "../../lib/stats-overlay";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
 
-  // ── Stream overlay (OBS) ───────────────────────────────────────────────────
-  const OVERLAY_GRADES: GradeLetter[] = ["S", "A", "B", "C", "D", "F"];
-  let overlayPath    = $state("");
-  let pathCopied     = $state(false);
-  let previewLetter  = $state<GradeLetter | null>(null);
+  // ── Live Stats overlay (OBS) ───────────────────────────────────────────────
+  const LAYOUT_OPTS: { id: "stacked" | "sidebyside"; label: string }[] = [
+    { id: "sidebyside", label: "Side-by-side" },
+    { id: "stacked",    label: "Stacked" },
+  ];
+  // Always-on panel. The actual state writes happen at the app root (App.svelte);
+  // here we just toggle it, show the file path, and preview the live payload.
+  let statsOverlayPath = $state("");
+  let statsPathCopied  = $state(false);
 
-  // Resolve the on-disk overlay.html path for display (per-machine).
-  $effect(() => { overlayHtmlPath().then((p) => (overlayPath = p)).catch(() => {}); });
+  $effect(() => { statsOverlayHtmlPath().then((p) => (statsOverlayPath = p)).catch(() => {}); });
 
-  async function toggleOverlay() {
-    const next = !$overlayEnabled;
-    overlayEnabled.set(next);
+  async function toggleStatsOverlay() {
+    const next = !$statsOverlayEnabled;
+    statsOverlayEnabled.set(next);
     if (next) {
-      overlayExpanded.set(true);
-      try { await ensureOverlayFiles(); } catch (e) { console.error("overlay setup failed", e); }
+      statsOverlayExpanded.set(true);
+      try { await ensureStatsOverlayFiles(); } catch (e) { console.error("stats overlay setup failed", e); }
+    } else {
+      stopPreview();
     }
   }
 
-  async function copyOverlayPath() {
+  async function copyStatsPath() {
     try {
-      await navigator.clipboard.writeText(overlayPath);
-      pathCopied = true;
-      setTimeout(() => (pathCopied = false), 1500);
+      await navigator.clipboard.writeText(statsOverlayPath);
+      statsPathCopied = true;
+      setTimeout(() => (statsPathCopied = false), 1500);
     } catch (e) { console.error(e); }
   }
 
-  // Send a sample grade so the streamer can verify their OBS setup without playing.
-  async function testOverlay(letter: GradeLetter) {
-    previewLetter = letter;
-    try {
-      await ensureOverlayFiles();
-      await writeOverlayState(letter);
-    } catch (e) { console.error("overlay test failed", e); }
+  // ── Test: simulate a set result on the overlay, no set required ─────────────
+  let simTimers: ReturnType<typeof setTimeout>[] = [];
+
+  function clearSimTimers() { simTimers.forEach((t) => clearTimeout(t)); simTimers = []; }
+  function stopPreview() { clearSimTimers(); statsOverlayPreview.set(null); }
+
+  // Play the full set-end sequence on the overlay: live set → grade → MMR climb → back to live.
+  function simulateSet() {
+    clearSimTimers();
+    const p = get(statsOverlayPayload);
+    const before = p.rating ?? 1850;
+    const setId = Date.now();
+    const code = "OPP#123", char = "Fox";
+    const base = { ...p, sessionWins: 0, sessionLosses: 0, sessionStartRating: before, sessionDelta: 0, rating: before };
+    const result = { setId, result: "win" as const, wins: 2, losses: 1, opponentCode: code, opponentChar: char, ratingBefore: before, gradeLetter: "A" };
+
+    statsOverlayPreview.set({ ...base, opponent: { code, char, tier: getRankTier(before + 80).name, rating: before + 80, gamesWon: 1, gamesLost: 1 }, lastSet: null });
+    simTimers.push(setTimeout(() => statsOverlayPreview.set({ ...base, opponent: null, sessionWins: 1, lastSet: result }), 6000));
+    simTimers.push(setTimeout(() => {
+      const t = getRankTier(before + 78, p.globalRank != null);
+      statsOverlayPreview.set({ ...base, rating: before + 78, rankName: t.name, rankColor: t.color, opponent: null, sessionWins: 1, sessionDelta: 78, lastSet: result });
+    }, 10000));
+    simTimers.push(setTimeout(() => statsOverlayPreview.set(null), 38000));
   }
 
   let sessionDelta = $derived(
@@ -65,15 +88,8 @@
   // Most recent match
   let lastMatch = $derived(statsByMatch.at(-1));
 
-  // Derive session set W/L directly from liveGameStats so it always reflects the current run
-  let liveSetRecord = $derived((() => {
-    let wins = 0, losses = 0;
-    for (const [, games] of statsByMatch) {
-      if (!isSetComplete(games)) continue;
-      if (setResult(games) === "win") wins++; else losses++;
-    }
-    return { wins, losses, total: wins + losses };
-  })());
+  // Session set W/L (today's record) comes from the shared `liveSetRecord` store so
+  // the tab and the stats overlay always agree.
 
 
   function fmtDelta(d: number): string {
@@ -140,95 +156,144 @@
 
 {:else}
 
-  <!-- Stream Overlay (OBS) — writes the set grade to a local file OBS reads as a
-       Browser Source. Fires on completed ranked sets when enabled. -->
+  <!-- Live Stats Overlay (OBS) — always-on panel (tag / rank / MMR / global / season +
+       today's session record), written to a local file OBS reads as a Browser Source. -->
   <div class="card" style="margin-bottom: 16px">
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
       <div>
         <div style="font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px">
-          <span>📺</span> Stream Overlay
+          <span>📊</span> Live Stats Overlay
           <span style="font-size: 10px; font-weight: 700; color: #29ABE0; border: 1px solid #29ABE055; border-radius: 4px; padding: 1px 6px">OBS</span>
         </div>
         <div style="font-size: 12px; color: var(--muted); margin-top: 3px">
-          Pops your set grade onto your stream the moment a ranked set finishes.
+          One always-on panel: tag, rank, MMR, global placement, season W/L, today's gains — plus your set grade + result when a set ends.
         </div>
       </div>
       <button
         type="button"
-        onclick={toggleOverlay}
-        aria-pressed={$overlayEnabled}
+        onclick={toggleStatsOverlay}
+        aria-pressed={$statsOverlayEnabled}
         style="
           flex-shrink: 0; min-width: 64px; padding: 6px 14px; border-radius: 6px;
           font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
-          border: 1px solid {$overlayEnabled ? '#2ecc7155' : 'var(--border)'};
-          background: {$overlayEnabled ? '#2ecc7122' : 'var(--bg)'};
-          color: {$overlayEnabled ? '#2ecc71' : 'var(--muted)'};
+          border: 1px solid {$statsOverlayEnabled ? '#2ecc7155' : 'var(--border)'};
+          background: {$statsOverlayEnabled ? '#2ecc7122' : 'var(--bg)'};
+          color: {$statsOverlayEnabled ? '#2ecc71' : 'var(--muted)'};
         "
-      >{$overlayEnabled ? "On" : "Off"}</button>
+      >{$statsOverlayEnabled ? "On" : "Off"}</button>
     </div>
 
-    {#if $overlayEnabled}
+    {#if $statsOverlayEnabled}
       <button
         type="button"
-        onclick={() => overlayExpanded.set(!$overlayExpanded)}
+        onclick={() => statsOverlayExpanded.set(!$statsOverlayExpanded)}
         style="
           margin-top: 10px; background: none; border: none; padding: 0; cursor: pointer;
           font-family: inherit; font-size: 11px; color: var(--muted);
           text-decoration: underline; text-underline-offset: 2px;
         "
-      >{$overlayExpanded ? "Hide setup ▴" : "Setup ▾"}</button>
+      >{$statsOverlayExpanded ? "Hide setup ▴" : "Setup ▾"}</button>
 
-      {#if $overlayExpanded}
+      {#if $statsOverlayExpanded}
+        {@const p = $statsOverlayPayload}
+        {@const side = $statsOverlayLayout === "sidebyside"}
         <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px">
+          <div style="display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start">
+          <!-- LEFT column: layout + OBS source -->
+          <div style="flex: 1 1 300px; min-width: 280px">
+          <!-- Layout -->
+          <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">Layout</div>
+          <div style="display: flex; gap: 6px; margin-bottom: 14px">
+            {#each LAYOUT_OPTS as opt}
+              {@const active = $statsOverlayLayout === opt.id}
+              <button
+                type="button"
+                onclick={() => statsOverlayLayout.set(opt.id)}
+                aria-pressed={active}
+                style="
+                  flex: 1; padding: 7px 10px; border-radius: 6px; cursor: pointer;
+                  font-family: inherit; font-size: 12px; font-weight: 700;
+                  border: 1px solid {active ? '#2ecc7155' : 'var(--border)'};
+                  background: {active ? '#2ecc7122' : 'var(--bg)'};
+                  color: {active ? '#2ecc71' : 'var(--muted)'};
+                "
+              >{opt.label}</button>
+            {/each}
+          </div>
+
           <!-- Step 1: the file path -->
           <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">
-            1. In OBS: <strong>Sources → + → Browser</strong>, check <strong>Local file</strong>, and select:
+            In OBS: <strong>Sources → + → Browser</strong>, check <strong>Local file</strong>, and select:
           </div>
           <div style="display: flex; gap: 8px; align-items: center">
             <code style="
               flex: 1; font-size: 11px; background: var(--bg); border: 1px solid var(--border);
               border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: nowrap;
-            ">{overlayPath || "resolving…"}</code>
+            ">{statsOverlayPath || "resolving…"}</code>
             <button
               type="button"
-              onclick={copyOverlayPath}
+              onclick={copyStatsPath}
               style="
                 flex-shrink: 0; padding: 8px 12px; border-radius: 6px; cursor: pointer;
                 font-family: inherit; font-size: 12px; font-weight: 600;
                 border: 1px solid var(--border); background: var(--bg); color: var(--text);
               "
-            >{pathCopied ? "Copied" : "Copy"}</button>
+            >{statsPathCopied ? "Copied" : "Copy"}</button>
           </div>
-          <div class="muted" style="font-size: 11px; margin-top: 5px">
-            Set the source size to your canvas; the background is transparent.
+          <div class="muted" style="font-size: 11px; margin-top: 5px; line-height: 1.5">
+            Transparent background. Set the Browser Source's <strong>Width/Height</strong> to the size you want
+            on stream (bigger = bigger overlay) and leave its scene scale at 100% — stretching the source in
+            the scene upsamples it and looks soft. The panel scales to fit whatever size you give it.
+          </div>
           </div>
 
-          <!-- Step 2: preview / test -->
+          <!-- RIGHT column: live preview + test -->
+          <div style="flex: 1 1 320px; min-width: 300px">
+          <!-- Live preview (honors the layout above) -->
+          <div style="font-size: 12px; font-weight: 600; margin: 0 0 6px">
+            Live preview — what's on your overlay now:
+          </div>
+          <!-- The preview IS the real overlay, rendered with the current payload baked in
+               (no polling), so it can never drift from what OBS shows. aspect-ratio gives a
+               responsive box that never clips: side-by-side is wide, stacked is a capped square.
+               (aspect-ratio is relative to the box's own width, unlike padding-top %.) -->
+          <div style="
+            position: relative; width: 100%; overflow: hidden;
+            border: 1px solid var(--border); border-radius: 8px; background: #15171b;
+            {side ? 'aspect-ratio: 2;' : 'max-width: 280px; aspect-ratio: 1 / 1.05;'}
+          ">
+            <iframe
+              title="Live overlay preview"
+              srcdoc={overlayPreviewHtml($statsOverlayPreview ?? { ...p, lastSet: null })}
+              scrolling="no"
+              style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block;"
+            ></iframe>
+          </div>
+
+          <!-- Step 3: push test data to the actual OBS overlay -->
           <div style="font-size: 12px; font-weight: 600; margin: 14px 0 6px">
-            2. Test it — click a grade to send it to your overlay:
+            Test it on your overlay — no set needed:
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap">
-            {#each OVERLAY_GRADES as g}
-              <button
-                type="button"
-                onclick={() => testOverlay(g)}
-                style="
-                  width: 36px; height: 36px; border-radius: 6px; cursor: pointer;
-                  font-family: inherit; font-size: 16px; font-weight: 800;
-                  color: {gradeColor(g)}; background: {gradeColor(g)}1a;
-                  border: 1px solid {gradeColor(g)}55;
-                "
-              >{g}</button>
-            {/each}
+            <button
+              type="button"
+              onclick={simulateSet}
+              style="
+                padding: 7px 12px; border-radius: 6px; cursor: pointer;
+                font-family: inherit; font-size: 12px; font-weight: 700;
+                border: 1px solid var(--border); background: var(--bg); color: var(--text);
+              "
+            >Simulate set result</button>
           </div>
-          {#if previewLetter}
-            <div class="muted" style="font-size: 11px; margin-top: 8px">
-              Sent <span style="color: {gradeColor(previewLetter)}; font-weight: 800">{previewLetter}</span> to your overlay — check OBS.
-            </div>
-          {/if}
+          <div class="muted" style="font-size: 11px; margin-top: 6px; line-height: 1.5">
+            Plays the full set-end sequence on your overlay (opponent → grade → MMR change), then returns to live.
+            Your persistent stats are always shown straight from live data.
+          </div>
+          </div>
+          </div>
 
           <div class="muted" style="font-size: 11px; margin-top: 14px; line-height: 1.5">
-            After this, it fires automatically on every completed <strong>ranked set</strong> — not single games or unranked.
+            Updates automatically as you play — and when a set ends it briefly shows the result, your grade, and the MMR change.
           </div>
         </div>
       {/if}
@@ -392,13 +457,13 @@
       <div class="stat-card">
         <div class="label">Session Sets</div>
         <div class="value">
-          <span class="win-text">{liveSetRecord.wins}</span>–<span class="loss-text">{liveSetRecord.losses}</span>
+          <span class="win-text">{$liveSetRecord.wins}</span>–<span class="loss-text">{$liveSetRecord.losses}</span>
         </div>
       </div>
       <div class="stat-card">
         <div class="label">Win Rate</div>
         <div class="value">
-          {liveSetRecord.total > 0 ? ((liveSetRecord.wins / liveSetRecord.total) * 100).toFixed(1) + "%" : "—"}
+          {$liveSetRecord.total > 0 ? (($liveSetRecord.wins / $liveSetRecord.total) * 100).toFixed(1) + "%" : "—"}
         </div>
       </div>
       {#if sessionDelta !== null}

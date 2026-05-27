@@ -30,29 +30,37 @@ export const STAGES: Record<number, string> = {
 
 // ── Rank tiers ─────────────────────────────────────────────────────────────
 
+// Rating thresholds match Slippi Launcher's calculate_rank.ts (the source of truth for
+// slippi.gg ranks). Grandmaster is NOT a rating threshold — it's Master 1+ AND holding a
+// global leaderboard placement (see getRankTier) — so it is not in this list.
 const RANK_TIERS = [
-  { name: "Grandmaster", min: 2359.10, color: "#ff4444" },
-  { name: "Master III",  min: 2296.59, color: "#b44fff" },
-  { name: "Master II",   min: 2232.49, color: "#b44fff" },
-  { name: "Master I",    min: 2165.25, color: "#b44fff" },
-  { name: "Diamond III", min: 2098.01, color: "#a78bfa" },
-  { name: "Diamond II",  min: 2026.37, color: "#a78bfa" },
-  { name: "Diamond I",   min: 1950.01, color: "#a78bfa" },
-  { name: "Platinum III",min: 1878.68, color: "#22d3ee" },
-  { name: "Platinum II", min: 1800.01, color: "#22d3ee" },
-  { name: "Platinum I",  min: 1716.15, color: "#22d3ee" },
-  { name: "Gold III",    min: 1625.45, color: "#fbbf24" },
-  { name: "Gold II",     min: 1530.76, color: "#fbbf24" },
-  { name: "Gold I",      min: 1430.73, color: "#fbbf24" },
-  { name: "Silver III",  min: 1322.69, color: "#94a3b8" },
-  { name: "Silver II",   min: 1188.76, color: "#94a3b8" },
-  { name: "Silver I",    min: 1055.50, color: "#94a3b8" },
+  { name: "Master III",  min: 2350,    color: "#b44fff" },
+  { name: "Master II",   min: 2275,    color: "#b44fff" },
+  { name: "Master I",    min: 2191.75, color: "#b44fff" },
+  { name: "Diamond III", min: 2136.28, color: "#a78bfa" },
+  { name: "Diamond II",  min: 2073.67, color: "#a78bfa" },
+  { name: "Diamond I",   min: 2003.92, color: "#a78bfa" },
+  { name: "Platinum III",min: 1927.03, color: "#22d3ee" },
+  { name: "Platinum II", min: 1843.00, color: "#22d3ee" },
+  { name: "Platinum I",  min: 1751.83, color: "#22d3ee" },
+  { name: "Gold III",    min: 1653.52, color: "#fbbf24" },
+  { name: "Gold II",     min: 1548.07, color: "#fbbf24" },
+  { name: "Gold I",      min: 1435.48, color: "#fbbf24" },
+  { name: "Silver III",  min: 1315.75, color: "#94a3b8" },
+  { name: "Silver II",   min: 1188.88, color: "#94a3b8" },
+  { name: "Silver I",    min: 1054.87, color: "#94a3b8" },
   { name: "Bronze III",  min: 913.72,  color: "#cd7f32" },
-  { name: "Bronze II",   min: 765.42,  color: "#cd7f32" },
+  { name: "Bronze II",   min: 765.43,  color: "#cd7f32" },
   { name: "Bronze I",    min: 0,       color: "#cd7f32" },
 ] as const;
 
-export function getRankTier(rating: number): { name: string; color: string } {
+const MASTER_1_MIN = 2191.75;
+
+// Grandmaster = Master 1+ rating AND a global leaderboard placement, exactly as Slippi
+// determines it (a Master-range rating without a placement stays Master 1/2/3). Pass
+// `hasPlacement` (the player holds a daily global placement) to enable it.
+export function getRankTier(rating: number, hasPlacement = false): { name: string; color: string } {
+  if (hasPlacement && rating >= MASTER_1_MIN) return { name: "Grandmaster", color: "#ff4444" };
   return RANK_TIERS.find((t) => rating >= t.min) ?? { name: "Unranked", color: "#666" };
 }
 

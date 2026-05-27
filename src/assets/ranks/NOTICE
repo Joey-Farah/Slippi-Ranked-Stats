@@ -1,0 +1,10 @@
+Rank medal artwork in this directory (rank_*.svg) is from Project Slippi's
+slippi-launcher: https://github.com/project-slippi/slippi-launcher
+(src/renderer/styles/images/ranks/), which is licensed under GPL-3.0.
+
+These rank icons are the property of Project Slippi and are included here with
+attribution to credit the original authors. They are used to display a player's
+Slippi ranked tier in the stream-overlay feature.
+
+Slippi Ranked Stats is an independent community tool and is not affiliated with,
+sponsored by, or endorsed by Project Slippi.

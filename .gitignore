@@ -9,6 +9,9 @@ HOW TO RELEASE UPDATES.txt
 CHANGELOG.md
 release.ps1
 assets/
+# but DO track source assets bundled into the build (e.g. rank medal SVGs).
+!src/assets/
+!src/assets/**
 scripts/logs/
 scripts/parse_hf_checkpoint*.json
 scripts/parse_hf_global_checkpoint.json

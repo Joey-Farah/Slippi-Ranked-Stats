@@ -27,13 +27,12 @@ import {
   statusMessage,
   liveGameStats,
   lastSetGrade,
-  isPremium,
-  overlayEnabled,
+  displayName,
+  lastOverlaySet,
 } from "./store";
 import { CHARACTERS } from "./parser";
 import { gradeSet, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
-import { writeOverlayState } from "./overlay";
 
 let _unwatchers: UnwatchFn[] = [];
 let _snapshotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -46,7 +45,7 @@ const _preExistingMatchIds = new Set<string>();
 // Per-file debounce: maps absolute filepath → timer handle.
 // A file is "done" when it stops being modified for FILE_SETTLE_MS.
 const _pendingParse = new Map<string, ReturnType<typeof setTimeout>>();
-const FILE_SETTLE_MS = 1500; // ms of inactivity before we attempt to parse
+const FILE_SETTLE_MS = 800; // ms of write-inactivity before we parse (the file is already complete once writes stop)
 
 // Tracks match_ids seen during this watcher session to detect new vs ongoing sets
 const _knownMatchIds = new Set<string>();
@@ -84,7 +83,8 @@ export async function startWatcher(
   liveSessionStartRating.set(null);
   liveSessionStartedAt.set(new Date().toISOString());
   fetchRatingSnapshot(connectCode)
-    .then(async ({ snapshot, seasons: fetchedSeasons }) => {
+    .then(async ({ snapshot, seasons: fetchedSeasons, displayName: tag }) => {
+      if (tag) displayName.set(tag);
       await insertSnapshot(db, { ...snapshot, connect_code: connectCode });
       for (const s of fetchedSeasons) {
         await insertSeason(db, { ...s, connect_code: connectCode });
@@ -292,7 +292,7 @@ async function handleRankedGame(
     // Fetch opponent's Slippi profile asynchronously
     fetchRatingSnapshot(g.opponent_code)
       .then(({ snapshot }) => {
-        const tier = getRankTier(snapshot.rating);
+        const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
         activeSet.update((s) =>
           s && s.match_id === g.match_id
             ? { ...s, opponent_rating: snapshot.rating, opponent_tier: tier.name }
@@ -326,6 +326,7 @@ async function handleRankedGame(
     // Use the unfiltered list so a no-frames Game 1 still anchors the order.
     const orderedSet = [...allSetStats].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
     const wonGame1   = orderedSet.length > 0 ? orderedSet[0].result === "win" : null;
+    let gradeLetter: string | null = null;
     try {
       if (setStats.length === 0) {
         lastSetGrade.set(null);
@@ -336,11 +337,7 @@ async function handleRankedGame(
         // can regrade from the history tab to get real results.
         const hasRealData = Object.values(grade.categories).some((c) => c.score !== null);
         lastSetGrade.set(hasRealData ? grade : null);
-        // Stream overlay (premium): push the grade letter to the local file OBS reads
-        // as a Browser Source. Fire-and-forget so a write hiccup never blocks grading.
-        if (hasRealData && get(isPremium) && get(overlayEnabled)) {
-          writeOverlayState(grade.letter).catch((e) => console.error("overlay write failed", e));
-        }
+        if (hasRealData) gradeLetter = grade.letter;
         if (hasRealData) {
           try {
             await saveSetGrade(db, {
@@ -373,6 +370,20 @@ async function handleRankedGame(
     } catch {
       lastSetGrade.set(null);
     }
+
+    // Unified stream overlay: record the completed set (with its grade) so the overlay
+    // can run its post-set bridge — hold the result + grade letter, then surface the MMR
+    // change once the refetched rating lands.
+    lastOverlaySet.set({
+      setId: Date.now(),
+      result: setResult,
+      wins,
+      losses,
+      opponentCode: g.opponent_code,
+      opponentChar,
+      ratingBefore: get(snapshots).at(-1)?.rating ?? null,
+      gradeLetter,
+    });
 
     activeSet.set(null);
   }
@@ -457,7 +468,7 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
 
     fetchRatingSnapshot(latest.opponent_code)
       .then(({ snapshot }) => {
-        const tier = getRankTier(snapshot.rating);
+        const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
         activeSet.update((s) =>
           s && s.match_id === matchId
             ? { ...s, opponent_rating: snapshot.rating, opponent_tier: tier.name }
@@ -501,7 +512,8 @@ async function fetchAndStoreSnapshot(
   }
 
   try {
-    const { snapshot: snap, seasons: fetchedSeasons } = await fetchRatingSnapshot(connectCode);
+    const { snapshot: snap, seasons: fetchedSeasons, displayName: tag } = await fetchRatingSnapshot(connectCode);
+    if (tag) displayName.set(tag);
 
     // If rating is unchanged, the API hasn't processed the set yet.
     // Retry once after 30s, carrying triggeredBy through so it's preserved on success.

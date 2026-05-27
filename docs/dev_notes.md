@@ -6,6 +6,42 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-05-27 (READ FIRST)
+
+> **✅ SHIPPED in v1.8.0 (2026-05-27): Live Stats Overlay — the unified OBS overlay.** The v1.7.0 standalone
+> set-grade overlay is **retired and folded into this one** — `src/lib/overlay.ts` deleted, its card +
+> `overlayEnabled`/`overlayExpanded` stores + the watcher's `writeOverlayState` call all removed. New
+> `src/lib/stats-overlay.ts` writes `stats.html` + `stats-state.js` to `<appDataDir>/stream-overlay/`;
+> `stats.html` polls the state file (500ms) and renders an **always-on panel**. **Side-by-side** (default):
+> left = medal + a **centered** identity column (tag, rank, global placement `#rank [REGION]`, season W/L);
+> right = a **Today's stats** block holding the **MMR + persistent session delta (▲/▼) + today's (live-session)
+> W/L**. **Stacked** layout also available (toggle persisted as `statsOverlayLayout`). During a set the panel
+> shows the **opponent line**; on completion a **post-set area** holds the set result + grade (spins in,
+> labelled "SET GRADE") **until the next ranked set starts or 3 min** (`POSTSET_MS`) — the MMR climb shows live
+> in the Today's block as the rating refetches. The in-app **preview is the real overlay in an iframe**
+> (`overlayPreviewHtml` — baked payload, no poll) so it can't drift; a **Simulate set result** button drives a
+> fake set via `statsOverlayPreview` (app-level write override in `App.svelte`). Premium-gated (`isPremium &&
+> statsOverlayEnabled`). `displayName` now captured from the Slippi API (`api.ts`). Watcher `FILE_SETTLE_MS`
+> trimmed 1500→800ms to cut set-end→grade latency.
+>
+> **Rank fix (app-wide, same release):** `getRankTier` in `parser.ts` now uses Slippi Launcher's current
+> rating thresholds (ours were stale by 30–50 pts in Plat/Diamond/Master) AND implements **Grandmaster =
+> Master 1+ rating AND a global leaderboard placement** (was rating-only, so GM never showed). Signature is
+> `getRankTier(rating, hasPlacement)`; callers (overlay payload, Header, Sidebar, watcher opponents) pass
+> `global_rank > 0`. Region codes shortened for the overlay (NORTH_AMERICA → NA, etc.; `regionLabel` in store.ts).
+>
+> **Rank medals:** 20 official Slippi rank SVGs from project-slippi/slippi-launcher (**GPL-3.0**) in
+> `src/assets/ranks/` (+ `NOTICE`), inlined into `stats.html` via a `?raw` glob (`src/lib/rank-medals.ts`).
+> Owner **accepted the IP risk** of using Slippi's medal art in this closed-source app. A `.gitignore`
+> `assets/` rule was negated (`!src/assets/`) so they're tracked (else they wouldn't sync to other machines/CI).
+>
+> **Version bumped 1.7.0→1.8.0** (package.json, tauri.conf.json, Cargo.toml, Cargo.lock); v1.8.0 release notes
+> + CLAUDE.md updated. svelte-check clean, 23/23 tests, build OK. **Validated live** (real ranked set +
+> Simulate tool). Released: developed on branch `live-stats-overlay`, merged to `main`, tagged **`v1.8.0`** →
+> triggers the signed CI release (Windows + macOS auto-update).
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-05-26 (READ FIRST)
 
 > **✅ SHIPPED in v1.6.2 (2026-05-25): Comeback & Lead Maintenance redesign.** Both stats

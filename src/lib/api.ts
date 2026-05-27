@@ -65,13 +65,14 @@ async function graphql<T>(query: string, variables: Record<string, string | null
 
 export async function fetchRatingSnapshot(
   connectCode: string
-): Promise<{ snapshot: RatingSnapshot; seasons: SeasonData[] }> {
+): Promise<{ snapshot: RatingSnapshot; seasons: SeasonData[]; displayName: string }> {
   const cc = connectCode.toUpperCase().replace("/", "#");
   const data = await graphql<any>(PROFILE_QUERY, { cc, uid: null });
 
   const user = data?.getUser;
   if (!user) throw new Error("Connect code not found: " + cc);
 
+  const displayName: string = user.displayName ?? "";
   const profile = user.rankedNetplayProfile ?? {};
   const history: any[] = user.rankedNetplayProfileHistory ?? [];
 
@@ -95,5 +96,5 @@ export async function fetchRatingSnapshot(
     losses: entry.losses ?? 0,
   }));
 
-  return { snapshot, seasons };
+  return { snapshot, seasons, displayName };
 }

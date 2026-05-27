@@ -6,7 +6,7 @@
     connectCode, replayDirs, dateRange,
     games, snapshots, seasons,
     isScanning, isFetchingSnapshot, scanProgress, statusMessage, sidebarOpen, isPremium,
-    discordToken, discordUsername, linkedCodes,
+    discordToken, discordUsername, linkedCodes, displayName,
   } from "../lib/store";
   import { startDiscordAuth, verifyPatronRole, disconnectDiscord } from "../lib/discord";
 
@@ -180,7 +180,8 @@
 
     try {
       const db = await getDb(code);
-      const { snapshot, seasons: fetchedSeasons } = await fetchRatingSnapshot(code);
+      const { snapshot, seasons: fetchedSeasons, displayName: tag } = await fetchRatingSnapshot(code);
+      if (tag) displayName.set(tag);
       await insertSnapshot(db, { ...snapshot, connect_code: code });
 
       for (const s of fetchedSeasons) {
@@ -306,7 +307,7 @@
       </span>
     {:else}
       {@const snap = $snapshots.at(-1)!}
-      {@const tier = getRankTier(snap.rating)}
+      {@const tier = getRankTier(snap.rating, snap.global_rank > 0)}
       <div style="background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; text-align:center;">
         <div style="font-size:18px; font-weight:700">{snap.rating.toFixed(1)}</div>
         <div style="font-size:11px; font-weight:600; color:{tier.color}">{tier.name}</div>

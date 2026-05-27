@@ -28,7 +28,7 @@
   <!-- Rating (only shown when sidebar is collapsed) -->
   {#if !$sidebarOpen && $snapshots.length > 0}
     {@const snap = $snapshots.at(-1)!}
-    {@const tier = getRankTier(snap.rating)}
+    {@const tier = getRankTier(snap.rating, snap.global_rank > 0)}
     <div class="stat-card">
       <div class="label">Rating</div>
       <div class="value">{snap.rating.toFixed(1)}</div>
