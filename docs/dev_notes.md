@@ -6,7 +6,7 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-05-25 (READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-05-26 (READ FIRST)
 
 > **✅ SHIPPED in v1.6.2 (2026-05-25): Comeback & Lead Maintenance redesign.** Both stats
 > were rebuilt from binary (were-you-behind/ahead → did-you-win = 1/0, percentile-scored
@@ -30,11 +30,19 @@ hand-off mechanism between work sessions and across machines.
 > chip until it's regraded in-session. Persisting it would need a new DB column (persistence
 > change → discuss first).
 >
-> **⏳ OBS stream overlay is BUILT on branch `obs-overlay` (pushed) — NOT on main, NOT released.**
-> Server-less local-file overlay (premium); validated in OBS via the in-app Test button. Held
-> pending a real **ranked-set** test of the auto-trigger; target **v1.7.0**. To resume:
-> `git checkout obs-overlay`, then read that branch's dev_notes "▶ NEXT UP" for the as-built
-> details + finish/release steps (bump 1.6.2→1.7.0 in 4 files, add release notes, merge, tag).
+> **✅ SHIPPING in v1.7.0 (2026-05-26): OBS stream overlay.** Server-less local-file transport:
+> `src/lib/overlay.ts` writes `overlay.html` + `state.js` to `<appDataDir>/stream-overlay/` (created
+> via `mkdir` on enable; fs capability scoped `$APPDATA/**` so it works for installed users, not just
+> dev — verified this session). `watcher.ts` fires `writeOverlayState(grade.letter)` on completed ranked
+> sets when `isPremium && overlayEnabled`. Premium "Stream Overlay" card in `LiveRankedSession.svelte`
+> (toggle, dynamic path + copy, Test button, grade-chip preview); state persisted in `store.ts`. Animation:
+> **spin-in / spin-out**, **25 s hold** (`HOLD_MS`), letter **62vh** + caption **6vh** so the 1.1× scale +
+> rotation stays inside `overflow:hidden`. **Auto-trigger validated** earlier via replay-injection of a real
+> completed set (CHAB#749, lost-G1 2–1 comeback → graded A → fired → animated in OBS). The owner **opted to
+> skip a fresh live ranked-set test** (2026-05-26) and release on the validated state. Version **bumped
+> 1.6.2→1.7.0** (package.json, tauri.conf.json, Cargo.toml, Cargo.lock), **v1.7.0 release notes written**,
+> svelte-check clean, 23/23 tests pass. Overlay recorded as a shipped Premium feature in `CLAUDE.md`.
+> **Release steps remaining: merge `obs-overlay`→main, push, tag `v1.7.0`** (triggers the signed CI release).
 
 This file is the cross-machine handoff doc. The banner above records the last shipped
 state; everything below is durable reference — active backlog (see NEXT UP),
@@ -111,7 +119,23 @@ Shipped in v1.6.2. The OBS / stream overlay below is the next focus again.
 
 ---
 
-## ▶ NEXT UP — OBS / Stream Overlay (scope + transport decided 2026-05-25)
+## ▶ NEXT UP — OBS / Stream Overlay (BUILT + animated on `obs-overlay`; final cross-machine test → v1.7.0 — 2026-05-25)
+
+> **AS BUILT (branch `obs-overlay`, not on main, target v1.7.0 — version bumped + notes written):**
+> server-less local file, exactly as designed below. New `src/lib/overlay.ts` writes `overlay.html`
+> + `state.js` to `<appDataDir>/stream-overlay/` via `@tauri-apps/plugin-fs` (`fs:allow-write-text-file`
+> added to capabilities, scoped `$APPDATA/**`). `watcher.ts` calls `writeOverlayState(grade.letter)`
+> on completed ranked sets when `isPremium && overlayEnabled`. Premium "Stream Overlay" card
+> in `LiveRankedSession.svelte` (toggle, collapsible, dynamic path + copy, **Test button**,
+> grade-chip preview); `overlayEnabled`/`overlayExpanded` persisted in `store.ts`. **Animation
+> (finalized):** `spin-in` keyframes (720ms, rotate-and-scale from 0) → hold `HOLD_MS = 25000` →
+> `spin-out` (620ms); `#letter` is `62vh` and `#caption` `6vh` so the entrance's 1.1× scale +
+> rotation stays inside the viewport (at 72vh the rotated diagonal clipped against `overflow:hidden`).
+> `overlay.ts` is the single source of truth (no committed `overlay-prototype/`). **Auto-trigger
+> validated** this session via replay-injection of a real completed set (method in the SESSION HANDOFF
+> banner) — watcher graded + fired + animated in OBS. svelte-check clean, 23/23 tests pass.
+> **Remaining before release: one final real ranked-set test on the second machine, then merge
+> `obs-overlay`→main, push, tag `v1.7.0`** (and record the shipped overlay in `CLAUDE.md`).
 
 **v1 scope (DECIDED 2026-05-25): the set's overall LETTER GRADE only, in its grade
 color, revealed with a short entrance animation the moment a ranked set completes.**

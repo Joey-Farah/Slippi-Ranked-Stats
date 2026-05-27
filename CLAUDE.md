@@ -14,6 +14,7 @@ This causes Claude to appear in the GitHub contributor list. Removing it require
 
 - Read `docs/dev_notes.md` at the start of each session — it is the cross-session handoff document.
 - The Set Grading feature ships as a **Premium** feature, gated by `$isPremium` (live since v1.6.0) — it is **not** dev-only.
+- The OBS **Stream Overlay** ships as a **Premium** feature (live since v1.7.0), gated by `$isPremium` + the in-app toggle. Server-less: the app writes `overlay.html` + `state.js` to `<appDataDir>/stream-overlay/` and OBS loads it as a Browser Source. Fires only on completed ranked sets.
 - Before building anything that touches grade history persistence or premium gating, discuss the approach first.
 
 ## Working across machines

@@ -26,6 +26,10 @@
       "identifier": "fs:allow-watch",
       "allow": [{ "path": "**" }, { "path": "/**" }]
     },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
     "dialog:default",
     "dialog:allow-open",
     "shell:default",
