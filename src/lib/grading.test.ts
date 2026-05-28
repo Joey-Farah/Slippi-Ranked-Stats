@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gradeSet, scoreToGrade, CATEGORY_DEFS, type GradeLetter } from "./grading";
+import { gradeSet, scoreToGrade, featuredCategory, CATEGORY_DEFS, type GradeLetter, type SetGrade, type CategoryKey } from "./grading";
 import type { LiveGameStats } from "./store";
 import { BENCHMARKS } from "./grade-benchmarks";
 
@@ -266,5 +266,93 @@ describe("gradeSet set modifier", () => {
     });
     const g = gradeSet([awful], "Fox", "Falco", "loss", 1, 2, /* wonGame1 */ true);
     expect(g.score).toBeGreaterThanOrEqual(0);
+  });
+
+  it("awards the set-comeback bonus for a genuine lost-G1, won-set comeback", () => {
+    const g = gradeSet([mockGame()], "Fox", "Falco", "win", 2, 1, /* wonGame1 */ false);
+    expect(g.setModifier).toBe(4);
+    expect(g.setModifierLabel).toBe("Set comeback");
+  });
+
+  it("suppresses the set-comeback bonus when the set was won by opponent forfeit", () => {
+    const g = gradeSet([mockGame()], "Fox", "Falco", "win", 2, 1, /* wonGame1 */ false, /* forfeitWin */ true);
+    expect(g.setModifier).toBe(0);
+    expect(g.setModifierLabel).toBeNull();
+  });
+});
+
+// ── featuredCategory ───────────────────────────────────────────────────────
+
+describe("featuredCategory", () => {
+  // Build a SetGrade from category scores and (optional) per-stat scores. Unspecified stats
+  // are null (not scored), so only the stats listed below are candidates. Each stat's label
+  // is set to its key so assertions can name it directly.
+  function gradeWith(
+    cats: Partial<Record<CategoryKey, number | null>>,
+    stats: Record<string, number> = {}
+  ): SetGrade {
+    const labels: Record<CategoryKey, string> = { neutral: "Neutral", punish: "Punish", defense: "Defense" };
+    const categories = {} as SetGrade["categories"];
+    for (const key of Object.keys(labels) as CategoryKey[]) {
+      const score = cats[key] ?? null;
+      categories[key] = { label: labels[key], score, letter: score === null ? null : scoreToGrade(score) };
+    }
+    const breakdown = {} as Record<string, unknown>;
+    for (const def of Object.values(CATEGORY_DEFS)) {
+      for (const k of def.stats) {
+        const sc = k in stats ? stats[k] : null;
+        breakdown[k] = { value: 0, score: sc, grade: sc === null ? null : scoreToGrade(sc), label: k, formatted: "" };
+      }
+    }
+    return { categories, breakdown } as unknown as SetGrade;
+  }
+
+  it("picks the highest-scored category on a win", () => {
+    const g = gradeWith({ neutral: 40, punish: 80, defense: 55 });
+    expect(featuredCategory(g, true)).toMatchObject({ label: "Punish", letter: scoreToGrade(80) });
+  });
+
+  it("picks the lowest-scored category on a loss", () => {
+    const g = gradeWith({ neutral: 40, punish: 80, defense: 55 });
+    expect(featuredCategory(g, false)).toMatchObject({ label: "Neutral", letter: scoreToGrade(40) });
+  });
+
+  it("ignores null-scored categories", () => {
+    const g = gradeWith({ neutral: null, punish: 30, defense: 70 });
+    expect(featuredCategory(g, true)).toMatchObject({ label: "Defense", letter: scoreToGrade(70) });
+    expect(featuredCategory(g, false)).toMatchObject({ label: "Punish", letter: scoreToGrade(30) });
+  });
+
+  it("returns null when no category scored", () => {
+    expect(featuredCategory(gradeWith({}), true)).toBeNull();
+  });
+
+  it("breaks ties by category order (Neutral first)", () => {
+    const g = gradeWith({ neutral: 60, punish: 60, defense: 60 });
+    expect(featuredCategory(g, true)).toMatchObject({ label: "Neutral", letter: scoreToGrade(60) });
+    expect(featuredCategory(g, false)).toMatchObject({ label: "Neutral", letter: scoreToGrade(60) });
+  });
+
+  it("surfaces the best stat within the chosen category on a win", () => {
+    // Punish is the best category; within it, openings_per_kill is the best stat.
+    const g = gradeWith(
+      { neutral: 40, punish: 80, defense: 55 },
+      { openings_per_kill: 90, damage_per_opening: 60, edgeguard_success_rate: 55 }
+    );
+    expect(featuredCategory(g, true)!.stat).toEqual({ label: "openings_per_kill", letter: scoreToGrade(90) });
+  });
+
+  it("surfaces the worst stat within the chosen category on a loss", () => {
+    // Neutral is the worst category; within it, stage_control_ratio is the worst stat.
+    const g = gradeWith(
+      { neutral: 40, punish: 80, defense: 55 },
+      { neutral_win_ratio: 45, opening_conversion_rate: 50, stage_control_ratio: 20 }
+    );
+    expect(featuredCategory(g, false)!.stat).toEqual({ label: "stage_control_ratio", letter: scoreToGrade(20) });
+  });
+
+  it("returns a null stat when no stat in the chosen category scored", () => {
+    const g = gradeWith({ neutral: 40, punish: 80, defense: 55 }); // no stat scores given
+    expect(featuredCategory(g, true)!.stat).toBeNull();
   });
 });

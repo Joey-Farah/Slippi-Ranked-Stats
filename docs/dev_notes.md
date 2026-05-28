@@ -6,7 +6,42 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-05-27 (READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-05-27 (v1.8.1, READ FIRST)
+
+> **✅ SHIPPED in v1.8.1 (2026-05-27): overlay fixes + comeback/lead grading redesign.**
+>
+> - **Overlay set-grade latency fixed:** `watcher.ts handleRankedGame` set `lastOverlaySet` (the
+>   overlay payload) *after* `await saveSetGrade(...)`, so the overlay lagged the in-app grade by the
+>   DB-write time (~seconds). Now `lastSetGrade` / `lastOverlaySet` / `activeSet` all update
+>   synchronously and the DB save runs last.
+> - **Overlay MMR delta** is now signed (+/−) via `fmtDelta` in `stats-overlay.ts` (was arrow + abs).
+> - **Standout stat under the set grade:** new `featuredCategory(grade, won)` in `grading.ts` →
+>   `{label, letter, stat}`; threaded through `OverlaySetResult` (`subStatLabel/subStatLetter`) and
+>   rendered in `stats-overlay.ts`. Owner chose to show **only the stat** (`BEST/WORST <stat> <letter>`),
+>   not the category name.
+> - **Overlay PREVIEW post-set fix:** `overlayPreviewHtml` baked a single `apply()` whose first-call
+>   guard marked the set "already shown", so the post-set block never rendered in the in-app preview.
+>   It now sets `postSet` directly. ⚠ **OBS caches `stats.html`** — changing the overlay's look needs an
+>   OBS Browser-Source refresh; only the state JS is polled.
+> - **Forfeit/quit-out grading:** an opponent LRAS now completes + grades the set when ≥1 full game was
+>   played (`watcher.ts` completion check + `GradeHistory` `completedSets` filter + `LiveRankedSession`
+>   helpers). New shared `setResultFromGames()` in `store.ts`: a forfeit is a win if the opponent quit /
+>   loss if you quit, regardless of game count (fixes a 1-1 forfeit mislabeled a loss). The set-comeback
+>   **+4 bonus is suppressed on a forfeit win** via `gradeSet(..., forfeitWin)`.
+> - **Comeback & Lead Maintenance REDESIGNED** (`slp_parser.ts`): dropped the max-drawdown/climb
+>   `*_FULL_STOCKS` model for an **end-position** model. lead = `leadCbPos(troughAfterUp)`, comeback =
+>   `leadCbPos(highAfterDown)` — shared mirrored curve `leadCbPos` (margin → 0–1: ≥+2→1.0, +1→.70,
+>   0→.45, −1→.30, −2→.13, ≤−3→0) × win/loss mult, ± `LEAD_CB_NUDGE=0.04`/stock size nudge (bigger lead
+>   blown docks lead; deeper deficit overcome lifts comeback). Still **absolute — no rescan.** Tuning
+>   visualizer kept at `scripts/lead_grade_matrix.py`. `GRADING_LOGIC_VERSION` bumped **2→4** → all grades
+>   flag stale (Regrade refreshes). `STAT_DESCRIPTIONS` for both rewritten.
+>
+> Validated the lead/comeback math on a real set (mono, FUN#941): lead F→C, set comeback D. Released:
+> branch → main, tagged **`v1.8.1`** → signed CI release. svelte-check clean, 33/33 tests.
+
+---
+
+## ⚠ SESSION HANDOFF — 2026-05-27 (v1.8.0)
 
 > **✅ SHIPPED in v1.8.0 (2026-05-27): Live Stats Overlay — the unified OBS overlay.** The v1.7.0 standalone
 > set-grade overlay is **retired and folded into this one** — `src/lib/overlay.ts` deleted, its card +

@@ -97,9 +97,16 @@
     return gradeColor(letter);
   }
 
+  // A set counts as complete (gradeable) at first-to-2 games, OR when it ended in a
+  // quit-out (LRAS forfeit) with at least one full game actually played — mirrors the
+  // live watcher's completion rule so live-graded forfeit sets show + regrade here too.
   let completedSets = $derived(
     [...$sets]
-      .filter((s) => Math.max(s.wins, s.losses) >= 2)
+      .filter(
+        (s) =>
+          Math.max(s.wins, s.losses) >= 2 ||
+          (s.hasLras && s.games.some((g) => g.result === "win" || g.result === "loss"))
+      )
       .reverse()
   );
 
@@ -309,7 +316,9 @@
           // modifier. Use the full parsed list, not the gradable-filtered one.
           const orderedGames = [...liveGames].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
           const wonGame1 = orderedGames.length > 0 ? orderedGames[0].result === "win" : null;
-          entry.grade = gradeSet(gradableGames, playerChar, opponentChar, target.result, target.wins, target.losses, wonGame1);
+          // Won only because the opponent quit out — suppresses the set-comeback bonus.
+          const forfeitWin = target.result === "win" && liveGames.some((g) => g.result === "lras_win");
+          entry.grade = gradeSet(gradableGames, playerChar, opponentChar, target.result, target.wins, target.losses, wonGame1, forfeitWin);
           entry.baselineVersion = GRADE_VERSION;
 
           const targetCode = target.sourceCode ?? code;

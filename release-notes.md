@@ -1,3 +1,25 @@
+## What's New in v1.8.1
+
+### 🩹 Overlay fixes & polish (Premium)
+
+- Your **set grade now appears on the overlay the instant it shows in the app** — no more ~10-second lag after a set ends.
+- The overlay's **session MMR change** now shows a clear **+ / −** sign, not just color.
+- New: a **standout stat under the set grade** — your **best** stat on a win, your **weakest** on a loss (e.g. "Openings / Kill A"), right beneath the letter.
+
+### 🏆 Quit-outs now count
+
+If your **opponent quits mid-set**, the set now completes and earns a **grade** (and counts as your win), as long as at least one full game was actually played. Previously an early ragequit could leave the set ungraded.
+
+### 📈 Smarter Lead Maintenance & Comeback grading
+
+Both stats were rescored to reflect **where the game actually ended up**, not just the size of the swing:
+
+- **Lead Maintenance** now rewards *staying ahead*. Giving back part of a lead but holding on no longer tanks your grade — only truly blowing a big lead (and falling behind) earns an F.
+- **Comeback** now rewards *actually completing* the comeback — clawing back to even or retaking the lead scores well, while a partial climb that's still losing scores lower. Deeper comebacks score higher.
+- Your existing grades will refresh automatically — look for the **"Regrade stale"** button in the Grading tab.
+
+---
+
 ## What's New in v1.8.0
 
 ### 📊 Live Stats Overlay for OBS (Premium)

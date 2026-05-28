@@ -97,6 +97,10 @@ function overlayDoc(boot: string): string {
     .gradewrap { display: flex; flex-direction: column; align-items: center; }
     .gradewrap .grade { margin: 0; }
     .gradelabel { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.8); }
+    /* Standout category under the grade — best on a win, worst on a loss. Readable but
+       clearly secondary to the big grade letter. */
+    .subgrade { font-size: 1.45rem; font-weight: 800; line-height: 1.1; margin-top: 0.15rem; white-space: nowrap; }
+    .subgrade .subcap { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.65); margin-right: 0.35rem; }
   </style>
 </head>
 <body>
@@ -125,9 +129,10 @@ function overlayDoc(boot: string): string {
       if (s.rating == null) return "";
       var extra = "";
       // Session MMR change stays beside the MMR all session (not just during the post-set moment).
+      // Signed (+/-) AND colored so the direction reads at a glance even on a busy stream.
       if (s.sessionDelta != null) {
         var up = s.sessionDelta >= 0;
-        extra = ' <span class="mmr-delta" style="color:' + (up ? "#2ecc71" : "#ff4d4f") + '">' + (up ? "▲ " : "▼ ") + fmt1(Math.abs(s.sessionDelta)) + "</span>";
+        extra = ' <span class="mmr-delta" style="color:' + (up ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(s.sessionDelta) + "</span>";
       }
       return '<div class="mmr">' + fmt1(s.rating) + extra + "</div>";
     }
@@ -149,7 +154,18 @@ function overlayDoc(boot: string): string {
         if (postSetData.gradeLetter) {
           var gc = GRADE_COLORS[postSetData.gradeLetter] || "#fff";
           var cls = (animatedSetId === postSetData.setId) ? "grade" : "grade show";
-          gradeEl = '<div class="gradewrap"><div class="gradelabel">SET GRADE</div><div class="' + cls + '" style="color:' + gc + '">' + esc(postSetData.gradeLetter) + "</div></div>";
+          // Show the standout individual stat — best on a win, worst on a loss. We drop the
+          // category name itself (Neutral/Punish/Defense); the specific stat is what's
+          // interesting. Fall back to the category only if no individual stat scored.
+          var subEl = "";
+          var sLabel  = postSetData.subStatLabel  || postSetData.subLabel;
+          var sLetter = postSetData.subStatLetter || postSetData.subLetter;
+          if (sLabel && sLetter) {
+            var sgc = GRADE_COLORS[sLetter] || "#fff";
+            subEl = '<div class="subgrade"><span class="subcap">' + (won ? "BEST" : "WORST") + "</span>"
+              + esc(sLabel) + ' <span style="color:' + sgc + '">' + esc(sLetter) + "</span></div>";
+          }
+          gradeEl = '<div class="gradewrap"><div class="gradelabel">SET GRADE</div><div class="' + cls + '" style="color:' + gc + '">' + esc(postSetData.gradeLetter) + "</div>" + subEl + "</div>";
         }
         var resEl = '<div class="setresult" style="color:' + (won ? "#2ecc71" : "#ff4d4f") + '">' + (won ? "SET WON" : "SET LOST") + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>";
         var vsEl = '<div class="vs">vs ' + esc(postSetData.opponentCode) + " · " + esc(postSetData.opponentChar) + "</div>";
@@ -269,9 +285,19 @@ function overlayDoc(boot: string): string {
 const STATS_HTML = overlayDoc("poll();\n    setInterval(poll, POLL_MS);");
 
 /** Self-contained overlay HTML with a fixed payload baked in (no polling) — renders the
- *  exact overlay markup for the in-app live preview, so the preview can never drift from it. */
+ *  exact overlay markup for the in-app live preview, so the preview can never drift from it.
+ *  Unlike the live overlay (whose first poll suppresses a pre-existing set so OBS doesn't
+ *  replay a stale grade on load), the preview is explicitly asked to show THIS payload — so
+ *  if it carries a completed set we activate the post-set bridge directly rather than going
+ *  through apply()'s first-call guard (which would record the set as "already shown"). */
 export function overlayPreviewHtml(payload: StatsOverlayPayload): string {
-  return overlayDoc("apply(" + JSON.stringify(payload) + ");");
+  const boot =
+    "var __p = " + JSON.stringify(payload) + ";\n" +
+    "    latest = __p;\n" +
+    "    firstApply = false;\n" +
+    "    if (__p && __p.lastSet) { shownSetId = __p.lastSet.setId; postSet = true; postSetData = __p.lastSet; }\n" +
+    "    render();";
+  return overlayDoc(boot);
 }
 
 const INITIAL_STATE = `// Written by Slippi Ranked Stats — live ranked stats overlay.\nwindow.__SRS_STATS = null;\n`;

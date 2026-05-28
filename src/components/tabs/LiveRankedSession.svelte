@@ -3,7 +3,7 @@
     isPremium, watcherActive, activeSet, liveSessionStartRating,
     snapshots, liveGameStats, sets, lastSetGrade,
     statsOverlayEnabled, statsOverlayExpanded, statsOverlayPayload, statsOverlayLayout,
-    statsOverlayPreview, liveSetRecord,
+    statsOverlayPreview, liveSetRecord, setResultFromGames,
   } from "../../lib/store";
   import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
@@ -57,7 +57,7 @@
     const setId = Date.now();
     const code = "OPP#123", char = "Fox";
     const base = { ...p, sessionWins: 0, sessionLosses: 0, sessionStartRating: before, sessionDelta: 0, rating: before };
-    const result = { setId, result: "win" as const, wins: 2, losses: 1, opponentCode: code, opponentChar: char, ratingBefore: before, gradeLetter: "A" };
+    const result = { setId, result: "win" as const, wins: 2, losses: 1, opponentCode: code, opponentChar: char, ratingBefore: before, gradeLetter: "A", subLabel: "Punish", subLetter: "S", subStatLabel: "Openings / Kill", subStatLetter: "S" };
 
     statsOverlayPreview.set({ ...base, opponent: { code, char, tier: getRankTier(before + 80).name, rating: before + 80, gamesWon: 1, gamesLost: 1 }, lastSet: null });
     simTimers.push(setTimeout(() => statsOverlayPreview.set({ ...base, opponent: null, sessionWins: 1, lastSet: result }), 6000));
@@ -106,12 +106,14 @@
   function isSetComplete(games: typeof $liveGameStats): boolean {
     const wins = games.filter((g) => g.result === "win" || g.result === "lras_win").length;
     const losses = games.length - wins;
-    return Math.max(wins, losses) >= 2;
+    // Forfeit-aware (mirrors the watcher): a quit-out ends the set once a full game was played.
+    const endedByQuit = games.some((g) => g.result === "lras_win" || g.result === "lras_loss");
+    const hasFullGame = games.some((g) => g.result === "win" || g.result === "loss");
+    return Math.max(wins, losses) >= 2 || (endedByQuit && hasFullGame);
   }
 
   function setResult(games: typeof $liveGameStats): "win" | "loss" {
-    const wins = games.filter((g) => g.result === "win" || g.result === "lras_win").length;
-    return wins >= 2 ? "win" : "loss";
+    return setResultFromGames(games);
   }
 
   // Rolling 20-set win rate (all-time sets, not just live)

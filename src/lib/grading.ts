@@ -158,7 +158,7 @@ const SET_BLOWN_LEAD_PENALTY = -4;
  *  version). Folded into GRADE_VERSION so a logic-only change — which doesn't
  *  move BENCHMARKS_VERSION — still forces a regrade. Bump on any change to
  *  weights, curves, bonuses, or stat math. */
-export const GRADING_LOGIC_VERSION = "2";
+export const GRADING_LOGIC_VERSION = "4"; // 4: comeback/lead end-position model (slp_parser.ts)
 
 /** The version token stored with each grade and compared to detect stale grades.
  *  Combines the benchmark-data version with the scoring-logic version so EITHER
@@ -180,8 +180,8 @@ export const STAT_DESCRIPTIONS: Partial<Record<string, string>> = {
   neutral_win_ratio:       "Fraction of neutral exchanges you won. A neutral win is counted when you started a conversion while the opponent wasn't already converting on you.",
   opening_conversion_rate: "Of your conversions (landing the opponent in hitstun or a grab), how often you landed at least one follow-up hit before they regained control.",
   stage_control_ratio:     "How often your position was closer to center stage than your opponent's, measured only while both players were on stage.",
-  lead_maintenance_rate:   "How well you held a stock-margin lead instead of giving it back from its peak, scaled up when you closed out the win. Scored on an absolute scale, not against a benchmark. Null if you never led in stocks.",
-  comeback_rate:           "How much of a stock-margin deficit you climbed back within a game, weighted by how deep the hole was and scaled up when you won. Scored on an absolute scale, not against a benchmark. Null if you were never behind in stocks.",
+  lead_maintenance_rate:   "How much of your lead you held: scored on the lowest stock-margin you fell to after first going ahead — staying ahead scores high, giving the lead back to even is middling, falling behind scores low. A bigger lead given back is penalized more, and the score is reduced if you lost the game. Absolute scale, not benchmarked. Null if you never led in stocks.",
+  comeback_rate:           "How much of a deficit you erased: scored on the highest stock-margin you climbed to after first falling behind — retaking the lead scores high, clawing back to even is middling, still trailing scores low. A deeper deficit overcome scores higher, and the score is reduced if you lost the game. Absolute scale, not benchmarked. Null if you were never behind in stocks.",
   damage_per_opening:      "Average damage dealt per conversion, where a conversion ends when the opponent regains control for 45+ consecutive frames.",
   openings_per_kill:       "Average number of conversions required to take a stock. Lower is better.",
   avg_kill_percent:        "Average percent at which you killed the opponent. Lower means you're finishing stocks earlier.",
@@ -229,6 +229,43 @@ export function gradeColor(letter: string | null | undefined): string {
   return letter && letter in GRADE_COLORS
     ? GRADE_COLORS[letter as GradeLetter]
     : "var(--muted)";
+}
+
+export interface FeaturedGrade {
+  label:  string;        // category label (Neutral / Punish / Defense)
+  letter: GradeLetter;   // the category's grade
+  stat: { label: string; letter: GradeLetter } | null; // standout individual stat within it
+}
+
+/** The category — and the standout stat within it — to feature alongside a set's overall
+ *  grade: the player's strongest (highest-scored) category & stat when they won the set,
+ *  their weakest when they lost. Stat scores are normalized so higher is always better
+ *  (inverted stats already accounted for), so the same min/max logic works for every stat.
+ *  Returns null when no category scored; `stat` is null when no stat in the chosen category
+ *  scored. Ties resolve to definition order (Neutral → Punish → Defense; stats per CATEGORY_DEFS). */
+export function featuredCategory(grade: SetGrade, won: boolean): FeaturedGrade | null {
+  const better = (a: number, b: number) => (won ? a > b : a < b);
+
+  const cats = (Object.keys(grade.categories) as CategoryKey[])
+    .map((key) => ({ key, ...grade.categories[key] }))
+    .filter((c): c is { key: CategoryKey; label: string; letter: GradeLetter; score: number } =>
+      c.score !== null && c.letter !== null);
+  if (cats.length === 0) return null;
+  const cat = cats.reduce((best, c) => (better(c.score, best.score) ? c : best));
+
+  const bd = grade.breakdown ?? ({} as SetGrade["breakdown"]);
+  const stats = CATEGORY_DEFS[cat.key].stats
+    .map((k) => bd[k])
+    .filter((s): s is StatGrade & { score: number; grade: GradeLetter } =>
+      s != null && s.score !== null && s.grade !== null);
+  const stat = stats.length
+    ? (() => {
+        const st = stats.reduce((best, s) => (better(s.score, best.score) ? s : best));
+        return { label: st.label, letter: st.grade };
+      })()
+    : null;
+
+  return { label: cat.label, letter: cat.letter, stat };
 }
 
 // ── Percentile scoring ─────────────────────────────────────────────────────
@@ -321,6 +358,9 @@ function averageSetStats(games: LiveGameStats[]): Record<string, number | null> 
  *                     set-level comeback/closeout/blown-lead modifier. Pass null
  *                     when undeterminable (e.g. Game 1 had no parseable frames) —
  *                     the modifier is then 0.
+ * @param forfeitWin   True when the set was won only because the opponent quit out
+ *                     (LRAS). Suppresses the set-comeback bonus — losing game 1 and
+ *                     then having the opponent forfeit is not a comeback you earned.
  */
 export function gradeSet(
   games: LiveGameStats[],
@@ -330,6 +370,7 @@ export function gradeSet(
   wins: number,
   losses: number,
   wonGame1: boolean | null = null,
+  forfeitWin: boolean = false,
 ): SetGrade {
   // ── Three-tier benchmark lookup ────────────────────────────────────────────
   // matchup (player × opp) → player char → _overall
@@ -425,7 +466,8 @@ export function gradeSet(
   let setModifier = 0;
   let setModifierLabel: string | null = null;
   if (wonGame1 !== null) {
-    if      (!wonGame1 && wonSet)  { setModifier = SET_COMEBACK_BONUS;     setModifierLabel = "Set comeback"; }
+    // A forfeit win (opponent quit) after dropping game 1 isn't a real comeback — skip the bonus.
+    if      (!wonGame1 && wonSet && !forfeitWin) { setModifier = SET_COMEBACK_BONUS;     setModifierLabel = "Set comeback"; }
     else if (wonGame1 && wonSet)   { setModifier = SET_CLOSEOUT_BONUS;     setModifierLabel = "Closeout"; }
     else if (wonGame1 && !wonSet)  { setModifier = SET_BLOWN_LEAD_PENALTY; setModifierLabel = "Blown lead"; }
   }

@@ -1,6 +1,6 @@
 [package]
 name = "slippi-ranked-stats"
-version = "1.8.0"
+version = "1.8.1"
 description = "Slippi Ranked Stats Dashboard"
 authors = []
 edition = "2021"

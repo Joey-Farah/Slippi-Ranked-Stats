@@ -167,6 +167,14 @@ export interface OverlaySetResult {
   opponentChar: string;
   ratingBefore: number | null;
   gradeLetter: string | null;  // null when the set couldn't be graded (bad/partial stats)
+  // Featured category to show under the overall grade: best category on a win, worst on a
+  // loss. Both null when ungraded (or no category scored). See featuredCategory() in grading.ts.
+  subLabel: string | null;
+  subLetter: string | null;
+  // The standout individual stat within that category (best on a win, worst on a loss),
+  // shown beneath the category line. Null when no stat in the category scored.
+  subStatLabel: string | null;
+  subStatLetter: string | null;
 }
 export const lastOverlaySet = writable<OverlaySetResult | null>(null);
 
@@ -233,6 +241,18 @@ export interface SetResult {
   sourceCode?: string; // in-memory only: connect code this set's games belong to
 }
 
+/** A set's win/loss, accounting for quit-outs. When a set ends because someone left
+ *  (LRAS / no-contest), Slippi ranked scores it as a forfeit regardless of the game count:
+ *  a WIN when the OPPONENT quit (lras_win) and a LOSS when the player quit (lras_loss).
+ *  This matters at e.g. 1-1, where the raw game count is even but the forfeit decides it.
+ *  Without an LRAS it's simply who won more (full) games. */
+export function setResultFromGames(games: { result: string }[]): "win" | "loss" {
+  if (games.some((g) => g.result === "lras_win")) return "win";
+  if (games.some((g) => g.result === "lras_loss")) return "loss";
+  const fullWins = games.filter((g) => g.result === "win").length;
+  return fullWins > games.length - fullWins ? "win" : "loss";
+}
+
 export const sets = derived(rankedGames, ($games): SetResult[] => {
   const byMatchId = new Map<string, GameRow[]>();
   for (const g of $games) {
@@ -261,7 +281,7 @@ export const sets = derived(rankedGames, ($games): SetResult[] => {
       games: gs,
       wins,
       losses,
-      result: wins > losses ? "win" : "loss",
+      result: setResultFromGames(gs),
       hasLras,
       sourceCode: gs[0].sourceCode,
     });

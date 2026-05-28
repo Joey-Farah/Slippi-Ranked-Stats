@@ -421,19 +421,25 @@ function computeAdvancedStats(
   const WD_DODGE_F     =   4;
   const WD_LAND_F      =   4;
 
-  // Comeback / lead-maintenance degree (continuous, absolute — see ADR 0001).
-  // Both are emitted as a 0–1 per-game degree; grading.ts maps degree → 0–100
-  // with no benchmark lookup. These three shape that degree and are the knobs to
-  // calibrate against real sets:
-  //   *_FULL_STOCKS — stocks of margin climbed back (comeback) / given back (lead)
-  //                   that count as a "full" 1.0 degree before the win multiplier.
-  //   CB_LOSS_MULT  — multiplier when the game was lost; winning is the full 1.0,
-  //                   so a climb/hold still earns most of its credit in a loss but
-  //                   winning scales it higher (glossary: "strong credit even
-  //                   without the win").
-  const COMEBACK_FULL_STOCKS = 2;
-  const LEAD_FULL_STOCKS     = 2;
-  const CB_LOSS_MULT         = 0.75;
+  // Comeback / lead-maintenance degree (continuous, absolute — see ADR 0001), redesigned
+  // 2026-05-27 to grade END POSITION rather than raw swing size. Both emit a 0–1 per-game
+  // degree; grading.ts maps degree → 0–100 with no benchmark lookup.
+  //   LEAD     = how much of your lead you kept — scored on the LOWEST margin you fell to
+  //              after first going ahead (troughAfterUp): staying ahead scores high, giving
+  //              the lead back to even is middling, falling behind is low.
+  //   COMEBACK = how much of a deficit you erased — the mirror — scored on the HIGHEST margin
+  //              you climbed to after first falling behind (highAfterDown): retaking the lead
+  //              is high, clawing back to even is middling, still trailing is low.
+  //   Size nudge: holding the end fixed, a BIGGER lead blown (higher marginMax) docks the lead
+  //   score and a DEEPER deficit overcome (lower marginMin) lifts the comeback score.
+  // leadCbPos maps an end margin (yourStocks − oppStocks) to a 0–1 base; it's the shared,
+  // mirrored curve. NUDGE ≈ 1/3 of a grade-notch per extra stock of swing size. CB_LOSS_MULT
+  // multiplies the degree when the game was lost.
+  const CB_LOSS_MULT  = 0.75;
+  const LEAD_CB_NUDGE = 0.04;
+  const leadCbPos = (m: number): number =>
+    m >= 2 ? 1.0 : m === 1 ? 0.70 : m === 0 ? 0.45 : m === -1 ? 0.30 : m === -2 ? 0.13 : 0.0;
+  const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
 
   let centerFrames  = 0;
   let onStageFrames = 0;
@@ -478,15 +484,15 @@ function computeAdvancedStats(
   let prevOppStateR  = -1;
 
   // Stock-margin (yourStocks − oppStocks) tracking for comeback / lead degree.
-  // marginMin/Max are the deepest deficit / highest lead reached so far;
-  // comebackClimb is the largest recovery above a sub-zero trough, leadGiveBack
-  // the largest slide down from a positive peak.
+  // marginMax/Min = highest lead / deepest deficit reached (the swing size);
+  // troughAfterUp = lowest margin once you'd gone ahead (lead end position);
+  // highAfterDown = highest margin once you'd gone behind (comeback end position).
   let wasEverDown   = false;
   let wasEverUp     = false;
   let marginMin     = 0;
   let marginMax     = 0;
-  let comebackClimb = 0;
-  let leadGiveBack  = 0;
+  let troughAfterUp =  Infinity;
+  let highAfterDown = -Infinity;
 
   let wdAttempts = 0; let wdSuccesses = 0;
   let jumpFrame  = -1; let dodgeFrame  = -1;
@@ -509,16 +515,16 @@ function computeAdvancedStats(
     prevPStocks = snap.stocks;
 
     if (opp) {
-      // ── Comeback / lead maintenance ────────────────────────────────────
-      // Continuous degree from stock margin: comeback = stocks climbed back from
-      // the deepest sub-zero trough; lead = stocks given back from the highest peak.
+      // ── Comeback / lead maintenance (end-position model) ───────────────
+      // Track the margin extremes (swing size) plus the end positions: lowest margin
+      // once ahead (lead) and highest once behind (comeback). Degree formulas below.
       const margin = snap.stocks - opp.stocks;
       if (margin < 0) wasEverDown = true;
       if (margin > 0) wasEverUp   = true;
       if (margin < marginMin) marginMin = margin;
       if (margin > marginMax) marginMax = margin;
-      if (marginMin < 0) comebackClimb = Math.max(comebackClimb, margin - marginMin);
-      if (marginMax > 0) leadGiveBack  = Math.max(leadGiveBack,  marginMax - margin);
+      if (wasEverUp)   troughAfterUp = Math.min(troughAfterUp, margin);
+      if (wasEverDown) highAfterDown = Math.max(highAfterDown, margin);
 
       // ── Hit advantage rate: did player attack within 30f of each hit? ────
       const oppVuln = isVulnerable(opp.state);
@@ -639,11 +645,13 @@ function computeAdvancedStats(
     hit_advantage_rate:     hitOpps       > 0 ? hitFollowups / hitOpps       : null,
     avg_stock_duration:     stockDurations.reduce((a, b) => a + b, 0) / stockDurations.length,
     respawn_defense_rate:   respawnSit    > 0 ? respawnSuccess / respawnSit  : null,
+    // End-position model (mirrored): comeback graded on how high you climbed back to,
+    // lead on how low you fell to — each nudged by the swing size (deficit depth / peak height).
     comeback_rate:          wasEverDown
-      ? Math.min(comebackClimb / COMEBACK_FULL_STOCKS, 1) * (result === "win" ? 1 : CB_LOSS_MULT)
+      ? clamp01(leadCbPos(highAfterDown) + LEAD_CB_NUDGE * (-marginMin - 1)) * (result === "win" ? 1 : CB_LOSS_MULT)
       : null,
     lead_maintenance_rate:  wasEverUp
-      ? (1 - Math.min(leadGiveBack / LEAD_FULL_STOCKS, 1)) * (result === "win" ? 1 : CB_LOSS_MULT)
+      ? clamp01(leadCbPos(troughAfterUp) - LEAD_CB_NUDGE * (marginMax - 1)) * (result === "win" ? 1 : CB_LOSS_MULT)
       : null,
     wavedash_miss_rate:     wdAttempts    > 0 ? (wdAttempts - wdSuccesses) / wdAttempts : null,
   };

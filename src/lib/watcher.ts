@@ -29,9 +29,10 @@ import {
   lastSetGrade,
   displayName,
   lastOverlaySet,
+  setResultFromGames,
 } from "./store";
 import { CHARACTERS } from "./parser";
-import { gradeSet, GRADE_VERSION } from "./grading";
+import { gradeSet, featuredCategory, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
 
 let _unwatchers: UnwatchFn[] = [];
@@ -266,7 +267,12 @@ async function handleRankedGame(
   const setGames = await getGamesByMatchId(db, g.match_id);
   const wins = setGames.filter((sg) => sg.result === "win" || sg.result === "lras_win").length;
   const losses = setGames.length - wins;
-  const isComplete = Math.max(wins, losses) >= 2;
+  // A set ends at first-to-2 games OR the moment someone quits out (LRAS forfeits the set).
+  // We only treat a quit-out as a completed, gradeable set when at least one *full* game was
+  // actually played — a 0-0 instant ragequit has no real gameplay to grade.
+  const endedByQuit = setGames.some((sg) => sg.result === "lras_win" || sg.result === "lras_loss");
+  const hasFullGame = setGames.some((sg) => sg.result === "win" || sg.result === "loss");
+  const isComplete = Math.max(wins, losses) >= 2 || (endedByQuit && hasFullGame);
 
   if (isNew) {
     const sessionFaced = _sessionOpponents.has(g.opponent_code);
@@ -310,8 +316,12 @@ async function handleRankedGame(
   }
 
   if (isComplete) {
+    // Forfeit-aware: an opponent quit-out is a set win even at an even game count.
+    const setResult = setResultFromGames(setGames);
+    // Won only because the opponent quit out — suppresses the set-comeback bonus in grading.
+    const forfeitWin = setResult === "win" && setGames.some((sg) => sg.result === "lras_win");
     setResultFlash.set({
-      result: wins > losses ? "win" : "loss",
+      result: setResult,
       opponent_code: g.opponent_code,
       wins,
       losses,
@@ -321,50 +331,25 @@ async function handleRankedGame(
     const setStats      = allSetStats.filter((s) => s.avg_stock_duration !== null);
     const playerChar   = CHARACTERS[g.player_char_id]   ?? "Unknown";
     const opponentChar = CHARACTERS[g.opponent_char_id] ?? "Unknown";
-    const setResult = wins > losses ? "win" : "loss";
     // Game 1 result (earliest by timestamp) drives the set-level comeback modifier.
     // Use the unfiltered list so a no-frames Game 1 still anchors the order.
     const orderedSet = [...allSetStats].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
     const wonGame1   = orderedSet.length > 0 ? orderedSet[0].result === "win" : null;
     let gradeLetter: string | null = null;
+    let gradeToSave: ReturnType<typeof gradeSet> | null = null;
     try {
       if (setStats.length === 0) {
         lastSetGrade.set(null);
       } else {
-        const grade = gradeSet(setStats, playerChar, opponentChar, setResult, wins, losses, wonGame1);
+        const grade = gradeSet(setStats, playerChar, opponentChar, setResult, wins, losses, wonGame1, forfeitWin);
         // Skip caching if all categories are null — stats were bad (e.g. live store
         // hadn't populated both games yet). The set will appear ungraded and the user
         // can regrade from the history tab to get real results.
         const hasRealData = Object.values(grade.categories).some((c) => c.score !== null);
         lastSetGrade.set(hasRealData ? grade : null);
-        if (hasRealData) gradeLetter = grade.letter;
         if (hasRealData) {
-          try {
-            await saveSetGrade(db, {
-              match_id:         g.match_id,
-              generated_at:     new Date().toISOString(),
-              set_timestamp:    g.timestamp,
-              baseline_version: GRADE_VERSION,
-              player_char:      playerChar,
-              opponent_char:    opponentChar,
-              opponent_code:    g.opponent_code,
-              baseline_source:  grade.baselineSource,
-              set_result:       grade.setResult,
-              wins:             grade.wins,
-              losses:           grade.losses,
-              overall_letter:   grade.letter,
-              overall_score:    grade.score,
-              neutral_score:    grade.categories.neutral.score,
-              neutral_letter:   grade.categories.neutral.letter,
-              punish_score:     grade.categories.punish.score,
-              punish_letter:    grade.categories.punish.letter,
-              defense_score:    grade.categories.defense.score,
-              defense_letter:   grade.categories.defense.letter,
-              execution_score:  null,
-              execution_letter: null,
-              breakdown_json:   JSON.stringify(grade.breakdown),
-            });
-          } catch { /* don't fail live session on DB write error */ }
+          gradeLetter = grade.letter;
+          gradeToSave = grade; // persisted below, AFTER the live stores update
         }
       }
     } catch {
@@ -374,6 +359,14 @@ async function handleRankedGame(
     // Unified stream overlay: record the completed set (with its grade) so the overlay
     // can run its post-set bridge — hold the result + grade letter, then surface the MMR
     // change once the refetched rating lands.
+    //
+    // This MUST happen before the saveSetGrade() await below. The grade letter is already
+    // computed, and the overlay's post-set bridge doesn't depend on the DB row. Gating this
+    // store update behind the persistence write made the overlay lag the in-app grade by
+    // however long the INSERT took (seconds, under DB contention) — the app showed the grade
+    // immediately but the overlay only caught up once the write resolved.
+    // Feature the standout category under the grade: best on a win, worst on a loss.
+    const featured = gradeToSave ? featuredCategory(gradeToSave, setResult === "win") : null;
     lastOverlaySet.set({
       setId: Date.now(),
       result: setResult,
@@ -383,9 +376,44 @@ async function handleRankedGame(
       opponentChar,
       ratingBefore: get(snapshots).at(-1)?.rating ?? null,
       gradeLetter,
+      subLabel: featured?.label ?? null,
+      subLetter: featured?.letter ?? null,
+      subStatLabel: featured?.stat?.label ?? null,
+      subStatLetter: featured?.stat?.letter ?? null,
     });
 
     activeSet.set(null);
+
+    // Persist the grade last — the live UI (tab + overlay) is already updated, so a slow or
+    // failing DB write no longer delays them.
+    if (gradeToSave) {
+      try {
+        await saveSetGrade(db, {
+          match_id:         g.match_id,
+          generated_at:     new Date().toISOString(),
+          set_timestamp:    g.timestamp,
+          baseline_version: GRADE_VERSION,
+          player_char:      playerChar,
+          opponent_char:    opponentChar,
+          opponent_code:    g.opponent_code,
+          baseline_source:  gradeToSave.baselineSource,
+          set_result:       gradeToSave.setResult,
+          wins:             gradeToSave.wins,
+          losses:           gradeToSave.losses,
+          overall_letter:   gradeToSave.letter,
+          overall_score:    gradeToSave.score,
+          neutral_score:    gradeToSave.categories.neutral.score,
+          neutral_letter:   gradeToSave.categories.neutral.letter,
+          punish_score:     gradeToSave.categories.punish.score,
+          punish_letter:    gradeToSave.categories.punish.letter,
+          defense_score:    gradeToSave.categories.defense.score,
+          defense_letter:   gradeToSave.categories.defense.letter,
+          execution_score:  null,
+          execution_letter: null,
+          breakdown_json:   JSON.stringify(gradeToSave.breakdown),
+        });
+      } catch { /* don't fail live session on DB write error */ }
+    }
   }
 
   return isComplete;
