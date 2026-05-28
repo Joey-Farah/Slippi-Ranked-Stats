@@ -117,6 +117,15 @@ export async function startWatcher(
     const isModify = "modify" in event.type;
     if (!isCreate && !isModify) return;
     if (slpPaths.length === 0) return;
+    // A brand-new .slp while no set is live means the next set is starting. If a just-completed
+    // set's grade is still showing on the overlay (within its 3-min post-set hold), clear it now
+    // so the new set takes priority — the hold otherwise stays put for the full duration, and the
+    // new opponent line won't arrive until this game finishes and parses. The (activeSet === null
+    // && lastOverlaySet !== null) guard pins this to exactly the "between sets, grade still up"
+    // window, so it never fires for games 2/3 of an ongoing set.
+    if (isCreate && get(activeSet) === null && get(lastOverlaySet) !== null) {
+      lastOverlaySet.set(null);
+    }
     for (const filepath of slpPaths) {
       scheduleFileParse(filepath, connectCode, db);
     }

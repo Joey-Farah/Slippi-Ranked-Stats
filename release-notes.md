@@ -1,3 +1,11 @@
+## What's New in v1.8.3
+
+### 🩹 The previous set's grade no longer lingers into your next set (Premium)
+
+When a ranked set ends, the Live Stats Overlay holds the result and grade for a few minutes — but it now **clears the moment your next set starts**, instead of leaving the old grade up through your first game of the next set. The 3-minute hold still applies whenever you stop playing; a new set just takes priority.
+
+> 💡 v1.8.3 follows close behind v1.8.2 — if you're coming from an earlier version, here's what landed in v1.8.2 too:
+
 ## What's New in v1.8.2
 
 ### 🎭 Filter your stats by your own character

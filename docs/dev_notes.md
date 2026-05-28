@@ -6,7 +6,37 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-05-28 (v1.8.2, READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-05-28 (v1.8.3, READ FIRST)
+
+> **✅ SHIPPED in v1.8.3 (2026-05-28): overlay post-set grade no longer lingers into the next set.**
+>
+> - **Symptom (owner-reported):** after a ranked set, the overlay's post-set grade stayed up through
+>   matchmaking AND the entire first game of the *next* set, instead of clearing when the next set began.
+> - **Root cause:** `stats-overlay.ts` `apply()` only dismissed the post-set bridge when `s.opponent`
+>   appeared or `POSTSET_MS` (3 min) elapsed. `opponent` is derived from `activeSet`, which the watcher
+>   only populates in `handleRankedGame` — i.e. *after the next set's game 1 finishes parsing*. So the
+>   dismiss signal didn't exist until that game ended (or the 3-min cap fired mid-game).
+> - **Fix (2 parts, no persistence/gating change):**
+>   1. `watcher.ts` file-watch handler: on a `.slp` **`create`** event, if `activeSet === null &&
+>      lastOverlaySet !== null` (the exact "between sets, grade still showing" window), clear
+>      `lastOverlaySet`. A new replay file while no set is live = the next set is starting. The guard
+>      pins it to set boundaries, so it never fires for games 2/3 of an ongoing set.
+>   2. `stats-overlay.ts` `apply()`: new branch dismisses the bridge when the bridge is showing and the
+>      incoming payload no longer carries a completed set (`!s.lastSet`) — the receiving end of the clear.
+> - **Behavior:** the 3-min hold stays as the default; a newly-started set now **preempts** it. Caveat:
+>   from next-game-start until that game parses, the overlay shows the plain always-on panel (no opponent
+>   line yet — opponent scouting still needs the parsed `.slp`); the stale grade is just gone immediately.
+> - **Not fully live-verified:** the in-app "Simulate set result" button writes the payload directly and
+>   does NOT fire a filesystem `create` event, so it can't reproduce this transition — eyeball on a real
+>   ranked session when convenient. Logic + full store→payload→write→poll→apply wiring traced; the in-app
+>   preview clears its grade too (consistent). svelte-check 0 errors, 33/33 tests.
+>
+> Version bumped 1.8.2→1.8.3 (package.json, tauri.conf.json, Cargo.toml, Cargo.lock); release notes updated.
+> Released: commit `v1.8.3: …` on main, tagged **`v1.8.3`** → triggers signed CI release.
+
+---
+
+## ⚠ SESSION HANDOFF — 2026-05-28 (v1.8.2)
 
 > **✅ SHIPPED in v1.8.2 (2026-05-28): "Filter by Your Character" + overlay opponent scouting + set-grade polish.**
 >

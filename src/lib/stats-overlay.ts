@@ -276,6 +276,10 @@ function overlayDoc(boot: string): string {
       if (s && s.opponent) {
         // a new ranked set is live — drop the post-set hold
         if (postSet) endPostSet();
+      } else if (postSet && (!s || !s.lastSet)) {
+        // the app cleared the completed set (a new game/set is starting) — dismiss the bridge
+        // early so the next set takes priority, even while the 3-min hold would otherwise run.
+        endPostSet();
       } else if (s && s.lastSet && s.lastSet.setId !== shownSetId) {
         // a set just completed — hold the result + grade until the next set or POSTSET_MS.
         // (The MMR climb still shows live in the Today's block once the rating refetches.)
