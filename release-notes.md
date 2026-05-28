@@ -1,3 +1,19 @@
+## What's New in v1.8.2
+
+### 🎭 Filter your stats by your own character
+
+The **Matchup Stats**, **All-Time Stats**, and **Unranked & Direct Stats** tabs now have a **Filter by Your Character** selector at the top. Pick one of your characters and the *whole tab* — every chart, the opponent spotlight, and the history tables — narrows to just the sets you played as that character. Perfect for dual mains who want to read each character's matchups separately. (Only appears once you've played more than one character.)
+
+### 👤 Scout your opponent on the overlay (Premium)
+
+While a ranked set is live, the Live Stats Overlay now shows who you're up against **before the set is decided** — their **tag**, **rank** (with the rank medal and color), **MMR**, and **season W–L record** (wins in green, losses in red). When the set ends, it flows into the set grade as before.
+
+### ✨ Cleaner set-grade moment (Premium)
+
+The post-set overlay now places your **standout stat beside the grade letter** instead of beneath it (e.g. `Openings / Kill: S`), filling out the space for a tidier, more readable result card.
+
+---
+
 ## What's New in v1.8.1
 
 ### 🩹 Overlay fixes & polish (Premium)

@@ -1,25 +1,35 @@
 <script lang="ts">
   import { cleanSets as sets } from "../../lib/store";
-  import { STAGES } from "../../lib/parser";
+  import { STAGES, CHARACTERS } from "../../lib/parser";
   import BarChart from "../charts/BarChart.svelte";
 
   const MIN_SETS_HOUR = 3;
 
+  // Your-character filter (tab-level, single-select): null = all characters. When set, every
+  // stat on the tab is scoped to sets in which you played that character.
+  let playerCharFilter = $state<number | null>(null);
+  let myPlayedCharIds = $derived([...new Set($sets.flatMap((s) => s.player_char_ids))].sort());
+  let baseSets = $derived(
+    playerCharFilter === null
+      ? $sets
+      : $sets.filter((s) => s.player_char_ids.includes(playerCharFilter as number))
+  );
+
   // Set stats
-  let totalSets = $derived($sets.length);
-  let setWins = $derived($sets.filter((s) => s.result === "win").length);
+  let totalSets = $derived(baseSets.length);
+  let setWins = $derived(baseSets.filter((s) => s.result === "win").length);
   let setLosses = $derived(totalSets - setWins);
   let setWinPct = $derived(totalSets > 0 ? (setWins / totalSets) * 100 : 0);
 
   // Game stats (individual games, kept for the Game Win % card only)
-  let totalGames = $derived($sets.reduce((n, s) => n + s.games.length, 0));
-  let gameWins = $derived($sets.reduce((n, s) => n + s.games.filter((g) => g.result === "win" || g.result === "lras_win").length, 0));
+  let totalGames = $derived(baseSets.reduce((n, s) => n + s.games.length, 0));
+  let gameWins = $derived(baseSets.reduce((n, s) => n + s.games.filter((g) => g.result === "win" || g.result === "lras_win").length, 0));
   let gameLosses = $derived(totalGames - gameWins);
   let gameWinPct = $derived(totalGames > 0 ? (gameWins / totalGames) * 100 : 0);
 
   // Comeback rate: sets won after losing game 1
   let comebackRate = $derived((() => {
-    const lostG1 = $sets.filter((s) => {
+    const lostG1 = baseSets.filter((s) => {
       const g1 = s.games[0];
       return g1 && (g1.result === "loss" || g1.result === "lras_loss");
     });
@@ -30,7 +40,7 @@
 
   // Deciding game win %: win rate in game 3 of sets with exactly 3 games
   let decidingRate = $derived((() => {
-    const went3 = $sets.filter((s) => s.games.length === 3);
+    const went3 = baseSets.filter((s) => s.games.length === 3);
     if (went3.length === 0) return null;
     const won = went3.filter((s) => s.result === "win").length;
     return { pct: (won / went3.length) * 100, won, total: went3.length };
@@ -39,7 +49,7 @@
   // Stage stats (set-based)
   let stageStats = $derived((() => {
     const m = new Map<number, { wins: number; losses: number }>();
-    for (const s of $sets) {
+    for (const s of baseSets) {
       for (const id of s.stage_ids) {
         const e = m.get(id) ?? { wins: 0, losses: 0 };
         if (s.result === "win") e.wins++; else e.losses++;
@@ -61,7 +71,7 @@
   // Time-of-day win % by hour (set-based)
   let hourStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
-    for (const s of $sets) {
+    for (const s of baseSets) {
       const hour = new Date(s.timestamp).getHours();
       const e = m.get(hour) ?? { wins: 0, total: 0 };
       e.total++;
@@ -86,6 +96,41 @@
   }
 
 </script>
+
+<!-- Your-character filter (single-select, scopes the whole tab) -->
+{#if myPlayedCharIds.length > 1}
+  <div style="margin-bottom:12px">
+    <div class="section-title">Filter by Your Character</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px">
+      <button
+        onclick={() => playerCharFilter = null}
+        style="
+          padding: 4px 10px;
+          border-radius: 20px;
+          border: 1px solid {playerCharFilter === null ? 'var(--accent)' : 'var(--border)'};
+          background: {playerCharFilter === null ? 'rgba(46,139,46,0.2)' : 'var(--card)'};
+          color: {playerCharFilter === null ? 'var(--accent)' : 'var(--text)'};
+          font-size: 12px;
+          cursor: pointer;
+        "
+      >All Characters</button>
+      {#each myPlayedCharIds as id}
+        <button
+          onclick={() => playerCharFilter = id}
+          style="
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid {playerCharFilter === id ? 'var(--accent)' : 'var(--border)'};
+            background: {playerCharFilter === id ? 'rgba(46,139,46,0.2)' : 'var(--card)'};
+            color: {playerCharFilter === id ? 'var(--accent)' : 'var(--text)'};
+            font-size: 12px;
+            cursor: pointer;
+          "
+        >{CHARACTERS[id] ?? id}</button>
+      {/each}
+    </div>
+  </div>
+{/if}
 
 <!-- Summary cards row -->
 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-bottom:16px">

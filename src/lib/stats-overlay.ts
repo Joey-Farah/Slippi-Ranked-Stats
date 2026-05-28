@@ -62,6 +62,11 @@ function overlayDoc(boot: string): string {
     .w { color: #2ecc71; } .l { color: #ff4d4f; }
     .vs { font-size: 1.05rem; font-weight: 700; margin-top: 0.3rem; padding: 0.2rem 0.75rem;
       border-radius: 0.5rem; background: rgba(255, 255, 255, 0.1); }
+    .vs-sub { font-size: 0.85rem; font-weight: 700; opacity: 0.95; margin-top: 0.15rem; }
+    .vs-medal { display: inline-block; width: 1.25em; height: 1.25em; vertical-align: -0.32em; margin-right: 0.18em; }
+    .vs-medal svg { width: 100%; height: 100%; display: block;
+      filter: drop-shadow(0 0.05em 0.12em rgba(0, 0, 0, 0.55)); }
+    .vs-rank { font-weight: 800; }
     .setresult { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.03em; margin-top: 0.2rem; }
     .grade { font-size: 4.5rem; font-weight: 800; line-height: 1; margin: 0.1rem 0; }
     .grade.show { animation: spin-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -99,8 +104,8 @@ function overlayDoc(boot: string): string {
     .gradelabel { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.8); }
     /* Standout category under the grade — best on a win, worst on a loss. Readable but
        clearly secondary to the big grade letter. */
-    .subgrade { font-size: 1.45rem; font-weight: 800; line-height: 1.1; margin-top: 0.15rem; white-space: nowrap; }
-    .subgrade .subcap { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.65); margin-right: 0.35rem; }
+    .subgrade { font-size: 1.3rem; font-weight: 800; line-height: 1.2; text-align: center; max-width: 9rem; }
+    .subgrade .subcap { display: block; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.65); margin-bottom: 0.1rem; }
   </style>
 </head>
 <body>
@@ -150,34 +155,49 @@ function overlayDoc(boot: string): string {
     function contextHtml(s, side) {
       if (postSet && postSetData) {
         var won = postSetData.result === "win";
-        var gradeEl = "";
+        var gradeEl = "", subEl = "";
         if (postSetData.gradeLetter) {
           var gc = GRADE_COLORS[postSetData.gradeLetter] || "#fff";
           var cls = (animatedSetId === postSetData.setId) ? "grade" : "grade show";
-          // Show the standout individual stat — best on a win, worst on a loss. We drop the
-          // category name itself (Neutral/Punish/Defense); the specific stat is what's
-          // interesting. Fall back to the category only if no individual stat scored.
-          var subEl = "";
+          gradeEl = '<div class="gradewrap"><div class="gradelabel">SET GRADE</div><div class="' + cls + '" style="color:' + gc + '">' + esc(postSetData.gradeLetter) + "</div></div>";
+          // Standout individual stat — best on a win, worst on a loss. Sits to the RIGHT of the
+          // grade letter (its own column) so the wide post-set area fills out horizontally. We
+          // drop the category name (Neutral/Punish/Defense); the specific stat is the interesting
+          // part. Falls back to the category only if no individual stat scored.
           var sLabel  = postSetData.subStatLabel  || postSetData.subLabel;
           var sLetter = postSetData.subStatLetter || postSetData.subLetter;
           if (sLabel && sLetter) {
             var sgc = GRADE_COLORS[sLetter] || "#fff";
             subEl = '<div class="subgrade"><span class="subcap">' + (won ? "BEST" : "WORST") + "</span>"
-              + esc(sLabel) + ' <span style="color:' + sgc + '">' + esc(sLetter) + "</span></div>";
+              + esc(sLabel) + ': <span style="color:' + sgc + '">' + esc(sLetter) + "</span></div>";
           }
-          gradeEl = '<div class="gradewrap"><div class="gradelabel">SET GRADE</div><div class="' + cls + '" style="color:' + gc + '">' + esc(postSetData.gradeLetter) + "</div>" + subEl + "</div>";
         }
         var resEl = '<div class="setresult" style="color:' + (won ? "#2ecc71" : "#ff4d4f") + '">' + (won ? "SET WON" : "SET LOST") + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>";
         var vsEl = '<div class="vs">vs ' + esc(postSetData.opponentCode) + " · " + esc(postSetData.opponentChar) + "</div>";
-        if (side) return '<div class="setblock">' + gradeEl + '<div class="setinfo">' + resEl + vsEl + "</div></div>";
-        return gradeEl + resEl + vsEl;
+        if (side) return '<div class="setblock">' + gradeEl + subEl + '<div class="setinfo">' + resEl + vsEl + "</div></div>";
+        return gradeEl + subEl + resEl + vsEl;
       }
       if (s.opponent) {
         var o = s.opponent;
-        var t = "vs " + esc(o.code) + " · " + esc(o.char);
-        if (o.tier) t += " — " + esc(o.tier);
-        t += "  (" + esc(o.gamesWon) + "–" + esc(o.gamesLost) + ")";
-        return '<div class="vs">' + t + "</div>";
+        // Line 1: tag (code) · char — the tag is what a viewer recognizes; the code disambiguates.
+        var name = o.tag ? esc(o.tag) + " (" + esc(o.code) + ")" : esc(o.code);
+        var l1 = "vs " + name + " · " + esc(o.char);
+        // Line 2: rank (medal + tier-colored name) · ELO · season record (W green / L red) ·
+        // current set score. Each piece is dropped while its value is still loading (the opponent
+        // profile fetch is async) so the line never shows blanks.
+        var parts = [];
+        if (o.tier) {
+          var medal = MEDALS[o.tier] || "";
+          var medalEl = medal ? '<span class="vs-medal">' + medal + "</span>" : "";
+          var rc = o.tierColor || "#fff";
+          parts.push(medalEl + '<span class="vs-rank" style="color:' + esc(rc) + '">' + esc(o.tier) + "</span>");
+        }
+        if (o.rating != null) parts.push(fmt1(o.rating) + " MMR");
+        if (o.seasonWins != null && o.seasonLosses != null) {
+          parts.push('<span class="w">' + esc(o.seasonWins) + 'W</span>–<span class="l">' + esc(o.seasonLosses) + "L</span>");
+        }
+        parts.push("(" + esc(o.gamesWon) + "–" + esc(o.gamesLost) + ")");
+        return '<div class="vs">' + l1 + '<div class="vs-sub">' + parts.join(" · ") + "</div></div>";
       }
       return "";
     }

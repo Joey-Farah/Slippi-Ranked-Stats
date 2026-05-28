@@ -6,8 +6,19 @@
 
   // ── Character filter ───────────────────────────────────────────────────────
 
+  // Your-character filter (tab-level, single-select): null = all characters. When set, the
+  // whole tab is scoped to games in which you played that character.
+  let playerCharFilter = $state<number | null>(null);
+  let myPlayedCharIds = $derived([...new Set($unrankedGames.map((g) => g.player_char_id))].sort());
+  let baseGames = $derived(
+    playerCharFilter === null
+      ? $unrankedGames
+      : $unrankedGames.filter((g) => g.player_char_id === playerCharFilter)
+  );
+
+  // Opponent-character filter — hidden chars excluded from the matchup chart.
   let hiddenChars = $state<number[]>([]);
-  let allCharIds = $derived([...new Set($unrankedGames.map((g) => g.opponent_char_id))].sort());
+  let allCharIds = $derived([...new Set(baseGames.map((g) => g.opponent_char_id))].sort());
 
   function toggleChar(id: number) {
     hiddenChars = hiddenChars.includes(id)
@@ -15,17 +26,17 @@
       : [...hiddenChars, id];
   }
 
-  // Games with hidden opponent chars excluded — feeds oppCharStats only
+  // Games feeding the matchup chart — your-character scope, then exclude hidden opponent chars
   let filtered = $derived(
     hiddenChars.length > 0
-      ? $unrankedGames.filter((g) => !hiddenChars.includes(g.opponent_char_id))
-      : $unrankedGames
+      ? baseGames.filter((g) => !hiddenChars.includes(g.opponent_char_id))
+      : baseGames
   );
 
-  // ── Summary (always unfiltered) ────────────────────────────────────────────
+  // ── Summary (respects the your-character filter) ────────────────────────────
 
-  let totalGames = $derived($unrankedGames.length);
-  let wins = $derived($unrankedGames.filter((g) => g.result === "win" || g.result === "lras_win").length);
+  let totalGames = $derived(baseGames.length);
+  let wins = $derived(baseGames.filter((g) => g.result === "win" || g.result === "lras_win").length);
   let losses = $derived(totalGames - wins);
   let winPct = $derived(totalGames > 0 ? (wins / totalGames) * 100 : 0);
 
@@ -60,7 +71,7 @@
 
   let myCharStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
-    for (const g of $unrankedGames) {
+    for (const g of baseGames) {
       const e = m.get(g.player_char_id) ?? { wins: 0, total: 0 };
       e.total++;
       if (g.result === "win" || g.result === "lras_win") e.wins++;
@@ -78,7 +89,7 @@
 
   let stageStats = $derived((() => {
     const m = new Map<number, { wins: number; losses: number }>();
-    for (const g of $unrankedGames) {
+    for (const g of baseGames) {
       const e = m.get(g.stage_id) ?? { wins: 0, losses: 0 };
       if (g.result === "win" || g.result === "lras_win") e.wins++;
       else e.losses++;
@@ -100,7 +111,7 @@
 
   let oppHistory = $derived((() => {
     const m = new Map<string, { wins: number; losses: number }>();
-    for (const g of $unrankedGames) {
+    for (const g of baseGames) {
       const e = m.get(g.opponent_code) ?? { wins: 0, losses: 0 };
       if (g.result === "win" || g.result === "lras_win") e.wins++;
       else e.losses++;
@@ -149,9 +160,44 @@
     featureName="Unranked & Direct Stats"
     description="See your win rates, character usage, and opponent history for unranked and direct games."
   />
-{:else if totalGames === 0}
+{:else if $unrankedGames.length === 0}
   <p class="muted" style="padding:32px; text-align:center">No unranked or direct games found in your replay folder.</p>
 {:else}
+  <!-- Your-character filter (single-select, scopes the whole tab) -->
+  {#if myPlayedCharIds.length > 1}
+    <div style="margin-bottom:12px">
+      <div class="section-title">Filter by Your Character</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px">
+        <button
+          onclick={() => playerCharFilter = null}
+          style="
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid {playerCharFilter === null ? 'var(--accent)' : 'var(--border)'};
+            background: {playerCharFilter === null ? 'rgba(46,139,46,0.2)' : 'var(--card)'};
+            color: {playerCharFilter === null ? 'var(--accent)' : 'var(--text)'};
+            font-size: 12px;
+            cursor: pointer;
+          "
+        >All Characters</button>
+        {#each myPlayedCharIds as id}
+          <button
+            onclick={() => playerCharFilter = id}
+            style="
+              padding: 4px 10px;
+              border-radius: 20px;
+              border: 1px solid {playerCharFilter === id ? 'var(--accent)' : 'var(--border)'};
+              background: {playerCharFilter === id ? 'rgba(46,139,46,0.2)' : 'var(--card)'};
+              color: {playerCharFilter === id ? 'var(--accent)' : 'var(--text)'};
+              font-size: 12px;
+              cursor: pointer;
+            "
+          >{CHARACTERS[id] ?? id}</button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
   <!-- Summary cards -->
   <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:16px">
     <div class="stat-card">

@@ -6,6 +6,37 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-05-28 (v1.8.2, READ FIRST)
+
+> **✅ SHIPPED in v1.8.2 (2026-05-28): "Filter by Your Character" + overlay opponent scouting + set-grade polish.**
+>
+> - **Filter by Your Character (free, all stats tabs):** new tab-level **single-select** control at the top of
+>   `MatchupStats.svelte`, `AllTimeStats.svelte`, and `UnrankedStats.svelte`. Default "All Characters"; picking
+>   one scopes the **entire tab** (every chart, opponent spotlight, history tables, summary cards) to sets/games
+>   you played as that character — for dual mains. Implemented as a `playerCharFilter` rune feeding a `baseSets`
+>   (Matchup/AllTime) / `baseGames` (Unranked) derived that all downstream stats read from. The chip row only
+>   renders when `myPlayedCharIds.length > 1`. (First attempt was a chart-only hide-toggle — owner clarified they
+>   wanted whole-tab single-select; the chart-only version was replaced.)
+> - **Overlay opponent line — pre-set scouting (Premium):** the live opponent line now shows the opponent's
+>   **tag, rank medal + tier-colored name, MMR, and season W–L (W green / L red)** in addition to the live set
+>   score. **No new API call** — `fetchRatingSnapshot(opponentCode)` was already fired on set start; it returns
+>   `displayName` / `wins` / `losses` / rating, which the watcher previously discarded. Now captured into new
+>   `ActiveSet` fields (`opponent_tag`, `opponent_tier_color`, `opponent_season_wins/losses`) → `StatsOverlayOpponent`
+>   → rendered in `stats-overlay.ts` `contextHtml`. Medal lookup reuses `MEDALS[o.tier]` (tier name = medal key).
+> - **Set-grade layout (Premium):** the standout stat moved from *under* the grade letter to its **own column to
+>   the right** (`gradeEl` + `subEl` are now siblings in `.setblock`), reading `BEST` / `Openings / Kill: S`
+>   (colon added per owner). Fills the wide post-set area instead of leaving side gaps.
+> - **In-app preview box fix:** the preview iframe (`LiveRankedSession.svelte`) used a fixed `aspect-ratio: 2`
+>   tuned for the persistent panel, so transient content (opponent line / post-set grade) was **clipped** by
+>   `overflow:hidden`. Now `previewHasTransient` picks a taller ratio (side 1.3 / stacked 1/1.5) when opponent or
+>   lastSet is present. **This was the reason opponent info "wasn't showing" — it was rendering but clipped.**
+>
+> Validated live in the dev app via the **Simulate set result** button + the character filter on real data.
+> svelte-check clean, 33/33 tests. Version bumped 1.8.1→1.8.2 (package.json, tauri.conf.json, Cargo.toml,
+> Cargo.lock); release notes + CLAUDE.md updated. **Release steps remaining: tag `v1.8.2` + push** (triggers CI).
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-05-27 (v1.8.1, READ FIRST)
 
 > **✅ SHIPPED in v1.8.1 (2026-05-27): overlay fixes + comeback/lead grading redesign.**

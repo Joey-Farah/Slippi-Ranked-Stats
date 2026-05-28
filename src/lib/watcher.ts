@@ -290,6 +290,10 @@ async function handleRankedGame(
       started_at: g.timestamp,
       opponent_rating: null,
       opponent_tier: null,
+      opponent_tier_color: null,
+      opponent_tag: null,
+      opponent_season_wins: null,
+      opponent_season_losses: null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
       session_already_faced: sessionFaced,
@@ -297,11 +301,19 @@ async function handleRankedGame(
 
     // Fetch opponent's Slippi profile asynchronously
     fetchRatingSnapshot(g.opponent_code)
-      .then(({ snapshot }) => {
+      .then(({ snapshot, displayName: oppTag }) => {
         const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
         activeSet.update((s) =>
           s && s.match_id === g.match_id
-            ? { ...s, opponent_rating: snapshot.rating, opponent_tier: tier.name }
+            ? {
+                ...s,
+                opponent_rating: snapshot.rating,
+                opponent_tier: tier.name,
+                opponent_tier_color: tier.color,
+                opponent_tag: oppTag || null,
+                opponent_season_wins: snapshot.wins,
+                opponent_season_losses: snapshot.losses,
+              }
             : s
         );
       })
@@ -489,17 +501,29 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
       started_at: gs[0].timestamp,
       opponent_rating: null,
       opponent_tier: null,
+      opponent_tier_color: null,
+      opponent_tag: null,
+      opponent_season_wins: null,
+      opponent_season_losses: null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
       session_already_faced: false,
     });
 
     fetchRatingSnapshot(latest.opponent_code)
-      .then(({ snapshot }) => {
+      .then(({ snapshot, displayName: oppTag }) => {
         const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
         activeSet.update((s) =>
           s && s.match_id === matchId
-            ? { ...s, opponent_rating: snapshot.rating, opponent_tier: tier.name }
+            ? {
+                ...s,
+                opponent_rating: snapshot.rating,
+                opponent_tier: tier.name,
+                opponent_tier_color: tier.color,
+                opponent_tag: oppTag || null,
+                opponent_season_wins: snapshot.wins,
+                opponent_season_losses: snapshot.losses,
+              }
             : s
         );
       })

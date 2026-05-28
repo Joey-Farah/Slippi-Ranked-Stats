@@ -100,7 +100,11 @@ export interface ActiveSet {
   games_lost: number;
   started_at: string;
   opponent_rating: number | null;   // fetched from Slippi API, null while loading
-  opponent_tier: string | null;
+  opponent_tier: string | null;         // rank tier name, also selects the medal
+  opponent_tier_color: string | null;   // rank tier color (getRankTier().color)
+  opponent_tag: string | null;          // opponent's Slippi display name, null while loading
+  opponent_season_wins: number | null;  // opponent's current-season ranked W, null while loading
+  opponent_season_losses: number | null;
   all_time_wins: number;            // set-level record vs this opponent in our DB
   all_time_losses: number;
   session_already_faced: boolean;   // did we face them earlier this watcher session?
@@ -417,9 +421,13 @@ export const liveSetRecord = derived(liveGameStats, ($stats) => {
 export interface StatsOverlayOpponent {
   code: string;
   char: string;
-  tier: string | null;
+  tier: string | null;         // rank tier name, also selects the medal
+  tierColor: string | null;    // rank tier color
   rating: number | null;
-  gamesWon: number;
+  tag: string | null;          // opponent's Slippi display name, null while loading
+  seasonWins: number | null;   // opponent's current-season ranked record, null while loading
+  seasonLosses: number | null;
+  gamesWon: number;            // current set score (live)
   gamesLost: number;
 }
 
@@ -465,7 +473,11 @@ export const statsOverlayPayload = derived(
           code: $active.opponent_code,
           char: CHARACTERS[$active.opponent_char_id] ?? "Unknown",
           tier: $active.opponent_tier,
+          tierColor: $active.opponent_tier_color,
           rating: $active.opponent_rating,
+          tag: $active.opponent_tag,
+          seasonWins: $active.opponent_season_wins,
+          seasonLosses: $active.opponent_season_losses,
           gamesWon: $active.games_won,
           gamesLost: $active.games_lost,
         }

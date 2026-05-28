@@ -59,7 +59,8 @@
     const base = { ...p, sessionWins: 0, sessionLosses: 0, sessionStartRating: before, sessionDelta: 0, rating: before };
     const result = { setId, result: "win" as const, wins: 2, losses: 1, opponentCode: code, opponentChar: char, ratingBefore: before, gradeLetter: "A", subLabel: "Punish", subLetter: "S", subStatLabel: "Openings / Kill", subStatLetter: "S" };
 
-    statsOverlayPreview.set({ ...base, opponent: { code, char, tier: getRankTier(before + 80).name, rating: before + 80, gamesWon: 1, gamesLost: 1 }, lastSet: null });
+    const ot = getRankTier(before + 80, p.globalRank != null);
+    statsOverlayPreview.set({ ...base, opponent: { code, char, tier: ot.name, tierColor: ot.color, rating: before + 80, tag: "Sample", seasonWins: 412, seasonLosses: 388, gamesWon: 1, gamesLost: 1 }, lastSet: null });
     simTimers.push(setTimeout(() => statsOverlayPreview.set({ ...base, opponent: null, sessionWins: 1, lastSet: result }), 6000));
     simTimers.push(setTimeout(() => {
       const t = getRankTier(before + 78, p.globalRank != null);
@@ -67,6 +68,13 @@
     }, 10000));
     simTimers.push(setTimeout(() => statsOverlayPreview.set(null), 38000));
   }
+
+  // The exact payload the live preview renders: the simulate/test override if active, else the
+  // real live payload with any completed set suppressed (the idle preview shows just the panel).
+  let previewPayload = $derived($statsOverlayPreview ?? { ...$statsOverlayPayload, lastSet: null });
+  // Transient content (opponent line during a set, or post-set grade) sits below the persistent
+  // panel, so the preview box must grow taller when it's present or overflow:hidden clips it.
+  let previewHasTransient = $derived(!!(previewPayload.opponent || previewPayload.lastSet));
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -257,16 +265,20 @@
           </div>
           <!-- The preview IS the real overlay, rendered with the current payload baked in
                (no polling), so it can never drift from what OBS shows. aspect-ratio gives a
-               responsive box that never clips: side-by-side is wide, stacked is a capped square.
+               responsive box; it must grow taller when transient content (the opponent line
+               during a set, or the post-set grade) is present, since that area sits below the
+               persistent panel and would otherwise be clipped by overflow:hidden.
                (aspect-ratio is relative to the box's own width, unlike padding-top %.) -->
           <div style="
             position: relative; width: 100%; overflow: hidden;
             border: 1px solid var(--border); border-radius: 8px; background: #15171b;
-            {side ? 'aspect-ratio: 2;' : 'max-width: 280px; aspect-ratio: 1 / 1.05;'}
+            {side
+              ? (previewHasTransient ? 'aspect-ratio: 1.3;' : 'aspect-ratio: 2;')
+              : 'max-width: 280px; ' + (previewHasTransient ? 'aspect-ratio: 1 / 1.5;' : 'aspect-ratio: 1 / 1.05;')}
           ">
             <iframe
               title="Live overlay preview"
-              srcdoc={overlayPreviewHtml($statsOverlayPreview ?? { ...p, lastSet: null })}
+              srcdoc={overlayPreviewHtml(previewPayload)}
               scrolling="no"
               style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block;"
             ></iframe>

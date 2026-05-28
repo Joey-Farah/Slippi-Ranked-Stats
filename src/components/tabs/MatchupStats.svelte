@@ -6,9 +6,20 @@
   const MIN_SETS = 1;
   const MIN_SETS_SPOTLIGHT = 3;
 
-  // Character filter — hidden chars are excluded from stats
+  // Your-character filter (tab-level, single-select): null = all characters. When set, the
+  // whole tab is scoped to sets in which you played that character — for dual mains who want
+  // to read each character's matchups, opponents, and history separately.
+  let playerCharFilter = $state<number | null>(null);
+  let myPlayedCharIds = $derived([...new Set($sets.flatMap((s) => s.player_char_ids))].sort());
+  let baseSets = $derived(
+    playerCharFilter === null
+      ? $sets
+      : $sets.filter((s) => s.player_char_ids.includes(playerCharFilter as number))
+  );
+
+  // Opponent-character filter — hidden chars are excluded from the matchup chart.
   let hiddenChars = $state<number[]>([]);
-  let allCharIds = $derived([...new Set($sets.flatMap((s) => s.opponent_char_ids))].sort());
+  let allCharIds = $derived([...new Set(baseSets.flatMap((s) => s.opponent_char_ids))].sort());
 
   function toggleChar(id: number) {
     if (hiddenChars.includes(id)) {
@@ -18,10 +29,10 @@
     }
   }
 
-  // Filtered sets — exclude hidden characters
+  // Filtered sets — your-character scope, then exclude hidden opponent characters
   let filtered = $derived(hiddenChars.length > 0
-    ? $sets.filter((s) => !s.opponent_char_ids.some((id) => hiddenChars.includes(id)))
-    : $sets);
+    ? baseSets.filter((s) => !s.opponent_char_ids.some((id) => hiddenChars.includes(id)))
+    : baseSets);
 
   type SortMode = "alpha" | "best" | "worst" | "most" | "least";
   let oppCharSort = $state<SortMode>("alpha");
@@ -78,10 +89,10 @@
       .sort((a, b) => b.name.localeCompare(a.name));
   })());
 
-  // Opponent history (all sets, sorted by most played)
+  // Opponent history (all sets in scope, sorted by most played)
   let oppHistory = $derived((() => {
     const m = new Map<string, { wins: number; losses: number; sets: number }>();
-    for (const s of $sets) {
+    for (const s of baseSets) {
       const e = m.get(s.opponent_code) ?? { wins: 0, losses: 0, sets: 0 };
       e.sets++;
       if (s.result === "win") e.wins++;
@@ -114,7 +125,7 @@
 
   // Recent sets — filtered by search
   let recentSets = $derived(
-    [...$sets]
+    [...baseSets]
       .reverse()
       .slice(0, 50)
       .filter((s) => !recentSearch || s.opponent_code.toLowerCase().includes(recentSearch.toLowerCase()))
@@ -143,6 +154,41 @@
 
   const TABLE_MAX_HEIGHT = 300;
 </script>
+
+<!-- Your-character filter (single-select, scopes the whole tab) -->
+{#if myPlayedCharIds.length > 1}
+  <div style="margin-bottom:12px">
+    <div class="section-title">Filter by Your Character</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px">
+      <button
+        onclick={() => playerCharFilter = null}
+        style="
+          padding: 4px 10px;
+          border-radius: 20px;
+          border: 1px solid {playerCharFilter === null ? 'var(--accent)' : 'var(--border)'};
+          background: {playerCharFilter === null ? 'rgba(46,139,46,0.2)' : 'var(--card)'};
+          color: {playerCharFilter === null ? 'var(--accent)' : 'var(--text)'};
+          font-size: 12px;
+          cursor: pointer;
+        "
+      >All Characters</button>
+      {#each myPlayedCharIds as id}
+        <button
+          onclick={() => playerCharFilter = id}
+          style="
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid {playerCharFilter === id ? 'var(--accent)' : 'var(--border)'};
+            background: {playerCharFilter === id ? 'rgba(46,139,46,0.2)' : 'var(--card)'};
+            color: {playerCharFilter === id ? 'var(--accent)' : 'var(--text)'};
+            font-size: 12px;
+            cursor: pointer;
+          "
+        >{CHARACTERS[id] ?? id}</button>
+      {/each}
+    </div>
+  </div>
+{/if}
 
 <!-- Character filter chips -->
 <div style="margin-bottom:12px">
