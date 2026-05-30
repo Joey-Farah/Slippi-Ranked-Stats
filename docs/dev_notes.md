@@ -6,7 +6,36 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-05-29 (SECURITY HARDENING — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-05-29 (v1.8.5 — OVERLAY PREVIEW REGRESSION FIX — READ FIRST)
+
+> **v1.8.5 released this session — fixes a regression that SHIPPED in v1.8.4.** The CSP
+> hardening (commit 2e5e597, contained in the v1.8.4 tag) set `script-src 'self'`, which blocked
+> the in-app OBS overlay **Live preview** iframe: it rendered from an inline `<script>` inside a
+> `srcdoc` iframe, and a srcdoc iframe inherits the parent's CSP → inline script blocked → blank
+> box. OBS was unaffected (its CEF loads `stats.html` off disk, no app CSP). Premium overlay
+> users on v1.8.4 saw a blank preview.
+>
+> **FIX (asset-protocol baked preview):** the preview iframe no longer uses `srcdoc`. It loads a
+> baked `preview.html` (payload inlined, no polling) via the **asset protocol** (`convertFileSrc`).
+> A real-URL frame does NOT inherit the app CSP, so its inline script runs; baking the payload in
+> also avoids the live page's relative `stats-state.js` fetch, which the asset protocol's encoded
+> single-segment path can't resolve (that was a failed first attempt — pointing the iframe at the
+> live `stats.html` loaded but 404'd its state file → still blank). Changes:
+> - `tauri.conf.json`: added `frame-src 'self' asset: http://asset.localhost` to CSP +
+>   `assetProtocol { enable: true, scope: ["$APPDATA/stream-overlay/*"] }`.
+> - `Cargo.toml`: `tauri` features now include `protocol-asset` (CLI auto-added on build) → `http-range` in Cargo.lock.
+> - `stats-overlay.ts`: restored `overlayPreviewHtml`, added `writeStatsOverlayPreviewFile` + `statsOverlayPreviewPath` (writes `preview.html`, separate from the OBS `stats.html`).
+> - `LiveRankedSession.svelte`: preview writes `preview.html` on payload change + points the iframe at `convertFileSrc(previewPath)+"?v="+ver` (ver cache-busts so it reloads).
+> - ✅ Verified live in dev: preview renders + Simulate works. svelte-check clean, 33/33 tests.
+> - ⚠ Note for future: Svelte HMR did NOT apply the new `$effect` mid-session — a dev RESTART was
+>   needed before `preview.html` got written. If preview is blank after a preview-code change, restart.
+>
+> **The TO-DO list below predates this fix — the manual/owner items (telemetry deploy, feedback
+> rate-limit, 2FA, npm audit) are still open.**
+
+---
+
+## ⚠ PRIOR HANDOFF — 2026-05-29 (SECURITY HARDENING)
 
 > **Security review of the whole app this session. Worst-case (malicious auto-update) is
 > already well-defended — the updater signing key is NOT in the repo (never has been; checked

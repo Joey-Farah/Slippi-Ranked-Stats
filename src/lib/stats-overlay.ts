@@ -314,12 +314,13 @@ function overlayDoc(boot: string): string {
 /** The live OBS overlay page: polls stats-state.js and animates on changes. */
 const STATS_HTML = overlayDoc("poll();\n    setInterval(poll, POLL_MS);");
 
-/** Self-contained overlay HTML with a fixed payload baked in (no polling) — renders the
- *  exact overlay markup for the in-app live preview, so the preview can never drift from it.
- *  Unlike the live overlay (whose first poll suppresses a pre-existing set so OBS doesn't
- *  replay a stale grade on load), the preview is explicitly asked to show THIS payload — so
- *  if it carries a completed set we activate the post-set bridge directly rather than going
- *  through apply()'s first-call guard (which would record the set as "already shown"). */
+/** Self-contained overlay HTML with the payload baked in (no polling) — the in-app preview.
+ *  It's written to disk as preview.html and loaded into the preview iframe via the asset
+ *  protocol. That matters two ways: (1) a real-URL navigation does NOT inherit the app's strict
+ *  CSP, so the inline <script> runs — a `srcdoc` iframe would be blocked by `script-src 'self'`;
+ *  (2) the asset protocol encodes the whole file path into one URL segment, which breaks the
+ *  live page's relative `stats-state.js` fetch — baking the payload in sidesteps that entirely.
+ *  The preview can't drift from OBS: it runs the exact same render code as the live overlay. */
 export function overlayPreviewHtml(payload: StatsOverlayPayload): string {
   const boot =
     "var __p = " + jsonForScript(payload) + ";\n" +
@@ -350,4 +351,16 @@ export async function writeStatsOverlayState(payload: StatsOverlayPayload): Prom
 /** Absolute path to stats.html, for display + the OBS Browser Source. */
 export async function statsOverlayHtmlPath(): Promise<string> {
   return await join(await appDataDir(), DIR, "stats.html");
+}
+
+/** Write the baked preview page for the in-app iframe (separate from the OBS stats.html, which
+ *  keeps polling). Rewritten whenever the preview payload changes. */
+export async function writeStatsOverlayPreviewFile(payload: StatsOverlayPayload): Promise<void> {
+  await mkdir(DIR, { baseDir: BaseDirectory.AppData, recursive: true });
+  await writeTextFile(`${DIR}/preview.html`, overlayPreviewHtml(payload), { baseDir: BaseDirectory.AppData });
+}
+
+/** Absolute path to preview.html, loaded into the in-app preview iframe via convertFileSrc. */
+export async function statsOverlayPreviewPath(): Promise<string> {
+  return await join(await appDataDir(), DIR, "preview.html");
 }

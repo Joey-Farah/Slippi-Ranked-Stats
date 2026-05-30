@@ -8,7 +8,8 @@
   import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
   import { gradeColor } from "../../lib/grading";
-  import { ensureStatsOverlayFiles, statsOverlayHtmlPath, overlayPreviewHtml } from "../../lib/stats-overlay";
+  import { ensureStatsOverlayFiles, statsOverlayHtmlPath, statsOverlayPreviewPath, writeStatsOverlayPreviewFile } from "../../lib/stats-overlay";
+  import { convertFileSrc } from "@tauri-apps/api/core";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
 
@@ -75,6 +76,27 @@
   // Transient content (opponent line during a set, or post-set grade) sits below the persistent
   // panel, so the preview box must grow taller when it's present or overflow:hidden clips it.
   let previewHasTransient = $derived(!!(previewPayload.opponent || previewPayload.lastSet));
+
+  // The in-app preview loads a baked preview.html (payload inlined, no polling) via the asset
+  // protocol. A real-URL frame doesn't inherit the app's strict CSP, so its inline script runs
+  // (a srcdoc iframe would be blocked by script-src 'self'); baking the payload in also avoids
+  // the live page's relative stats-state.js fetch, which the asset protocol's encoded single-
+  // segment path can't resolve. It's a separate file from the OBS stats.html, so the two never
+  // interfere. previewVer bumps after each write to cache-bust the iframe so it reloads.
+  let previewPath = $state("");
+  let previewVer  = $state(0);
+  $effect(() => { statsOverlayPreviewPath().then((p) => (previewPath = p)).catch(() => {}); });
+  $effect(() => {
+    if (!$statsOverlayExpanded) return;
+    const payload = { ...previewPayload, layout: $statsOverlayLayout };
+    (async () => {
+      try { await writeStatsOverlayPreviewFile(payload); previewVer++; }
+      catch (e) { console.error("overlay preview write failed", e); }
+    })();
+  });
+  // Only point the iframe at the file once it's been written at least once (previewVer > 0),
+  // so it never loads a not-yet-existing preview.html (which would 404 to a blank box).
+  let previewSrc = $derived(previewPath && previewVer > 0 ? convertFileSrc(previewPath) + "?v=" + previewVer : "");
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -263,11 +285,11 @@
           <div style="font-size: 12px; font-weight: 600; margin: 0 0 6px">
             Live preview — what's on your overlay now:
           </div>
-          <!-- The preview IS the real overlay, rendered with the current payload baked in
-               (no polling), so it can never drift from what OBS shows. aspect-ratio gives a
-               responsive box; it must grow taller when transient content (the opponent line
-               during a set, or the post-set grade) is present, since that area sits below the
-               persistent panel and would otherwise be clipped by overflow:hidden.
+          <!-- The preview IS the real overlay: the iframe loads the same stats.html OBS uses
+               (via the asset protocol), so it can never drift from what OBS shows. aspect-ratio
+               gives a responsive box; it must grow taller when transient content (the opponent
+               line during a set, or the post-set grade) is present, since that area sits below
+               the persistent panel and would otherwise be clipped by overflow:hidden.
                (aspect-ratio is relative to the box's own width, unlike padding-top %.) -->
           <div style="
             position: relative; width: 100%; overflow: hidden;
@@ -276,12 +298,14 @@
               ? (previewHasTransient ? 'aspect-ratio: 1.3;' : 'aspect-ratio: 2;')
               : 'max-width: 280px; ' + (previewHasTransient ? 'aspect-ratio: 1 / 1.5;' : 'aspect-ratio: 1 / 1.05;')}
           ">
-            <iframe
-              title="Live overlay preview"
-              srcdoc={overlayPreviewHtml(previewPayload)}
-              scrolling="no"
-              style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block;"
-            ></iframe>
+            {#if previewSrc}
+              <iframe
+                title="Live overlay preview"
+                src={previewSrc}
+                scrolling="no"
+                style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block;"
+              ></iframe>
+            {/if}
           </div>
 
           <!-- Step 3: push test data to the actual OBS overlay -->

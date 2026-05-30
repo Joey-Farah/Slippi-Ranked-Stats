@@ -1,6 +1,6 @@
 [package]
 name = "slippi-ranked-stats"
-version = "1.8.4"
+version = "1.8.5"
 description = "Slippi Ranked Stats Dashboard"
 authors = []
 edition = "2021"
@@ -17,7 +17,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-fs = { version = "2", features = ["watch"] }
 tauri-plugin-dialog = { version = "2" }

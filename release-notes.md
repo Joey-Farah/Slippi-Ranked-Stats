@@ -1,3 +1,11 @@
+## What's New in v1.8.5
+
+### 🩹 Overlay preview shows up again in the app (Premium)
+
+The **Live preview** box in the OBS overlay setup went blank in v1.8.4 — it showed nothing even though the overlay still worked correctly in OBS itself. That was a side effect of last version's security hardening (the stricter app content policy blocked the preview from rendering). The in-app preview is back, so you can once again see exactly what's on your overlay — and use **Simulate set result** to test it — without leaving the app.
+
+---
+
 ## What's New in v1.8.4
 
 ### 🔑 Stay premium without re-linking Discord every week (Premium)

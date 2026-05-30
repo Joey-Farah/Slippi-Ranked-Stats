@@ -1,6 +1,6 @@
 {
   "productName": "Slippi Ranked Stats",
-  "version": "1.8.4",
+  "version": "1.8.5",
   "identifier": "com.slippi.rankedstats",
   "build": {
     "frontendDist": "../dist",
@@ -29,7 +29,12 @@
         "style-src-attr": "'unsafe-inline'",
         "img-src": "'self' asset: http://asset.localhost data: blob:",
         "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost"
+        "connect-src": "'self' ipc: http://ipc.localhost",
+        "frame-src": "'self' asset: http://asset.localhost"
+      },
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/stream-overlay/*"]
       }
     }
   },
