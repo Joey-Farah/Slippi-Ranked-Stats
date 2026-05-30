@@ -1,10 +1,22 @@
+## What's New in v1.8.4
+
+### 🔑 Stay premium without re-linking Discord every week (Premium)
+
+Premium access is verified through your linked Discord, and that link used to quietly expire about once a week — which is why some of you have had to **re-link Discord to get premium back** every so often (it often seemed to happen right after an update). The app now **renews the link automatically in the background**, so this should stop happening.
+
+> ⚠️ **One last re-link — heads up:** because the old link can't be renewed, **every premium user will need to re-link Discord *one more time*** the next time their current link expires. After that single re-link, it renews silently on its own and you shouldn't have to do it again. If you find yourself dropped from premium once after updating, just re-link in the **Live Session** tab — that's expected, and it's the last time.
+
+### 🔒 Security hardening
+
+Under-the-hood safety improvements as the app grows: a stricter content policy in the app window, tighter file-access limits, and a locked-down telemetry endpoint. No change to how you use the app — just a smaller attack surface.
+
+---
+
 ## What's New in v1.8.3
 
 ### 🩹 The previous set's grade no longer lingers into your next set (Premium)
 
 When a ranked set ends, the Live Stats Overlay holds the result and grade for a few minutes — but it now **clears the moment your next set starts**, instead of leaving the old grade up through your first game of the next set. The 3-minute hold still applies whenever you stop playing; a new set just takes priority.
-
-> 💡 v1.8.3 follows close behind v1.8.2 — if you're coming from an earlier version, here's what landed in v1.8.2 too:
 
 ## What's New in v1.8.2
 
