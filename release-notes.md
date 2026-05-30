@@ -1,3 +1,11 @@
+## Unreleased
+
+### 🗂️ The app reopens on whatever tab you left off on
+
+Switching to a tab is now remembered between launches. If you quit the app on **Live Session** (or any other tab), the next time you open it you'll land right back there instead of getting bounced back to Ranked Sessions.
+
+---
+
 ## What's New in v1.8.5
 
 ### 🩹 Overlay preview shows up again in the app (Premium)
