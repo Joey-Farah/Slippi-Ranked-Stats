@@ -53,16 +53,27 @@ hand-off mechanism between work sessions and across machines.
 > - **[code] `npm audit fix`:** 4 advisories (svelte moderate, lodash/lodash-es high). ALL are
 >   SSR / `_.template` issues — **not exploitable here** (no SSR, no `_.template`), but worth
 >   clearing. Do as its own commit so it's easy to revert if a bump misbehaves.
-> - **[code, DISCUSS FIRST — premium/auth] Discord premium re-auth bug** (owner-reported:
->   "need to re-link Discord for premium after some updates"). **ROOT CAUSE FOUND:** Discord
->   OAuth access tokens expire after **7 days**; `discord.ts` stores ONLY `data.access_token`
->   and discards the `refresh_token`. On launch, `verifyPatronRoleWithRetry` hits an expired
->   token → worker returns `auth_invalid` → `discord.ts` clears the token → user must re-link.
->   It *correlates* with updates only because updates trigger a relaunch+recheck; the real
->   trigger is time (~weekly), which is why multiple users see it. **FIX:** persist the
->   `refresh_token` (new `persisted` store), and in `verifyPatronRole`, on `auth_invalid` try
->   POSTing `grant_type=refresh_token` to Discord's token endpoint to mint a fresh access token
->   before clearing. Touches premium gating → discuss approach per CLAUDE.md before building.
+> - **[✅ BUILT 2026-05-29 — pending live test + release] Discord premium re-auth bug**
+>   (owner-reported: "need to re-link Discord for premium after some updates"). **ROOT CAUSE:**
+>   Discord OAuth access tokens expire after **7 days**; `discord.ts` stored ONLY
+>   `data.access_token` and discarded the `refresh_token`. On launch, an expired token →
+>   worker `auth_invalid` → token cleared → re-link. It *correlated* with updates only because
+>   updates relaunch+recheck; the real trigger is time (~weekly), so multiple users saw it.
+>   **FIX SHIPPED IN CODE (reactive + proactive, owner-approved):** new persisted stores
+>   `srs_discordRefreshToken` + `srs_discordTokenExpiresAt`; `storeTokenResponse()` captures
+>   both on auth + on refresh (Discord rotates refresh tokens — latest always saved).
+>   `refreshDiscordToken()` does a silent `grant_type=refresh_token` exchange. `verifyPatronRole`
+>   now: (proactive) refreshes when the stored token is within `REFRESH_SKEW_MS` (1 day) of its
+>   expiry on the no-explicit-token launch check; (reactive) on `auth_invalid`, tries ONE silent
+>   refresh + re-verify before clearing (guarded by `_afterRefresh` against recursion). 4xx on
+>   refresh clears the dead refresh token (→ re-link); 5xx/network keeps it for next launch.
+>   `disconnectDiscord` clears the new stores. `App.svelte` launch check now calls
+>   `verifyPatronRoleWithRetry()` with NO token arg so proactive engages. svelte-check 0/0,
+>   33/33 tests. **Worst case is no-regression:** if Discord doesn't return a refresh_token,
+>   `refreshDiscordToken` returns null → same re-link as before. ⚠ **NOT live-verified** — needs
+>   a real link-and-wait (or a forced-expiry) test on the owner's machine; can't repro on mobile.
+>   ⚠ **Existing installs linked before this** have no stored refresh token → they re-link ONCE
+>   more, which populates it, then renew seamlessly forever after. Ship in **v1.8.4**.
 > - **[release] Version bump → `v1.8.4`:** the app-level fixes (#1, #2, #5) only protect users
 >   once shipped. Bundle them + the Discord refresh fix into one `v1.8.4` release next session
 >   (package.json, tauri.conf.json, Cargo.toml, Cargo.lock, release-notes.md; tag `v1.8.4`).

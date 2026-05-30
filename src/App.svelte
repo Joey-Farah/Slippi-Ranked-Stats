@@ -90,8 +90,10 @@
     // otherwise ensure isPremium is false (clears any leftover test state).
     // Uses retry-with-backoff so existing patrons whose last check hit a
     // transient Discord 5xx auto-recover without re-linking.
+    // Call without passing the token so verifyPatronRole reads it from the store and can
+    // proactively refresh a near-expired access token before the check (see discord.ts).
     const token = get(discordToken);
-    if (token) verifyPatronRoleWithRetry(token).catch(() => {});
+    if (token) verifyPatronRoleWithRetry().catch(() => {});
     else isPremium.set(false);
 
     // Telemetry ping — fire and forget, silently ignore failures

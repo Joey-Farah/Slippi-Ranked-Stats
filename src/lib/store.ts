@@ -73,6 +73,13 @@ export const statsOverlayPreview = writable<StatsOverlayPayload | null>(null);
 export const discordToken = persisted<string | null>("srs_discordToken", null);
 export const discordUsername = persisted<string | null>("srs_discordUsername", null);
 
+// Discord OAuth refresh token + access-token expiry (ms epoch). Discord access tokens expire
+// after ~7 days; persisting the refresh token lets the app silently mint a fresh one instead
+// of clearing premium and forcing a re-link. (Installs that linked BEFORE this shipped have no
+// stored refresh token — they re-link once to populate it, then renew seamlessly forever.)
+export const discordRefreshToken = persisted<string | null>("srs_discordRefreshToken", null);
+export const discordTokenExpiresAt = persisted<number | null>("srs_discordTokenExpiresAt", null);
+
 // ── Raw data ───────────────────────────────────────────────────────────────
 
 export const games = writable<GameRow[]>([]);

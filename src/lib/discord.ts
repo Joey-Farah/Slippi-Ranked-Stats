@@ -2,7 +2,14 @@ import { fetch } from "@tauri-apps/plugin-http";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
-import { isPremium, discordToken, discordUsername, installId } from "./store";
+import {
+  isPremium,
+  discordToken,
+  discordUsername,
+  discordRefreshToken,
+  discordTokenExpiresAt,
+  installId,
+} from "./store";
 
 const CLIENT_ID = "1489690383171719188";
 const REDIRECT_URI = "http://localhost:14523";
@@ -29,6 +36,68 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=/g, "");
+}
+
+// ── Token storage + silent refresh ──────────────────────────────────────────────
+
+// Renew the access token this many ms BEFORE it actually expires, so a launch that lands
+// near the boundary refreshes proactively instead of racing a rejection. 1 day of slack.
+const REFRESH_SKEW_MS = 24 * 60 * 60 * 1000;
+
+/** Persist a Discord token response (from auth-code OR refresh-token exchange). Discord
+ *  rotates the refresh token on each refresh, so we always save the latest one it returns;
+ *  if a refresh response omits it (Discord sometimes does), we keep the existing one. */
+function storeTokenResponse(data: {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+}): void {
+  discordToken.set(data.access_token);
+  if (data.refresh_token) discordRefreshToken.set(data.refresh_token);
+  discordTokenExpiresAt.set(
+    typeof data.expires_in === "number" ? Date.now() + data.expires_in * 1000 : null
+  );
+}
+
+/**
+ * Exchanges the stored refresh token for a fresh access token (silent — no browser, no
+ * user interaction). Returns the new access token, or null if there's no refresh token or
+ * Discord refused it (refresh tokens can be revoked or, after long dormancy, invalidated).
+ * On a hard refusal we clear the dead refresh token so callers fall back to a re-link.
+ */
+export async function refreshDiscordToken(): Promise<string | null> {
+  const rt = get(discordRefreshToken);
+  if (!rt) return null;
+
+  let res: Response;
+  try {
+    res = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        grant_type: "refresh_token",
+        refresh_token: rt,
+      }).toString(),
+    });
+  } catch {
+    return null; // network/transient — keep the refresh token, try again next launch
+  }
+
+  if (!res.ok) {
+    // 4xx = the refresh token itself is bad (revoked/expired). Clear it so the user re-links.
+    // 5xx = Discord hiccup; leave it so we can retry later.
+    if (res.status >= 400 && res.status < 500) discordRefreshToken.set(null);
+    return null;
+  }
+
+  try {
+    const data = await res.json();
+    storeTokenResponse(data);
+    return data.access_token as string;
+  } catch {
+    return null;
+  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -86,7 +155,7 @@ export async function startDiscordAuth(): Promise<void> {
     }
 
     const data = await res.json();
-    discordToken.set(data.access_token);
+    storeTokenResponse(data);
     await verifyPatronRole(data.access_token);
   } catch (e) {
     console.error("[discord] auth error:", e);
@@ -110,7 +179,21 @@ export type VerifyResult = "premium" | "no_role" | "no_token" | "auth_invalid" |
  * (5xx/429/network) leave the prior value alone so a Discord hiccup can't
  * silently downgrade an existing patron.
  */
-export async function verifyPatronRole(token?: string): Promise<VerifyResult> {
+export async function verifyPatronRole(
+  token?: string,
+  _afterRefresh = false
+): Promise<VerifyResult> {
+  // Proactive refresh: on the normal (no explicit token) check — e.g. app launch — if the
+  // stored access token is at/near its ~7-day expiry, mint a fresh one first so we never even
+  // hit a rejection. Skipped when a token is passed explicitly (post-auth, or the reactive
+  // retry below, which already holds a fresh token).
+  if (!token && !_afterRefresh) {
+    const exp = get(discordTokenExpiresAt);
+    if (exp !== null && Date.now() >= exp - REFRESH_SKEW_MS && get(discordRefreshToken)) {
+      await refreshDiscordToken(); // updates discordToken in place; fall through to use it
+    }
+  }
+
   const t = token ?? get(discordToken);
   if (!t) return "no_token";
 
@@ -157,8 +240,18 @@ export async function verifyPatronRole(token?: string): Promise<VerifyResult> {
       return "auth_invalid";
 
     case "auth_invalid":
-      // Token was rejected by Discord — clear it so the user re-links.
+      // Discord rejected the access token — the common case is simply that it expired (~7 days).
+      // Before clearing premium and forcing a re-link, try ONE silent refresh with the stored
+      // refresh token and re-verify with the new access token. Only give up if there's no
+      // refresh token (older installs that linked before this shipped) or the refresh itself
+      // failed (token actually revoked). The `_afterRefresh` guard caps this at a single retry.
+      if (!_afterRefresh) {
+        const fresh = await refreshDiscordToken();
+        if (fresh) return verifyPatronRole(fresh, true);
+      }
       discordToken.set(null);
+      discordRefreshToken.set(null);
+      discordTokenExpiresAt.set(null);
       discordUsername.set(null);
       isPremium.set(false);
       return "auth_invalid";
@@ -203,6 +296,8 @@ export async function disconnectDiscord(): Promise<void> {
     }).catch(() => {});
   }
   discordToken.set(null);
+  discordRefreshToken.set(null);
+  discordTokenExpiresAt.set(null);
   discordUsername.set(null);
   isPremium.set(false);
 }
