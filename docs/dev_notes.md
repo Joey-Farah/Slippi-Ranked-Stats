@@ -6,6 +6,70 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-05-29 (SECURITY HARDENING — READ FIRST)
+
+> **Security review of the whole app this session. Worst-case (malicious auto-update) is
+> already well-defended — the updater signing key is NOT in the repo (never has been; checked
+> all branches) and unsigned updates are rejected client-side. The Rust backend is tiny + safe
+> (2 commands, no shell injection), and all SQL is parameterized. Found + fixed several
+> defense-in-depth gaps. Changes are committed to `main` but NOT released — they only reach
+> users when bundled into the next version bump (see TO-DO).**
+>
+> **✅ APPLIED + TESTED this session (svelte-check clean, 33/33 tests, dev app launches clean
+> under all changes):**
+> 1. **CSP enabled** — `tauri.conf.json` was `"csp": null`; now a real policy with
+>    `script-src 'self'` (no inline/remote JS can run → a poisoned dep or future XSS can't
+>    steal Discord tokens / call privileged APIs). `style-src-attr 'unsafe-inline'` kept so the
+>    app's many inline `style=` attrs still work. Network calls are unaffected (they go through
+>    plugin-http / the Rust updater, which bypass webview CSP). Verified the app renders.
+> 2. **fs read scope narrowed** — `capabilities/default.json` read/read-dir/watch were `**`
+>    + `/**` (whole disk); now `$HOME/**`. Write was already correctly scoped to `$APPDATA/**`.
+>    Folder-picker dialog is unaffected (OS dialog isn't capability-gated). ⚠ If a user keeps
+>    replays on a non-home drive (e.g. `D:\`), this would block them — revert to `**` if that
+>    report ever comes in. `gen/schemas/capabilities.json` auto-regenerated.
+> 3. **CI uses `npm ci`** (was `npm install`) in both release.yml jobs — lockfile-exact builds
+>    on the signing machine.
+> 4. **Telemetry worker `/stats` + `/init` gated** behind `?key=<DASHBOARD_TOKEN>` (a Worker
+>    secret) — install/DAU/premium numbers were public to anyone with the URL. Returns 404
+>    without the key. ⚠ NOT LIVE until redeployed + secret set (see TO-DO).
+> 5. **Overlay `<script>` injection hardened** — `stats-overlay.ts` now routes all 3 inlined-
+>    payload sites through `jsonForScript()` (escapes `<` → `<`) so an opponent's Slippi
+>    display name (attacker-controlled) containing `</script>` can't break out.
+>
+> **📋 TO-DO NEXT SESSION (owner is away from the computer — these need the owner's machine /
+> accounts; nothing here is done yet):**
+> - **[manual, owner] Deploy + secret the telemetry worker** so fix #4 takes effect:
+>   in `workers/telemetry/`: `npx wrangler secret put DASHBOARD_TOKEN` (pick a long random
+>   string), then `npx wrangler deploy`. After that the dashboard is at `…/stats?key=<token>`.
+>   Until done, `/stats` 404s for everyone incl. owner.
+> - **[manual, owner] Feedback worker spam guard (#5 from review):** anyone can currently POST
+>   to the feedback worker and spam Discord #bug-reports / #suggestion-box. Best fix is a
+>   Cloudflare **Rate Limiting rule** (dashboard, not code — e.g. 5 req/min per IP on the
+>   feedback route). ~5 clicks. No code change needed.
+> - **[manual, owner] Account security:** enable 2FA / hardware key on the **GitHub** account
+>   (holds the updater signing secret `TAURI_SIGNING_PRIVATE_KEY`) and the **Cloudflare**
+>   account (holds `DISCORD_BOT_TOKEN`). With the code hardened, these accounts are now the only
+>   realistic path to a malicious release. Consider branch protection on `main`.
+> - **[code] `npm audit fix`:** 4 advisories (svelte moderate, lodash/lodash-es high). ALL are
+>   SSR / `_.template` issues — **not exploitable here** (no SSR, no `_.template`), but worth
+>   clearing. Do as its own commit so it's easy to revert if a bump misbehaves.
+> - **[code, DISCUSS FIRST — premium/auth] Discord premium re-auth bug** (owner-reported:
+>   "need to re-link Discord for premium after some updates"). **ROOT CAUSE FOUND:** Discord
+>   OAuth access tokens expire after **7 days**; `discord.ts` stores ONLY `data.access_token`
+>   and discards the `refresh_token`. On launch, `verifyPatronRoleWithRetry` hits an expired
+>   token → worker returns `auth_invalid` → `discord.ts` clears the token → user must re-link.
+>   It *correlates* with updates only because updates trigger a relaunch+recheck; the real
+>   trigger is time (~weekly), which is why multiple users see it. **FIX:** persist the
+>   `refresh_token` (new `persisted` store), and in `verifyPatronRole`, on `auth_invalid` try
+>   POSTing `grant_type=refresh_token` to Discord's token endpoint to mint a fresh access token
+>   before clearing. Touches premium gating → discuss approach per CLAUDE.md before building.
+> - **[release] Version bump → `v1.8.4`:** the app-level fixes (#1, #2, #5) only protect users
+>   once shipped. Bundle them + the Discord refresh fix into one `v1.8.4` release next session
+>   (package.json, tauri.conf.json, Cargo.toml, Cargo.lock, release-notes.md; tag `v1.8.4`).
+>   The hardening commit already on `main` is NOT yet released.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-05-28 (v1.8.3, READ FIRST)
 
 > **✅ SHIPPED in v1.8.3 (2026-05-28): overlay post-set grade no longer lingers into the next set.**

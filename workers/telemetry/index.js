@@ -38,8 +38,15 @@ export default {
       return corsResponse("ok", 200);
     }
 
-    // GET /stats — HTML dashboard
+    // GET /stats — HTML dashboard (owner-only). Gated behind a secret token so install
+    // counts / DAU / premium numbers aren't public. The token is a Worker secret, never
+    // in the client app — set it with: wrangler secret put DASHBOARD_TOKEN
+    // View at: https://<worker-url>/stats?key=<token>. 404 (not 401) so the endpoint
+    // doesn't even advertise that it exists to someone probing without the key.
     if (request.method === "GET" && url.pathname === "/stats") {
+      if (url.searchParams.get("key") !== env.DASHBOARD_TOKEN) {
+        return new Response("Not found", { status: 404 });
+      }
       const previous = readSnapshotCookie(request.headers.get("Cookie"));
       const { html, snapshot } = await buildDashboard(env.DB, previous);
 
@@ -55,8 +62,12 @@ export default {
       return new Response(html, { status: 200, headers });
     }
 
-    // POST /init — ensure schema exists (call once after creating DB)
+    // POST /init — ensure schema exists (call once after creating DB). Same owner-only
+    // token gate as /stats so a stranger can't poke at the schema.
     if (request.method === "POST" && url.pathname === "/init") {
+      if (url.searchParams.get("key") !== env.DASHBOARD_TOKEN) {
+        return corsResponse("Not found", 404);
+      }
       for (const stmt of SCHEMA.trim().split(";").map(s => s.trim()).filter(Boolean)) {
         await env.DB.prepare(stmt).run();
       }

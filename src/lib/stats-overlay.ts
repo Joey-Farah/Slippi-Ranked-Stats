@@ -22,9 +22,15 @@ import type { StatsOverlayPayload } from "./store";
 
 const DIR = "stream-overlay";
 
-// Inlined into the page as `var MEDALS = {...}`. JSON.stringify escapes the SVG markup
-// safely; the SVGs contain no backticks, "${", or "</script>".
-const MEDALS_JSON = JSON.stringify(RANK_MEDAL_SVGS);
+/** JSON for safe inlining inside an HTML <script>: also escape `<` so a value like
+ *  `</script>` (e.g. in an opponent's Slippi display name, which is attacker-controlled)
+ *  can't break out of the tag. Produces valid JS that parses to the identical value. */
+function jsonForScript(v: unknown): string {
+  return JSON.stringify(v).replace(/</g, "\\u003c");
+}
+
+// Inlined into the page as `var MEDALS = {...}` (SVG markup escaped for a <script> context).
+const MEDALS_JSON = jsonForScript(RANK_MEDAL_SVGS);
 
 /** The always-on stats panel. The inline script uses string concatenation + literal
  *  Unicode (·, –, —, ▲, ▼) and the &#39; entity for the apostrophe, so it embeds cleanly
@@ -316,7 +322,7 @@ const STATS_HTML = overlayDoc("poll();\n    setInterval(poll, POLL_MS);");
  *  through apply()'s first-call guard (which would record the set as "already shown"). */
 export function overlayPreviewHtml(payload: StatsOverlayPayload): string {
   const boot =
-    "var __p = " + JSON.stringify(payload) + ";\n" +
+    "var __p = " + jsonForScript(payload) + ";\n" +
     "    latest = __p;\n" +
     "    firstApply = false;\n" +
     "    if (__p && __p.lastSet) { shownSetId = __p.lastSet.setId; postSet = true; postSetData = __p.lastSet; }\n" +
@@ -337,7 +343,7 @@ export async function ensureStatsOverlayFiles(): Promise<void> {
 
 /** Write the current live-stats payload so the panel re-renders. */
 export async function writeStatsOverlayState(payload: StatsOverlayPayload): Promise<void> {
-  const body = `// Written by Slippi Ranked Stats.\nwindow.__SRS_STATS = ${JSON.stringify(payload)};\n`;
+  const body = `// Written by Slippi Ranked Stats.\nwindow.__SRS_STATS = ${jsonForScript(payload)};\n`;
   await writeTextFile(`${DIR}/stats-state.js`, body, { baseDir: BaseDirectory.AppData });
 }
 
