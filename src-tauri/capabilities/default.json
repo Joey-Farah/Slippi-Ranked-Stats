@@ -16,15 +16,15 @@
     },
     {
       "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-watch",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-write-text-file",

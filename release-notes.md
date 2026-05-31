@@ -1,4 +1,8 @@
-## Unreleased
+## What's New in v1.8.6
+
+### 🩹 Scanning replays works again if your replay folder isn't in your user folder
+
+If your Slippi replays live somewhere other than your user folder — on another drive, or at a drive root like `C:\Slippi Replays` — scanning broke in v1.8.4/v1.8.5 with a **"forbidden path"** error. That was an over-tight file-access limit from the security hardening. The app can once again read replays wherever you keep them.
 
 ### 🗂️ The app reopens on whatever tab you left off on
 

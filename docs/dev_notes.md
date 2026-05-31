@@ -6,6 +6,32 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-05-31 (v1.8.6 — "forbidden path" REPLAY-SCAN FIX — READ FIRST)
+
+> **v1.8.6 released this session — fixes a regression that SHIPPED in v1.8.4.** The security
+> hardening (commit 2e5e597, in the v1.8.4 tag) narrowed the `fs` read/read-dir/watch capability
+> from whole-disk (`**`) to `$HOME/**`. Any user whose Slippi replay folder lives **outside their
+> user folder** — another drive, or a drive root like `C:\Slippi Replays` (the owner's own setup) —
+> hit **`Scan error: "forbidden path: C:\Slippi Replays"`**. The prior handoff banner had explicitly
+> predicted this ("revert to `**` if that report ever comes in") — the report came in.
+>
+> **FIX:** reverted `fs:allow-read-file` / `fs:allow-read-dir` / `fs:allow-watch` back to `**` in
+> `src-tauri/capabilities/default.json` **and** its generated mirror `src-tauri/gen/schemas/capabilities.json`.
+> Write stays scoped to `$APPDATA/**` (unchanged). The replay folder is user-configurable to any path
+> on any drive, so there is **no static narrowing that won't eventually break someone** — `**` is the
+> only correct scope for reads. The original exfiltration concern that motivated `$HOME` is still
+> covered by the **CSP** (`script-src 'self'`, enabled the same hardening pass) — injected JS can't run,
+> so whole-disk *read* capability doesn't reopen that hole. ⚠ Capabilities are **compiled into the Rust
+> binary** — a JS HMR reload does NOT pick this up; a dev restart / rebuild is required (verified live
+> this session: scan works again).
+>
+> **Bundled in the same v1.8.6 release** (were sitting unreleased on `main` from prior commits):
+> tab-memory restore (app reopens on last tab) + expanded anonymous telemetry (scan / live-session /
+> grade / overlay-toggle counts). Version bumped 1.8.5→1.8.6 (package.json, tauri.conf.json, Cargo.toml,
+> Cargo.lock); release-notes.md updated. Tagged **`v1.8.6`** → triggers signed CI release.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-05-29 (v1.8.5 — OVERLAY PREVIEW REGRESSION FIX — READ FIRST)
 
 > **v1.8.5 released this session — fixes a regression that SHIPPED in v1.8.4.** The CSP
