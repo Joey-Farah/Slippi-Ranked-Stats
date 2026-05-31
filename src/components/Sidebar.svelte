@@ -9,6 +9,7 @@
     discordToken, discordUsername, linkedCodes, displayName,
   } from "../lib/store";
   import { startDiscordAuth, verifyPatronRole, disconnectDiscord } from "../lib/discord";
+  import { pingTelemetry } from "../lib/telemetry";
 
   const KOFI_URL    = "https://ko-fi.com/joeydonuts";
   const PATREON_URL = "https://www.patreon.com/joeydonuts";
@@ -137,6 +138,7 @@
       const loaded = await loadMergedGames(dbsByCode);
       games.set(loaded);
       statusMessage.set(`Scan complete — ${filesScanned} files, ${gamesInserted} ranked replays found (${loaded.length} total in DB).`);
+      pingTelemetry("scan_run");
     } catch (e: any) {
       statusMessage.set("Scan error: " + (e?.message ?? JSON.stringify(e) ?? String(e)));
     } finally {
@@ -161,6 +163,7 @@
       const loaded = await loadMergedGames(dbsByCode);
       games.set(loaded);
       statusMessage.set(`path:"${debugPath}" | ${totalSlpFound} .slp | ${filesScanned} new | ${gamesInserted} ranked | ${loaded.length} in DB${firstError ? ` | err: ${firstError}` : ""}`);
+      pingTelemetry("scan_run");
     } catch (e: any) {
       statusMessage.set("Rescan error: " + (e?.message ?? JSON.stringify(e) ?? String(e)));
     } finally {

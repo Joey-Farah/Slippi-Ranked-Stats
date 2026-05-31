@@ -34,6 +34,7 @@ import {
 import { CHARACTERS } from "./parser";
 import { gradeSet, featuredCategory, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
+import { pingTelemetry } from "./telemetry";
 
 let _unwatchers: UnwatchFn[] = [];
 let _snapshotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -61,6 +62,8 @@ export async function startWatcher(
   db: Database
 ): Promise<void> {
   if (_unwatchers.length > 0) return; // already running
+
+  pingTelemetry("watcher_start");
 
   // Initialize session state from current store contents
   _knownMatchIds.clear();
@@ -371,6 +374,7 @@ async function handleRankedGame(
         if (hasRealData) {
           gradeLetter = grade.letter;
           gradeToSave = grade; // persisted below, AFTER the live stores update
+          pingTelemetry("set_graded");
         }
       }
     } catch {

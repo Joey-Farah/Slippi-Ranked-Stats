@@ -8,8 +8,8 @@ import {
   discordUsername,
   discordRefreshToken,
   discordTokenExpiresAt,
-  installId,
 } from "./store";
+import { pingTelemetry } from "./telemetry";
 
 const CLIENT_ID = "1489690383171719188";
 const REDIRECT_URI = "http://localhost:14523";
@@ -224,11 +224,7 @@ export async function verifyPatronRole(
   switch (data.reason) {
     case "premium":
       isPremium.set(true);
-      fetch("https://srs-telemetry.joeyfarah.workers.dev/ping", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ install_id: get(installId), event: "premium" }),
-      }).catch(() => {});
+      pingTelemetry("premium");
       return "premium";
 
     case "no_role":

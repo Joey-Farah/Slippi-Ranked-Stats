@@ -9,6 +9,7 @@
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
   import { gradeColor } from "../../lib/grading";
   import { ensureStatsOverlayFiles, statsOverlayHtmlPath, statsOverlayPreviewPath, writeStatsOverlayPreviewFile } from "../../lib/stats-overlay";
+  import { pingTelemetry } from "../../lib/telemetry";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
@@ -30,6 +31,7 @@
     statsOverlayEnabled.set(next);
     if (next) {
       statsOverlayExpanded.set(true);
+      pingTelemetry("overlay_enabled");
       try { await ensureStatsOverlayFiles(); } catch (e) { console.error("stats overlay setup failed", e); }
     } else {
       stopPreview();

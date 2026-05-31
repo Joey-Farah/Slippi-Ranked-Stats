@@ -4,6 +4,10 @@
 
 Switching to a tab is now remembered between launches. If you quit the app on **Live Session** (or any other tab), the next time you open it you'll land right back there instead of getting bounced back to Ranked Sessions.
 
+### 🔒 A bit more anonymous usage data
+
+To help prioritize what gets built next, the app now anonymously notes when you **scan replays**, **start a Live Session**, **earn a set grade**, or **turn on the OBS overlay** — alongside the open / version ping that already exists. No replay contents, connect codes, or personal info — just counts. Same anonymous install ID as before.
+
 ---
 
 ## What's New in v1.8.5

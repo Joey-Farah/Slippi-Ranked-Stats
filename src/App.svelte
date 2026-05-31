@@ -9,7 +9,8 @@
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, installId, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout } from "./lib/store";
+  import { pingTelemetry } from "./lib/telemetry";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
   import { ensureStatsOverlayFiles, writeStatsOverlayState } from "./lib/stats-overlay";
@@ -61,8 +62,6 @@
   });
   import { check } from "@tauri-apps/plugin-updater";
   import { relaunch } from "@tauri-apps/plugin-process";
-  import { fetch } from "@tauri-apps/plugin-http";
-  import { getVersion } from "@tauri-apps/api/app";
 
   let updateAvailable = $state(false);
   let updateVersion = $state("");
@@ -96,15 +95,7 @@
     if (token) verifyPatronRoleWithRetry().catch(() => {});
     else isPremium.set(false);
 
-    // Telemetry ping — fire and forget, silently ignore failures
-    try {
-      const version = await getVersion();
-      fetch("https://srs-telemetry.joeyfarah.workers.dev/ping", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ install_id: get(installId), event: "open", version }),
-      }).catch(() => {});
-    } catch { /* ignore */ }
+    pingTelemetry("open");
 
     try {
       const update = await check();
