@@ -133,15 +133,19 @@ function overlayDoc(boot: string): string {
     function fmt1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
     function fmtDelta(d) { return (d >= 0 ? "+" : "") + fmt1(d); }
 
-    function medalHtml(s) { return '<div class="medal">' + (MEDALS[s.rankName] || MEDALS["Unranked"] || "") + "</div>"; }
-    function rankHtml(s) { return '<div class="rank" style="color:' + esc(s.rankColor) + '">' + esc((s.rankName || "").toUpperCase()) + "</div>"; }
+    // Per-element visibility. Missing show/key (older payloads) defaults to visible, so the
+    // overlay never disappears if a state file predates the toggles.
+    function vis(s, k) { return !s || !s.show || s.show[k] !== false; }
+
+    function medalHtml(s) { if (!vis(s, "medal")) return ""; return '<div class="medal">' + (MEDALS[s.rankName] || MEDALS["Unranked"] || "") + "</div>"; }
+    function rankHtml(s) { if (!vis(s, "rank")) return ""; return '<div class="rank" style="color:' + esc(s.rankColor) + '">' + esc((s.rankName || "").toUpperCase()) + "</div>"; }
 
     function mmrHtml(s) {
-      if (s.rating == null) return "";
+      if (s.rating == null || !vis(s, "mmr")) return "";
       var extra = "";
       // Session MMR change stays beside the MMR all session (not just during the post-set moment).
       // Signed (+/-) AND colored so the direction reads at a glance even on a busy stream.
-      if (s.sessionDelta != null) {
+      if (s.sessionDelta != null && vis(s, "sessionDelta")) {
         var up = s.sessionDelta >= 0;
         extra = ' <span class="mmr-delta" style="color:' + (up ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(s.sessionDelta) + "</span>";
       }
@@ -149,12 +153,12 @@ function overlayDoc(boot: string): string {
     }
 
     function globalHtml(s) {
-      if (s.globalRank == null) return "";
+      if (s.globalRank == null || !vis(s, "global")) return "";
       return '<span class="global">#' + esc(s.globalRank) + (s.region ? " [" + esc(s.region) + "]" : "") + "</span>";
     }
 
     function seasonHtml(s) {
-      if (s.seasonWins == null || s.seasonLosses == null) return "";
+      if (s.seasonWins == null || s.seasonLosses == null || !vis(s, "season")) return "";
       return '<span class="season"><span class="w">W: ' + esc(s.seasonWins) + '</span><span class="l">L: ' + esc(s.seasonLosses) + "</span></span>";
     }
 
@@ -162,7 +166,7 @@ function overlayDoc(boot: string): string {
       if (postSet && postSetData) {
         var won = postSetData.result === "win";
         var gradeEl = "", subEl = "";
-        if (postSetData.gradeLetter) {
+        if (postSetData.gradeLetter && vis(s, "grade")) {
           var gc = GRADE_COLORS[postSetData.gradeLetter] || "#fff";
           var cls = (animatedSetId === postSetData.setId) ? "grade" : "grade show";
           gradeEl = '<div class="gradewrap"><div class="gradelabel">SET GRADE</div><div class="' + cls + '" style="color:' + gc + '">' + esc(postSetData.gradeLetter) + "</div></div>";
@@ -183,7 +187,7 @@ function overlayDoc(boot: string): string {
         if (side) return '<div class="setblock">' + gradeEl + subEl + '<div class="setinfo">' + resEl + vsEl + "</div></div>";
         return gradeEl + subEl + resEl + vsEl;
       }
-      if (s.opponent) {
+      if (s.opponent && vis(s, "opponent")) {
         var o = s.opponent;
         // Line 1: tag (code) · char — the tag is what a viewer recognizes; the code disambiguates.
         var name = o.tag ? esc(o.tag) + " (" + esc(o.code) + ")" : esc(o.code);
@@ -209,9 +213,10 @@ function overlayDoc(boot: string): string {
     }
 
     function todayHtml(s) {
+      if (!vis(s, "today")) return "";
       var startTxt = s.sessionStartRating != null ? fmt1(s.sessionStartRating) : (s.rating != null ? fmt1(s.rating) : "—");
       var deltaTxt = "";
-      if (s.sessionDelta != null) {
+      if (s.sessionDelta != null && vis(s, "sessionDelta")) {
         deltaTxt = ' <span style="color:' + (s.sessionDelta >= 0 ? "#2ecc71" : "#ff4d4f") + '">(' + fmtDelta(s.sessionDelta) + ")</span>";
       }
       return '<div class="today-label">Today&#39;s stats</div>'
@@ -220,32 +225,41 @@ function overlayDoc(boot: string): string {
         + '<span class="l">L: ' + esc(s.sessionLosses) + "</span></div>";
     }
 
+    function tagHtml(s) { return vis(s, "tag") ? '<div class="tag">' + esc(s.tag) + "</div>" : ""; }
+
     function buildStacked(s) {
       var h = '<div class="panel">';
-      h += '<div class="tag">' + esc(s.tag) + "</div>";
+      h += tagHtml(s);
       h += medalHtml(s) + rankHtml(s) + mmrHtml(s);
       h += globalHtml(s) + seasonHtml(s);
       h += contextHtml(s, false);
-      h += '<div class="divider"></div>' + todayHtml(s);
+      // The today block carries its own divider only when it's actually shown.
+      var today = todayHtml(s);
+      if (today) h += '<div class="divider"></div>' + today;
       h += "</div>";
       return h;
     }
 
     function buildSide(s) {
-      var h = '<div class="panel">';
-      // Persistent top row: identity + global rank (left) | today's stats with the MMR (right).
-      h += '<div class="persist">';
-      h += '<div class="side-head">' + medalHtml(s)
-        + '<div class="side-id">'
-        + '<div class="tag">' + esc(s.tag) + "</div>"
-        + rankHtml(s) + globalHtml(s) + seasonHtml(s)
-        + "</div></div>";
-      h += '<div class="vdivider"></div>';
-      h += '<div class="today-block">'
-        + '<div class="today-label">Today&#39;s stats</div>'
-        + mmrHtml(s)
-        + '<div class="today-wl"><span class="w">W: ' + esc(s.sessionWins) + '</span><span class="l">L: ' + esc(s.sessionLosses) + "</span></div>"
-        + "</div>";
+      // Left identity column — any of medal/tag/rank/global/season may be hidden.
+      var idParts = tagHtml(s) + rankHtml(s) + globalHtml(s) + seasonHtml(s);
+      var medal = medalHtml(s);
+      var left = (medal || idParts)
+        ? '<div class="side-head">' + medal + '<div class="side-id">' + idParts + "</div></div>"
+        : "";
+      // Right "today's stats" block holds the MMR + session W/L in this layout.
+      var mmr = mmrHtml(s);
+      var wl = vis(s, "today")
+        ? '<div class="today-wl"><span class="w">W: ' + esc(s.sessionWins) + '</span><span class="l">L: ' + esc(s.sessionLosses) + "</span></div>"
+        : "";
+      var right = (mmr || wl)
+        ? '<div class="today-block"><div class="today-label">Today&#39;s stats</div>' + mmr + wl + "</div>"
+        : "";
+
+      var h = '<div class="panel"><div class="persist">';
+      h += left;
+      if (left && right) h += '<div class="vdivider"></div>';
+      h += right;
       h += "</div>";
       // Transient area below — fills in during a set (opponent) and after (grade + result).
       var ctx = contextHtml(s, true);

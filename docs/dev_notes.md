@@ -6,6 +6,67 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-06-01 (v1.8.7 — overlay element toggles + grade opp-code filter — READ FIRST)
+
+> **✅ SHIPPED in v1.8.7 (2026-06-01): two small features.** Version bumped 1.8.6→1.8.7
+> (package.json, tauri.conf.json, Cargo.toml, Cargo.lock); release-notes.md updated; tagged
+> **`v1.8.7`** → triggers the signed CI release. svelte-check 0 errors, 33/33 tests; verified
+> live in the dev app (overlay toggles in both layouts + the grade opp-code filter).
+>
+> 1. **Per-element overlay visibility toggles (Premium).** Every data piece on the Live Stats OBS
+>    panel can now be hidden independently (the user asked for this — previously it was all-or-nothing).
+>    Ten toggles: tag, rank medal, rank name, MMR, session MMR change, global placement, season W/L,
+>    today's W/L, opponent line, post-set grade. New `OverlayVisibility` type + `OVERLAY_VISIBILITY_DEFAULT`
+>    (all true) + `statsOverlayVisibility` store (persisted `srs_statsOverlayVisibility`, via a new
+>    `persistedMerged()` helper that merges stored-over-defaults so a future new toggle defaults to
+>    *visible*, not hidden). Threaded as `show` on `StatsOverlayPayload` (added to the
+>    `statsOverlayPayload` derived's deps). In `stats-overlay.ts` a `vis(s,k)` helper (missing show/key →
+>    visible, so old state files never blank the overlay) gates every `*Html` render fn; `buildStacked`/
+>    `buildSide` rewritten to drop empty containers + dividers when elements are hidden. UI = a "Show on
+>    overlay" chip-toggle row in the setup card (`LiveRankedSession.svelte`, after Layout), bound via
+>    `toggleVis()`. The in-app preview runs the same render code, so toggles reflect live there.
+>    - `grade` toggle hides only the **grade letter + standout stat**; the "SET WON/LOST · score · vs"
+>      post-set callout still shows (verified). `sessionDelta` gates the +/- both beside the MMR and in
+>      the today's row. In the side layout the MMR lives in the today block, so `mmr` and `today` (session
+>      W/L) gate independently and the block/vdivider collapse when both are off.
+>    - ✅ Verified: svelte-check 0 errors (1 pre-existing Tooltip a11y warning, unrelated), 33/33 tests,
+>      and the inline overlay script was extracted + run in a stub-DOM sandbox across toggle combos in
+>      both layouts (all-on shows everything; minimal hides medal/season/global/delta but keeps tag+mmr;
+>      opponent + grade toggles behave). NOT yet eyeballed in a live OBS source — the preview path covers it.
+>
+> 2. **Opponent connect-code filter in the Grading tab (came from a user suggestion: "search direct
+>    code sets and grade them").** Added a free-text **OPPONENT CODE** search box to the grading filter
+>    card (`GradeHistory.svelte`), case-insensitive substring on `opponentCode`, with a `<datalist>` of
+>    known codes for autocomplete. Wired into `sortedHistory`, `anyFilterActive`, and Clear filters.
+>    ⚠ **Scope note:** the suggester literally meant grading **Direct-connect (unranked) sets**, which the
+>    grading tab does NOT do today (`sets` derives from `rankedGames` only — ranked Bo3 ft2). Owner chose
+>    to ship just the opp-code filter now and **bank** the grade-direct-sets idea (see NEXT UP below).
+>
+> Released as v1.8.7 — release-notes.md has the user-facing copy for both features.
+
+---
+
+## ▶ BANKED IDEA — Grade Direct / Unranked sets (deferred 2026-06-01)
+
+A user suggested being able to **grade Direct-connect (and unranked) sets**, not just ranked. Today the
+Grading tab only ever sees ranked sets: `sets` (store.ts) derives from `rankedGames`, and a "set" is
+defined as ranked **Bo3, first-to-2** (`completedSets` in `GradeHistory.svelte`). Direct/unranked games
+exist in the DB (`unrankedGames`) but are never grouped into sets or graded.
+
+**Why it's non-trivial (discuss before building — touches the grading pipeline + premium gating):**
+- **No fixed set length for direct play.** Friendlies aren't ft2 — they can be ftX of anything or endless.
+  "What is a set?" needs a definition (e.g. group consecutive games vs. the same opponent code split by a
+  session time-gap, or let the user pick ftX). This is the core design decision.
+- **Premium vs free.** Grading is a Premium feature; need to decide whether direct grading is in/out of
+  the same gate, and how the tab presents ranked vs direct (separate sub-views? a match-type filter?).
+- The grade math itself is match-type-agnostic (per-game stats from the parser), so the *grading* part is
+  reusable — it's the **set boundary + UX + gating** that's the work.
+
+The opp-code filter shipped this session is complementary: it's most useful once direct sets are gradeable
+(you'd search for a specific friend's code). Building this later wastes nothing already done.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-05-31 (v1.8.6 — "forbidden path" REPLAY-SCAN FIX — READ FIRST)
 
 > **v1.8.6 released this session — fixes a regression that SHIPPED in v1.8.4.** The security

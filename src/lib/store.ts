@@ -12,6 +12,17 @@ function persisted<T>(key: string, initial: T) {
   return store;
 }
 
+// Like persisted(), but for object values: merges the stored value over the defaults so a
+// newly-added key defaults to its initial value instead of undefined (forward-compatible
+// when more fields are added to the shape later).
+function persistedMerged<T extends object>(key: string, initial: T) {
+  const stored = localStorage.getItem(key);
+  const value: T = stored !== null ? { ...initial, ...JSON.parse(stored) } : initial;
+  const store = writable<T>(value);
+  store.subscribe((v) => localStorage.setItem(key, JSON.stringify(v)));
+  return store;
+}
+
 function randomId(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map(b => b.toString(16).padStart(2, "0"))
@@ -64,6 +75,29 @@ export const statsOverlayEnabled  = persisted<boolean>("srs_statsOverlayEnabled"
 export const statsOverlayExpanded = persisted<boolean>("srs_statsOverlayExpanded", false);
 // Overlay layout: "stacked" (tall column) or "sidebyside" (square, medal beside identity).
 export const statsOverlayLayout = persisted<"stacked" | "sidebyside">("srs_statsOverlayLayout", "sidebyside");
+
+// Per-element overlay visibility: each data piece on the Live Stats panel can be hidden
+// independently so a streamer only shows what they want. Defaults to everything on (the
+// pre-toggle behavior). Stored as one object, merged over the defaults on load.
+export interface OverlayVisibility {
+  tag: boolean;          // player tag
+  medal: boolean;        // rank medal art
+  rank: boolean;         // rank tier name
+  mmr: boolean;          // current MMR number
+  sessionDelta: boolean; // +/- MMR change this session (beside the MMR and in today's row)
+  global: boolean;       // global placement (#rank [region])
+  season: boolean;       // season W/L
+  today: boolean;        // today's session W/L record
+  opponent: boolean;     // opponent scouting line during a set
+  grade: boolean;        // post-set grade letter (+ standout stat)
+}
+export const OVERLAY_VISIBILITY_DEFAULT: OverlayVisibility = {
+  tag: true, medal: true, rank: true, mmr: true, sessionDelta: true,
+  global: true, season: true, today: true, opponent: true, grade: true,
+};
+export const statsOverlayVisibility = persistedMerged<OverlayVisibility>(
+  "srs_statsOverlayVisibility", OVERLAY_VISIBILITY_DEFAULT
+);
 
 // Transient test/preview override (not persisted): when non-null, the app writes this to
 // the overlay instead of the live payload, so a streamer can study the overlay and
@@ -454,6 +488,7 @@ export interface StatsOverlayPayload {
   opponent: StatsOverlayOpponent | null; // present only during an active set
   lastSet: OverlaySetResult | null;      // most recent completed set (post-set bridge)
   layout: "stacked" | "sidebyside";
+  show: OverlayVisibility;               // per-element visibility toggles
 }
 
 // Slippi `continent` enum → short region code for the overlay (e.g. NORTH_AMERICA → NA).
@@ -467,8 +502,8 @@ function regionLabel(continent: string | null | undefined): string {
 }
 
 export const statsOverlayPayload = derived(
-  [displayName, connectCode, snapshots, liveSessionStartRating, liveSetRecord, activeSet, lastOverlaySet, statsOverlayLayout],
-  ([$tag, $code, $snaps, $startRating, $record, $active, $lastSet, $layout]): StatsOverlayPayload => {
+  [displayName, connectCode, snapshots, liveSessionStartRating, liveSetRecord, activeSet, lastOverlaySet, statsOverlayLayout, statsOverlayVisibility],
+  ([$tag, $code, $snaps, $startRating, $record, $active, $lastSet, $layout, $show]): StatsOverlayPayload => {
     const snap = $snaps.at(-1);
     const rating = snap?.rating ?? null;
     const tier = rating !== null ? getRankTier(rating, (snap?.global_rank ?? 0) > 0) : { name: "Unranked", color: "#9aa0a6" };
@@ -506,6 +541,7 @@ export const statsOverlayPayload = derived(
       opponent,
       lastSet: $lastSet,
       layout: $layout,
+      show: $show,
     };
   }
 );

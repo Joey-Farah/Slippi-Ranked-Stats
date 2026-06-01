@@ -127,10 +127,12 @@
   let filterResult     = $state<"all" | "win" | "loss">("all");
   let filterPlayerChar = $state<string | null>(null);
   let filterOppChar    = $state<string | null>(null);
+  let filterOppCode    = $state("");
   let sortMode = $state<"date-desc" | "date-asc" | "score-desc" | "score-asc">("date-desc");
 
   let uniquePlayerChars = $derived([...new Set(activeHistory.map((r) => r.playerChar))].sort());
   let uniqueOppChars    = $derived([...new Set(activeHistory.map((r) => r.opponentChar))].sort());
+  let uniqueOppCodes    = $derived([...new Set(activeHistory.map((r) => r.opponentCode))].sort());
 
   let staleCount = $derived(
     activeHistory.filter((r) => r.baselineVersion !== null && r.baselineVersion !== GRADE_VERSION).length
@@ -142,6 +144,10 @@
     if (filterResult     !== "all") h = h.filter((r) => r.result === filterResult);
     if (filterPlayerChar !== null)  h = h.filter((r) => r.playerChar === filterPlayerChar);
     if (filterOppChar    !== null)  h = h.filter((r) => r.opponentChar === filterOppChar);
+    if (filterOppCode.trim() !== "") {
+      const q = filterOppCode.trim().toLowerCase();
+      h = h.filter((r) => r.opponentCode.toLowerCase().includes(q));
+    }
     switch (sortMode) {
       case "date-desc":  h.sort((a, b) => b.timestamp.localeCompare(a.timestamp)); break;
       case "date-asc":   h.sort((a, b) => a.timestamp.localeCompare(b.timestamp)); break;
@@ -800,7 +806,7 @@
 
     <!-- Filter + sort controls -->
     {#if !$gradeHistoryBusy}
-      {@const anyFilterActive = filterLetter !== null || filterResult !== "all" || filterPlayerChar !== null || filterOppChar !== null}
+      {@const anyFilterActive = filterLetter !== null || filterResult !== "all" || filterPlayerChar !== null || filterOppChar !== null || filterOppCode.trim() !== ""}
       <div class="card" style="padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
 
         <!-- Grade filter group -->
@@ -897,12 +903,35 @@
           </div>
         {/if}
 
+        <!-- Opponent connect-code search -->
+        <div style="width: 1px; height: 36px; background: var(--border); flex-shrink: 0"></div>
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em; margin-bottom: 6px">OPPONENT CODE</div>
+          <input
+            type="text"
+            list="opp-code-list"
+            bind:value={filterOppCode}
+            placeholder="e.g. JOEY#870"
+            spellcheck="false"
+            autocomplete="off"
+            style="
+              font-size: 12px; font-weight: 600; width: 130px; box-sizing: border-box;
+              background: var(--bg); color: {filterOppCode ? 'var(--text)' : 'var(--muted)'};
+              border: 1px solid {filterOppCode ? '#7c3aed' : 'var(--border)'}; border-radius: 4px;
+              padding: 4px 8px; font-family: inherit;
+            "
+          />
+          <datalist id="opp-code-list">
+            {#each uniqueOppCodes as code}<option value={code}></option>{/each}
+          </datalist>
+        </div>
+
         <!-- Sort + clear — pushed right -->
         <div style="margin-left: auto; display: flex; align-items: flex-end; gap: 10px">
           {#if anyFilterActive}
             <button
               type="button"
-              onclick={() => { filterLetter = null; filterResult = "all"; filterPlayerChar = null; filterOppChar = null; }}
+              onclick={() => { filterLetter = null; filterResult = "all"; filterPlayerChar = null; filterOppChar = null; filterOppCode = ""; }}
               style="
                 background: none; border: none; padding: 4px 0; margin-bottom: 1px;
                 font-size: 11px; color: var(--muted); cursor: pointer;

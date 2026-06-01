@@ -4,6 +4,7 @@
     snapshots, liveGameStats, sets, lastSetGrade,
     statsOverlayEnabled, statsOverlayExpanded, statsOverlayPayload, statsOverlayLayout,
     statsOverlayPreview, liveSetRecord, setResultFromGames,
+    statsOverlayVisibility, type OverlayVisibility,
   } from "../../lib/store";
   import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
@@ -19,6 +20,22 @@
     { id: "sidebyside", label: "Side-by-side" },
     { id: "stacked",    label: "Stacked" },
   ];
+  // Per-element overlay toggles, in display order. Each maps to a key on statsOverlayVisibility.
+  const VIS_OPTS: { key: keyof OverlayVisibility; label: string }[] = [
+    { key: "tag",          label: "Tag" },
+    { key: "medal",        label: "Rank medal" },
+    { key: "rank",         label: "Rank name" },
+    { key: "mmr",          label: "MMR" },
+    { key: "sessionDelta", label: "Session MMR change" },
+    { key: "global",       label: "Global placement" },
+    { key: "season",       label: "Season W/L" },
+    { key: "today",        label: "Today's W/L" },
+    { key: "opponent",     label: "Opponent line" },
+    { key: "grade",        label: "Post-set grade" },
+  ];
+  function toggleVis(key: keyof OverlayVisibility) {
+    statsOverlayVisibility.update((v) => ({ ...v, [key]: !v[key] }));
+  }
   // Always-on panel. The actual state writes happen at the app root (App.svelte);
   // here we just toggle it, show the file path, and preview the live payload.
   let statsOverlayPath = $state("");
@@ -252,6 +269,27 @@
                   color: {active ? '#2ecc71' : 'var(--muted)'};
                 "
               >{opt.label}</button>
+            {/each}
+          </div>
+
+          <!-- Per-element visibility -->
+          <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">Show on overlay</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px">
+            {#each VIS_OPTS as opt}
+              {@const on = $statsOverlayVisibility[opt.key]}
+              <button
+                type="button"
+                onclick={() => toggleVis(opt.key)}
+                aria-pressed={on}
+                title={on ? "Showing — click to hide" : "Hidden — click to show"}
+                style="
+                  padding: 5px 10px; border-radius: 6px; cursor: pointer;
+                  font-family: inherit; font-size: 11px; font-weight: 700;
+                  border: 1px solid {on ? '#2ecc7155' : 'var(--border)'};
+                  background: {on ? '#2ecc7122' : 'var(--bg)'};
+                  color: {on ? '#2ecc71' : 'var(--muted)'};
+                "
+              >{on ? "✓ " : ""}{opt.label}</button>
             {/each}
           </div>
 

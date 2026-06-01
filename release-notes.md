@@ -1,3 +1,15 @@
+## What's New in v1.8.7
+
+### 🎚️ Choose exactly what shows on your OBS overlay (Premium)
+
+The Live Stats overlay used to be all-or-nothing — every piece showed whether you wanted it or not. Now each element has its own on/off switch in the overlay setup: **tag, rank medal, rank name, MMR, session MMR change, global placement, season W/L, today's W/L, the opponent line, and the post-set grade**. Hide what you don't want on stream and keep the rest. The live preview updates as you toggle, and both the side-by-side and stacked layouts tidy themselves up around whatever you've hidden.
+
+### 🔎 Search your grades by opponent code
+
+The Grading tab has a new **Opponent Code** search box alongside the existing grade / result / character filters. Type part of a connect code to pull up just your sets against that player, with autocomplete from codes you've already graded.
+
+---
+
 ## What's New in v1.8.6
 
 ### 🩹 Scanning replays works again if your replay folder isn't in your user folder
