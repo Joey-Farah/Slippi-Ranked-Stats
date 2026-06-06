@@ -25,8 +25,8 @@
     { key: "tag",          label: "Tag" },
     { key: "medal",        label: "Rank medal" },
     { key: "rank",         label: "Rank name" },
-    { key: "mmr",          label: "MMR" },
-    { key: "sessionDelta", label: "Session MMR change" },
+    { key: "mmr",          label: "Rating" },
+    { key: "sessionDelta", label: "Session Rating change" },
     { key: "global",       label: "Global placement" },
     { key: "season",       label: "Season W/L" },
     { key: "today",        label: "Today's W/L" },
@@ -76,15 +76,21 @@
     const before = p.rating ?? 1850;
     const setId = Date.now();
     const code = "OPP#123", char = "Fox";
-    const base = { ...p, sessionWins: 0, sessionLosses: 0, sessionStartRating: before, sessionDelta: 0, rating: before };
-    const result = { setId, result: "win" as const, wins: 2, losses: 1, opponentCode: code, opponentChar: char, ratingBefore: before, gradeLetter: "A", subLabel: "Punish", subLetter: "S", subStatLabel: "Openings / Kill", subStatLetter: "S" };
+    // Pretend the session already had some gains so the per-set change (THIS SET) and the
+    // cumulative session change (Today's stats) read as visibly different numbers in the demo.
+    const base = { ...p, sessionWins: 1, sessionLosses: 1, sessionStartRating: before - 40, sessionDelta: 40, rating: before };
+    const result = { setId, result: "win" as const, wins: 2, losses: 1, opponentCode: code, opponentChar: char, opponentCharId: 2, ratingBefore: before, gradeLetter: "A", subLabel: "Punish", subLetter: "S", subStatLabel: "Openings / Kill", subStatLetter: "S" };
 
     const ot = getRankTier(before + 80, p.globalRank != null);
-    statsOverlayPreview.set({ ...base, opponent: { code, char, tier: ot.name, tierColor: ot.color, rating: before + 80, tag: "Sample", seasonWins: 412, seasonLosses: 388, gamesWon: 1, gamesLost: 1 }, lastSet: null });
-    simTimers.push(setTimeout(() => statsOverlayPreview.set({ ...base, opponent: null, sessionWins: 1, lastSet: result }), 6000));
+    // Live set: opponent line shows their profile mains as icons (Fox + Falco here).
+    statsOverlayPreview.set({ ...base, opponent: { code, char, charIds: [2, 20], tier: ot.name, tierColor: ot.color, rating: before + 80, tag: "Sample", seasonWins: 412, seasonLosses: 388, gamesWon: 1, gamesLost: 1 }, lastSet: null });
+    // Set ends: grade + result shown; MMR refetch hasn't landed yet (rating still == ratingBefore),
+    // so the THIS SET line is intentionally absent here.
+    simTimers.push(setTimeout(() => statsOverlayPreview.set({ ...base, opponent: null, sessionWins: 2, lastSet: result }), 6000));
+    // Refetch lands: rating climbs, the THIS SET change (+78) appears and Today's change updates (+118).
     simTimers.push(setTimeout(() => {
       const t = getRankTier(before + 78, p.globalRank != null);
-      statsOverlayPreview.set({ ...base, rating: before + 78, rankName: t.name, rankColor: t.color, opponent: null, sessionWins: 1, sessionDelta: 78, lastSet: result });
+      statsOverlayPreview.set({ ...base, rating: before + 78, rankName: t.name, rankColor: t.color, opponent: null, sessionWins: 2, sessionDelta: 118, lastSet: result });
     }, 10000));
     simTimers.push(setTimeout(() => statsOverlayPreview.set(null), 38000));
   }
@@ -217,7 +223,7 @@
           <span style="font-size: 10px; font-weight: 700; color: #29ABE0; border: 1px solid #29ABE055; border-radius: 4px; padding: 1px 6px">OBS</span>
         </div>
         <div style="font-size: 12px; color: var(--muted); margin-top: 3px">
-          One always-on panel: tag, rank, MMR, global placement, season W/L, today's gains — plus your set grade + result when a set ends.
+          One always-on panel: tag, rank, Rating, global placement, season W/L, today's gains — plus your set grade + result when a set ends.
         </div>
       </div>
       <button
@@ -364,14 +370,14 @@
             >Simulate set result</button>
           </div>
           <div class="muted" style="font-size: 11px; margin-top: 6px; line-height: 1.5">
-            Plays the full set-end sequence on your overlay (opponent → grade → MMR change), then returns to live.
+            Plays the full set-end sequence on your overlay (opponent → grade → Rating change), then returns to live.
             Your persistent stats are always shown straight from live data.
           </div>
           </div>
           </div>
 
           <div class="muted" style="font-size: 11px; margin-top: 14px; line-height: 1.5">
-            Updates automatically as you play — and when a set ends it briefly shows the result, your grade, and the MMR change.
+            Updates automatically as you play — and when a set ends it briefly shows the result, your grade, and the Rating change.
           </div>
         </div>
       {/if}

@@ -6,6 +6,56 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-06-05 (v1.8.8 — overlay opponent-char icons + Rating clarity + auto-scan — READ FIRST)
+
+> **✅ v1.8.8: overlay polish (Premium) + an all-users auto-scan fix.** Version bumped 1.8.7→1.8.8
+> (package.json, tauri.conf.json, Cargo.toml, Cargo.lock); release-notes.md + CLAUDE.md updated.
+> Validated: `vite build` clean, `tsc --noEmit` clean, 33/33 tests, and the overlay's inline render
+> logic exercised in a stub-DOM sandbox across ~20 scenarios (opponent icons, text fallback, post-set
+> THIS SET delta, toggle gating, layout placement, self-reload). **Live-verified by the owner in the
+> dev app** across several iterative tweaks (medal sizes, Set Count, wording). Tag **`v1.8.8`** to
+> trigger the signed CI release.
+>
+> 1. **Opponent characters from their Slippi profile (Premium overlay).** `fetchRatingSnapshot`
+>    (`api.ts`) now returns the profile's `characters` (`{character, gameCount}[]`, sorted desc) — it
+>    was already in `PROFILE_QUERY`, just discarded. The API returns the char as a **string enum**
+>    (e.g. `"FOX"`, `"CAPTAIN_FALCON"`; verified live), mapped via `API_CHAR_TO_EXTERNAL` in the new
+>    `src/lib/char-icons.ts`. The watcher computes top mains (`topOpponentChars`: always #1, plus any
+>    ≥15% of season games, cap 3) → `ActiveSet.opponent_chars` (external ids). The overlay renders
+>    them as **character stock icons**, not the lagging per-game char; falls back to the live char
+>    (converted via `internalToExternal`) when the profile lists none (season reset / new player).
+>    Icons = project-slippi **GPL-3.0** stock heads (`characters/<extId>/0/stock.png`) in
+>    `src/assets/characters/char_<extId>.png` (+ NOTICE), inlined as base64 data URIs by
+>    `char-icons.ts` (`?inline` glob; same approach as rank-medals). ⚠ **The Slippi API char field is
+>    EXTERNAL ids/enums**, NOT the internal `CHARACTERS` table in parser.ts — `char-icons.ts` has both
+>    maps + the `internalToExternal` bridge.
+> 2. **Rating display split for clarity (Premium overlay).** Current Rating moved to the identity
+>    column (below season W/L) in both layouts; the "Today's stats" block shows the **session** change;
+>    the post-set bridge shows a separate **"THIS SET"** Rating change (from `OverlaySetResult.ratingBefore`
+>    vs the refetched rating — `ratingBefore` was captured but previously unused). New
+>    `OverlaySetResult.opponentCharId` + `StatsOverlayOpponent.charIds` thread the icons through.
+> 3. **"MMR" → "Rating"** in all user-facing overlay/UI copy (slippi.gg's term). Internal code
+>    comments/CSS class names left as-is.
+> 4. **Live "Set Count:" scoreboard** row during a set (white text), replacing the cramped `(w–l)`
+>    that was tacked onto the opponent stat line.
+> 5. **Overlay self-reloads after an app update (Premium).** No more manual OBS Browser-Source
+>    "Refresh" to pick up a new overlay build. `OVERLAY_VERSION` (djb2 hash of the rendered page,
+>    excluding the boot/version stamp) is written into each state file as `htmlVersion` and baked into
+>    the live page as `PAGE_VERSION`; on mismatch the page cache-bust-reloads itself
+>    (`location.replace(href+"?v="+version)`). `App.svelte` re-writes `stats.html` whenever
+>    `OVERLAY_VERSION` changes (BEFORE announcing the new version in state) so disk is always current
+>    first → **no reload loop**. The in-app preview omits `PAGE_VERSION`, so the check is a no-op there.
+>    ⚠ Existing OBS sources still have the pre-v1.8.8 page loaded (no self-reload code) → they need
+>    **one** last manual Refresh to load the self-reloading page; automatic forever after.
+> 6. **Auto-scan on launch (all users, not premium).** `App.svelte` startup effect now fires an
+>    incremental background `scanDirectory` (skips already-scanned files) so ranked sets played while
+>    the app was **closed** get ingested without a manual scan — fixes a user-reported bug (the watcher
+>    only catches files created while it's running; `recoverActiveSet` only looks back 15 min for an
+>    in-progress set). Safe alongside the watcher: `insertGame` is `INSERT OR IGNORE` on a UNIQUE
+>    filename.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-06-01 (v1.8.7 — overlay element toggles + grade opp-code filter — READ FIRST)
 
 > **✅ SHIPPED in v1.8.7 (2026-06-01): two small features.** Version bumped 1.8.6→1.8.7

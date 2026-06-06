@@ -14,7 +14,8 @@ import {
   getGamesVsOpponent,
   type GameRow,
 } from "./db";
-import { fetchRatingSnapshot } from "./api";
+import { fetchRatingSnapshot, type ProfileCharacter } from "./api";
+import { API_CHAR_TO_EXTERNAL, internalToExternal } from "./char-icons";
 import {
   games,
   snapshots,
@@ -55,6 +56,24 @@ const _knownMatchIds = new Set<string>();
 const _sessionOpponents = new Set<string>();
 // Tracks match_ids that have already triggered a snapshot fetch (prevents duplicates)
 const _completedMatchIds = new Set<string>();
+
+// The opponent's "mains" for the overlay: top characters from their Slippi profile as
+// external char ids, most-played first. Always keeps their #1, then any other character
+// with >=15% of their season games, capped at 3. Empty when the profile lists none (season
+// reset / new player), so the overlay falls back to the live in-game char.
+function topOpponentChars(chars: ProfileCharacter[]): number[] {
+  const mapped = chars
+    .map((c) => ({ id: API_CHAR_TO_EXTERNAL[c.character], n: c.gameCount }))
+    .filter((c) => c.id !== undefined && c.n > 0)
+    .sort((a, b) => b.n - a.n);
+  if (mapped.length === 0) return [];
+  const total = mapped.reduce((sum, c) => sum + c.n, 0);
+  const threshold = total * 0.15;
+  return mapped
+    .filter((c, i) => i === 0 || c.n >= threshold)
+    .slice(0, 3)
+    .map((c) => c.id);
+}
 
 export async function startWatcher(
   dirs: string | string[],
@@ -306,6 +325,7 @@ async function handleRankedGame(
       opponent_tag: null,
       opponent_season_wins: null,
       opponent_season_losses: null,
+      opponent_chars: null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
       session_already_faced: sessionFaced,
@@ -313,7 +333,7 @@ async function handleRankedGame(
 
     // Fetch opponent's Slippi profile asynchronously
     fetchRatingSnapshot(g.opponent_code)
-      .then(({ snapshot, displayName: oppTag }) => {
+      .then(({ snapshot, displayName: oppTag, characters }) => {
         const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
         activeSet.update((s) =>
           s && s.match_id === g.match_id
@@ -325,6 +345,7 @@ async function handleRankedGame(
                 opponent_tag: oppTag || null,
                 opponent_season_wins: snapshot.wins,
                 opponent_season_losses: snapshot.losses,
+                opponent_chars: topOpponentChars(characters),
               }
             : s
         );
@@ -399,6 +420,7 @@ async function handleRankedGame(
       losses,
       opponentCode: g.opponent_code,
       opponentChar,
+      opponentCharId: internalToExternal(g.opponent_char_id),
       ratingBefore: get(snapshots).at(-1)?.rating ?? null,
       gradeLetter,
       subLabel: featured?.label ?? null,
@@ -518,13 +540,14 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
       opponent_tag: null,
       opponent_season_wins: null,
       opponent_season_losses: null,
+      opponent_chars: null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
       session_already_faced: false,
     });
 
     fetchRatingSnapshot(latest.opponent_code)
-      .then(({ snapshot, displayName: oppTag }) => {
+      .then(({ snapshot, displayName: oppTag, characters }) => {
         const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
         activeSet.update((s) =>
           s && s.match_id === matchId
@@ -536,6 +559,7 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
                 opponent_tag: oppTag || null,
                 opponent_season_wins: snapshot.wins,
                 opponent_season_losses: snapshot.losses,
+                opponent_chars: topOpponentChars(characters),
               }
             : s
         );

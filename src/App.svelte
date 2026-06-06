@@ -13,7 +13,8 @@
   import { pingTelemetry } from "./lib/telemetry";
   import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
-  import { ensureStatsOverlayFiles, writeStatsOverlayState } from "./lib/stats-overlay";
+  import { scanDirectory } from "./lib/parser";
+  import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
@@ -34,6 +35,7 @@
   // Ensures the files once per enable, then writes the payload whenever it changes.
   let _statsOverlayReady = false;
   let _lastStatsJson = "";
+  let _lastEnsuredVersion = "";
   $effect(() => {
     // A non-null preview override (set by the Live Stats card's test controls) wins over
     // the live payload; layout always tracks the real toggle so it updates during preview.
@@ -45,17 +47,24 @@
       return;
     }
     const json = JSON.stringify(payload);
-    const needEnsure = !_statsOverlayReady;
+    // Re-ensure (rewrite stats.html) on first run AND whenever the overlay build changes, so the
+    // page on disk matches the version we stamp into the state. That ordering — new stats.html
+    // written before the state announces the new version — lets a stale OBS source self-reload to
+    // the new look with no manual "Refresh" (and avoids a reload loop). After an app update this
+    // fires on launch; during dev it fires when the overlay code (hence OVERLAY_VERSION) changes.
+    const needEnsure = !_statsOverlayReady || OVERLAY_VERSION !== _lastEnsuredVersion;
     if (!needEnsure && json === _lastStatsJson) return;
     // Record intent synchronously so rapid payload changes don't double-write.
     _statsOverlayReady = true;
     _lastStatsJson = json;
+    _lastEnsuredVersion = OVERLAY_VERSION;
     (async () => {
       try {
         if (needEnsure) await ensureStatsOverlayFiles();
         await writeStatsOverlayState(payload);
       } catch (e) {
-        _statsOverlayReady = false; // retry the file-ensure next change
+        _statsOverlayReady = false;        // retry the file-ensure next change
+        _lastEnsuredVersion = "";
         console.error("stats overlay write failed", e);
       }
     })();
@@ -141,6 +150,27 @@
         if (dirs.length > 0) {
           await stopWatcher();
           startWatcher(dirs, primary, primaryDb).catch(() => {});
+
+          // Ingest replays created while the app was CLOSED — the watcher only catches files
+          // written while it's running, so sets played without the app open were never picked up
+          // until a manual scan (user-reported bug). scanDirectory is incremental (skips
+          // already-scanned files), so this is cheap on later launches and only handles the new
+          // ones. Runs in the background so startup isn't blocked; reloads games when it finds any.
+          const dbsByCode: Record<string, Awaited<ReturnType<typeof getDb>>> = {};
+          for (const c of codes) dbsByCode[c] = await getDb(c);
+          scanDirectory(dirs, codes, dbsByCode)
+            .then(async (res) => {
+              if (res.filesScanned > 0) {
+                const arrays = await Promise.all(
+                  codes.map(async (c) => {
+                    const rows = await getGames(dbsByCode[c]);
+                    return rows.map((g) => ({ ...g, sourceCode: c }));
+                  })
+                );
+                games.set(arrays.flat().sort((a, b) => a.timestamp.localeCompare(b.timestamp)));
+              }
+            })
+            .catch(() => {});
         }
       } catch {
         games.set([]);

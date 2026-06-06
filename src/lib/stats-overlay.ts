@@ -18,6 +18,7 @@
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { writeTextFile, mkdir, BaseDirectory } from "@tauri-apps/plugin-fs";
 import { RANK_MEDAL_SVGS } from "./rank-medals";
+import { CHAR_ICONS } from "./char-icons";
 import type { StatsOverlayPayload } from "./store";
 
 const DIR = "stream-overlay";
@@ -31,6 +32,18 @@ function jsonForScript(v: unknown): string {
 
 // Inlined into the page as `var MEDALS = {...}` (SVG markup escaped for a <script> context).
 const MEDALS_JSON = jsonForScript(RANK_MEDAL_SVGS);
+// External char id → stock-icon data URI, inlined once as `var CHARS = {...}`. The overlay
+// picks the opponent's icons client-side by id, so a char swap never needs a file rewrite.
+const CHARS_JSON = jsonForScript(CHAR_ICONS);
+
+/** Tiny deterministic 32-bit string hash → hex (djb2). Stamps the overlay page so a loaded OBS
+ *  Browser Source can notice when stats.html changed on disk (app update / new build) and reload
+ *  itself — no manual OBS "Refresh" needed. Not security-sensitive; collisions are irrelevant. */
+function hashStr(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
 
 /** The always-on stats panel. The inline script uses string concatenation + literal
  *  Unicode (·, –, —, ▲, ▼) and the &#39; entity for the apostrophe, so it embeds cleanly
@@ -57,11 +70,10 @@ function overlayDoc(boot: string): string {
     .panel { display: flex; flex-direction: column; align-items: center; text-align: center;
       gap: 0.1rem; padding: 0.7rem 1rem; color: #fff; text-shadow: 0 0.1em 0.3em rgba(0, 0, 0, 0.85); }
     .tag { font-size: 1.3rem; font-weight: 800; letter-spacing: 0.01em; }
-    .medal { width: 3.7rem; height: 3.7rem; flex-shrink: 0; }
+    .medal { width: 3rem; height: 3rem; flex-shrink: 0; }
     .medal svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0.1em 0.2em rgba(0, 0, 0, 0.6)); }
     .rank { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.06em; }
     .mmr { font-size: 1.9rem; font-weight: 800; line-height: 1.05; }
-    .mmr-delta { font-size: 1.05rem; font-weight: 800; }
     .global { font-size: 0.95rem; font-weight: 700; opacity: 0.96; }
     .season { font-size: 1.15rem; font-weight: 800; }
     .season .l { margin-left: 0.75rem; }
@@ -69,11 +81,21 @@ function overlayDoc(boot: string): string {
     .vs { font-size: 1.05rem; font-weight: 700; margin-top: 0.3rem; padding: 0.2rem 0.75rem;
       border-radius: 0.5rem; background: rgba(255, 255, 255, 0.1); }
     .vs-sub { font-size: 0.85rem; font-weight: 700; opacity: 0.95; margin-top: 0.15rem; }
-    .vs-medal { display: inline-block; width: 1.25em; height: 1.25em; vertical-align: -0.32em; margin-right: 0.18em; }
+    .vs-medal { display: inline-block; width: 2.4em; height: 2.4em; vertical-align: -0.85em; margin-right: 0.2em; }
     .vs-medal svg { width: 100%; height: 100%; display: block;
       filter: drop-shadow(0 0.05em 0.12em rgba(0, 0, 0, 0.55)); }
     .vs-rank { font-weight: 800; }
-    .setresult { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.03em; margin-top: 0.2rem; }
+    /* Opponent character stock icons (their profile mains, or the live char as fallback). */
+    .vs-chars { display: inline-flex; align-items: center; gap: 0.15em; vertical-align: -0.28em; margin-left: 0.1em; }
+    .char-icon { width: 1.3em; height: 1.3em; display: block; image-rendering: auto;
+      filter: drop-shadow(0 0.05em 0.12em rgba(0, 0, 0, 0.55)); }
+    /* Live set score — its own prominent row so the current count is obvious mid-set. */
+    .vs-score { font-size: 1.7rem; font-weight: 800; line-height: 1; margin-top: 0.35rem;
+      display: flex; align-items: baseline; justify-content: center; gap: 0.35rem; }
+    .vs-score-cap { font-size: 1.05rem; font-weight: 800; letter-spacing: 0.06em;
+      color: #fff; align-self: center; margin-right: 0.15rem; }
+    .vs-score-dash { color: rgba(255, 255, 255, 0.85); }
+    .setresult { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.03em; margin-top: 0.2rem; white-space: nowrap; }
     .grade { font-size: 4.5rem; font-weight: 800; line-height: 1; margin: 0.1rem 0; }
     .grade.show { animation: spin-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
     @keyframes spin-in {
@@ -89,22 +111,22 @@ function overlayDoc(boot: string): string {
     /* side-by-side: a wide card. Top row = two persistent blocks (identity | today's stats);
        the area below fills with the transient set/grade info. */
     .side-head { display: flex; align-items: center; gap: 1.1rem; }
-    .side-head .medal { width: 5rem; height: 5rem; }
+    .side-head .medal { width: 3.4rem; height: 3.4rem; }
     .side-id { display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1.15; }
     .side-id .rank { font-size: 1.2rem; }
     .side-id .global { font-size: 1rem; }
     .persist { display: flex; align-items: center; justify-content: center; gap: 1.4rem; flex-wrap: nowrap; }
     .vdivider { width: 2px; align-self: stretch; min-height: 3rem;
       background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.4), transparent); }
-    /* today's stats (right column) — holds the MMR now, so it's sized to match the left */
+    /* today's stats (right column) — session change + today's W/L, sized to match the left */
     .today-block { display: flex; flex-direction: column; align-items: center; }
     .today-block .today-label { font-size: 1.2rem; margin-bottom: 0.1rem; }
-    .today-block .mmr { font-size: 2rem; }
+    .today-block .today-mmr { font-size: 2rem; font-weight: 800; line-height: 1.05; }
     .today-wl { display: flex; gap: 1.2rem; font-size: 1.3rem; font-weight: 800; margin-top: 0.15rem; }
     .transient { display: flex; flex-direction: column; align-items: center; }
     /* post-set moment: a labelled grade beside the result text */
     .setblock { display: flex; align-items: center; justify-content: center; gap: 0.9rem; }
-    .setinfo { display: flex; flex-direction: column; align-items: flex-start; }
+    .setinfo { display: flex; flex-direction: column; align-items: center; text-align: center; }
     .gradewrap { display: flex; flex-direction: column; align-items: center; }
     .gradewrap .grade { margin: 0; }
     .gradelabel { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.8); }
@@ -112,6 +134,10 @@ function overlayDoc(boot: string): string {
        clearly secondary to the big grade letter. */
     .subgrade { font-size: 1.3rem; font-weight: 800; line-height: 1.2; text-align: center; max-width: 9rem; }
     .subgrade .subcap { display: block; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.65); margin-bottom: 0.1rem; }
+    /* Per-set MMR change in the post-set moment — labelled THIS SET so it never reads as the
+       cumulative session total (which lives, labelled "today", in the Today's stats block). */
+    .set-mmr { font-size: 1rem; font-weight: 800; margin-top: 0.25rem; }
+    .set-mmr .setcap { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; color: #fff; margin-right: 0.4em; }
   </style>
 </head>
 <body>
@@ -122,6 +148,7 @@ function overlayDoc(boot: string): string {
 
     var GRADE_COLORS = { S: "#FF1493", A: "#00C853", B: "#00B0FF", C: "#FFC400", D: "#FF7300", F: "#FF1744" };
     var MEDALS = ${MEDALS_JSON};
+    var CHARS = ${CHARS_JSON};
 
     var root = document.getElementById("root");
     var latest = null, lastHtml = "";
@@ -140,16 +167,22 @@ function overlayDoc(boot: string): string {
     function medalHtml(s) { if (!vis(s, "medal")) return ""; return '<div class="medal">' + (MEDALS[s.rankName] || MEDALS["Unranked"] || "") + "</div>"; }
     function rankHtml(s) { if (!vis(s, "rank")) return ""; return '<div class="rank" style="color:' + esc(s.rankColor) + '">' + esc((s.rankName || "").toUpperCase()) + "</div>"; }
 
+    // Opponent character stock icons (their profile mains, or the live char as a fallback).
+    function charsHtml(ids) {
+      if (!ids || !ids.length) return "";
+      var imgs = "";
+      for (var i = 0; i < ids.length; i++) {
+        var src = CHARS[ids[i]];
+        if (src) imgs += '<img class="char-icon" src="' + src + '" />';
+      }
+      return imgs ? '<span class="vs-chars">' + imgs + "</span>" : "";
+    }
+
+    // Current MMR only — the session change now lives (labelled "today") in the Today's block,
+    // and the per-set change shows in the post-set moment, so each number reads unambiguously.
     function mmrHtml(s) {
       if (s.rating == null || !vis(s, "mmr")) return "";
-      var extra = "";
-      // Session MMR change stays beside the MMR all session (not just during the post-set moment).
-      // Signed (+/-) AND colored so the direction reads at a glance even on a busy stream.
-      if (s.sessionDelta != null && vis(s, "sessionDelta")) {
-        var up = s.sessionDelta >= 0;
-        extra = ' <span class="mmr-delta" style="color:' + (up ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(s.sessionDelta) + "</span>";
-      }
-      return '<div class="mmr">' + fmt1(s.rating) + extra + "</div>";
+      return '<div class="mmr">' + fmt1(s.rating) + "</div>";
     }
 
     function globalHtml(s) {
@@ -183,15 +216,28 @@ function overlayDoc(boot: string): string {
           }
         }
         var resEl = '<div class="setresult" style="color:' + (won ? "#2ecc71" : "#ff4d4f") + '">' + (won ? "SET WON" : "SET LOST") + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>";
-        var vsEl = '<div class="vs">vs ' + esc(postSetData.opponentCode) + " · " + esc(postSetData.opponentChar) + "</div>";
-        if (side) return '<div class="setblock">' + gradeEl + subEl + '<div class="setinfo">' + resEl + vsEl + "</div></div>";
-        return gradeEl + subEl + resEl + vsEl;
+        // Opponent char as a stock icon (the char they played this set); text name as fallback.
+        var vsChar = charsHtml(postSetData.opponentCharId != null ? [postSetData.opponentCharId] : []);
+        var vsTail = vsChar ? " " + vsChar : (postSetData.opponentChar ? " · " + esc(postSetData.opponentChar) : "");
+        var vsEl = '<div class="vs">vs ' + esc(postSetData.opponentCode) + vsTail + "</div>";
+        // Per-set MMR change — appears once the rating refetch lands (rating moved off
+        // ratingBefore). Labelled THIS SET so it's never confused with the session total.
+        var setMmrEl = "";
+        if (vis(s, "mmr") && s.rating != null && postSetData.ratingBefore != null && s.rating !== postSetData.ratingBefore) {
+          var sd = s.rating - postSetData.ratingBefore;
+          setMmrEl = '<div class="set-mmr"><span class="setcap">THIS SET</span><span style="color:' + (sd >= 0 ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(sd) + "</span></div>";
+        }
+        if (side) return '<div class="setblock">' + gradeEl + subEl + '<div class="setinfo">' + resEl + vsEl + setMmrEl + "</div></div>";
+        return gradeEl + subEl + resEl + vsEl + setMmrEl;
       }
       if (s.opponent && vis(s, "opponent")) {
         var o = s.opponent;
-        // Line 1: tag (code) · char — the tag is what a viewer recognizes; the code disambiguates.
+        // Line 1: tag (code) + char icon(s) — the tag is what a viewer recognizes; the code
+        // disambiguates. Char shows the opponent's profile mains as stock icons (so a mid-set
+        // char swap isn't shown stale); falls back to the live char name if none resolve.
         var name = o.tag ? esc(o.tag) + " (" + esc(o.code) + ")" : esc(o.code);
-        var l1 = "vs " + name + " · " + esc(o.char);
+        var oChars = charsHtml(o.charIds);
+        var l1 = "vs " + name + (oChars ? " " + oChars : (o.char ? " · " + esc(o.char) : ""));
         // Line 2: rank (medal + tier-colored name) · ELO · season record (W green / L red) ·
         // current set score. Each piece is dropped while its value is still loading (the opponent
         // profile fetch is async) so the line never shows blanks.
@@ -202,27 +248,31 @@ function overlayDoc(boot: string): string {
           var rc = o.tierColor || "#fff";
           parts.push(medalEl + '<span class="vs-rank" style="color:' + esc(rc) + '">' + esc(o.tier) + "</span>");
         }
-        if (o.rating != null) parts.push(fmt1(o.rating) + " MMR");
+        if (o.rating != null) parts.push(fmt1(o.rating));
         if (o.seasonWins != null && o.seasonLosses != null) {
           parts.push('<span class="w">' + esc(o.seasonWins) + 'W</span>–<span class="l">' + esc(o.seasonLosses) + "L</span>");
         }
-        parts.push("(" + esc(o.gamesWon) + "–" + esc(o.gamesLost) + ")");
-        return '<div class="vs">' + l1 + '<div class="vs-sub">' + parts.join(" · ") + "</div></div>";
+        // Current set score is now its own scoreboard row (below the stats), not tucked at the
+        // end of the stats line — your wins green, the opponent's red, so it's clear mid-set.
+        var scoreEl = '<div class="vs-score"><span class="vs-score-cap">Set Count:</span><span>' + esc(o.gamesWon) + '</span><span class="vs-score-dash">–</span><span>' + esc(o.gamesLost) + "</span></div>";
+        return '<div class="vs">' + l1 + '<div class="vs-sub">' + parts.join(" · ") + "</div>" + scoreEl + "</div>";
       }
       return "";
     }
 
+    // Today's block (stacked): session MMR change + today's set W/L. The current MMR is no
+    // longer here (it moved up with the identity), so this block is unambiguously "this session".
+    // The change (sessionDelta toggle) and W/L (today toggle) gate independently; block collapses
+    // when both are off.
     function todayHtml(s) {
-      if (!vis(s, "today")) return "";
-      var startTxt = s.sessionStartRating != null ? fmt1(s.sessionStartRating) : (s.rating != null ? fmt1(s.rating) : "—");
-      var deltaTxt = "";
-      if (s.sessionDelta != null && vis(s, "sessionDelta")) {
-        deltaTxt = ' <span style="color:' + (s.sessionDelta >= 0 ? "#2ecc71" : "#ff4d4f") + '">(' + fmtDelta(s.sessionDelta) + ")</span>";
-      }
-      return '<div class="today-label">Today&#39;s stats</div>'
-        + '<div class="today-row"><span class="w">W: ' + esc(s.sessionWins) + "</span>"
-        + "<span>" + startTxt + deltaTxt + "</span>"
-        + '<span class="l">L: ' + esc(s.sessionLosses) + "</span></div>";
+      var showChange = s.sessionDelta != null && vis(s, "sessionDelta");
+      var showWl = vis(s, "today");
+      if (!showChange && !showWl) return "";
+      var parts = "";
+      if (showWl) parts += '<span class="w">W: ' + esc(s.sessionWins) + "</span>";
+      if (showChange) parts += '<span style="color:' + (s.sessionDelta >= 0 ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(s.sessionDelta) + "</span>";
+      if (showWl) parts += '<span class="l">L: ' + esc(s.sessionLosses) + "</span>";
+      return '<div class="today-label">Today&#39;s stats</div><div class="today-row">' + parts + "</div>";
     }
 
     function tagHtml(s) { return vis(s, "tag") ? '<div class="tag">' + esc(s.tag) + "</div>" : ""; }
@@ -230,8 +280,10 @@ function overlayDoc(boot: string): string {
     function buildStacked(s) {
       var h = '<div class="panel">';
       h += tagHtml(s);
-      h += medalHtml(s) + rankHtml(s) + mmrHtml(s);
-      h += globalHtml(s) + seasonHtml(s);
+      // MMR sits with the identity now (below season W/L), so the Today's block reads purely as
+      // session change — no more ambiguity between "current MMR" and "session/this-set change".
+      h += medalHtml(s) + rankHtml(s);
+      h += globalHtml(s) + seasonHtml(s) + mmrHtml(s);
       h += contextHtml(s, false);
       // The today block carries its own divider only when it's actually shown.
       var today = todayHtml(s);
@@ -241,19 +293,24 @@ function overlayDoc(boot: string): string {
     }
 
     function buildSide(s) {
-      // Left identity column — any of medal/tag/rank/global/season may be hidden.
-      var idParts = tagHtml(s) + rankHtml(s) + globalHtml(s) + seasonHtml(s);
+      // Left identity column — tag/rank/global/season + the current MMR (MMR now lives with the
+      // identity, below season W/L). Any piece may be hidden.
+      var idParts = tagHtml(s) + rankHtml(s) + globalHtml(s) + seasonHtml(s) + mmrHtml(s);
       var medal = medalHtml(s);
       var left = (medal || idParts)
         ? '<div class="side-head">' + medal + '<div class="side-id">' + idParts + "</div></div>"
         : "";
-      // Right "today's stats" block holds the MMR + session W/L in this layout.
-      var mmr = mmrHtml(s);
+      // Right "Today's stats" block — session MMR change + today's set W/L (each independently
+      // toggled). No raw MMR here anymore, so it reads cleanly as "this session".
+      var showChange = s.sessionDelta != null && vis(s, "sessionDelta");
+      var changeEl = showChange
+        ? '<div class="today-mmr" style="color:' + (s.sessionDelta >= 0 ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(s.sessionDelta) + "</div>"
+        : "";
       var wl = vis(s, "today")
         ? '<div class="today-wl"><span class="w">W: ' + esc(s.sessionWins) + '</span><span class="l">L: ' + esc(s.sessionLosses) + "</span></div>"
         : "";
-      var right = (mmr || wl)
-        ? '<div class="today-block"><div class="today-label">Today&#39;s stats</div>' + mmr + wl + "</div>"
+      var right = (changeEl || wl)
+        ? '<div class="today-block"><div class="today-label">Today&#39;s stats</div>' + changeEl + wl + "</div>"
         : "";
 
       var h = '<div class="panel"><div class="persist">';
@@ -291,6 +348,14 @@ function overlayDoc(boot: string): string {
     }
 
     function apply(s) {
+      // If the overlay page on disk changed (new app version / build), reload so the new look
+      // shows without a manual OBS "Refresh". The app stamps every state with the current page
+      // version; PAGE_VERSION is baked into this loaded page (live page only — the in-app preview
+      // omits it, so this is a no-op there). Cache-bust via a query so CEF re-reads stats.html.
+      if (s && s.htmlVersion && typeof PAGE_VERSION !== "undefined" && s.htmlVersion !== PAGE_VERSION) {
+        location.replace(location.href.split("?")[0] + "?v=" + s.htmlVersion);
+        return;
+      }
       latest = s;
       if (firstApply) { firstApply = false; if (s && s.lastSet) shownSetId = s.lastSet.setId; }
       if (s && s.opponent) {
@@ -325,8 +390,18 @@ function overlayDoc(boot: string): string {
 `;
 }
 
-/** The live OBS overlay page: polls stats-state.js and animates on changes. */
-const STATS_HTML = overlayDoc("poll();\n    setInterval(poll, POLL_MS);");
+/** Fingerprint of the rendered page (CSS + render JS), independent of the per-page boot string and
+ *  the version stamp itself — so it changes only when the overlay's look/markup changes, not on
+ *  every state write. Written into each state file as `htmlVersion`; the loaded page compares it to
+ *  its baked PAGE_VERSION and reloads when they differ. Exported so the app re-writes stats.html
+ *  whenever it changes (keeping disk in sync before announcing the new version → no reload loop). */
+export const OVERLAY_VERSION = hashStr(overlayDoc("/* version probe */"));
+
+/** The live OBS overlay page: polls stats-state.js and animates on changes. PAGE_VERSION is baked
+ *  in so the page can detect a newer stats.html on disk and self-reload (see apply()). */
+const STATS_HTML = overlayDoc(
+  'var PAGE_VERSION = "' + OVERLAY_VERSION + '";\n    poll();\n    setInterval(poll, POLL_MS);'
+);
 
 /** Self-contained overlay HTML with the payload baked in (no polling) — the in-app preview.
  *  It's written to disk as preview.html and loaded into the preview iframe via the asset
@@ -356,9 +431,10 @@ export async function ensureStatsOverlayFiles(): Promise<void> {
   await writeTextFile(`${DIR}/stats-state.js`, INITIAL_STATE, { baseDir: BaseDirectory.AppData });
 }
 
-/** Write the current live-stats payload so the panel re-renders. */
+/** Write the current live-stats payload so the panel re-renders. Stamps the current page version
+ *  (htmlVersion) so a stale OBS page reloads itself after the app ships a new overlay build. */
 export async function writeStatsOverlayState(payload: StatsOverlayPayload): Promise<void> {
-  const body = `// Written by Slippi Ranked Stats.\nwindow.__SRS_STATS = ${jsonForScript(payload)};\n`;
+  const body = `// Written by Slippi Ranked Stats.\nwindow.__SRS_STATS = ${jsonForScript({ ...payload, htmlVersion: OVERLAY_VERSION })};\n`;
   await writeTextFile(`${DIR}/stats-state.js`, body, { baseDir: BaseDirectory.AppData });
 }
 

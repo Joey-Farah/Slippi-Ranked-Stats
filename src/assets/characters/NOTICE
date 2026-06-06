@@ -1,0 +1,12 @@
+Character stock icons in this directory (char_*.png) are from Project Slippi's
+slippi-launcher: https://github.com/project-slippi/slippi-launcher
+(src/renderer/styles/images/characters/<id>/0/stock.png), which is licensed
+under GPL-3.0. Files are named by external (CSS-order) character ID and use the
+neutral (costume 0) stock head.
+
+These icons are the property of Project Slippi / Nintendo and are included here
+with attribution to credit the original authors. They are used to display the
+opponent's characters in the stream-overlay feature.
+
+Slippi Ranked Stats is an independent community tool and is not affiliated with,
+sponsored by, or endorsed by Project Slippi or Nintendo.

@@ -29,6 +29,13 @@ export interface SeasonData {
   losses: number;
 }
 
+// A character the player has used this ranked season, with their game count. `character`
+// is the Slippi API enum string (e.g. "FOX", "CAPTAIN_FALCON") — map via API_CHAR_TO_EXTERNAL.
+export interface ProfileCharacter {
+  character: string;
+  gameCount: number;
+}
+
 // Same query the slippi.gg website sends (matches v1 api.py exactly).
 // characters { character gameCount } gives us API-side char IDs for cross-reference.
 const PROFILE_QUERY = `
@@ -65,7 +72,7 @@ async function graphql<T>(query: string, variables: Record<string, string | null
 
 export async function fetchRatingSnapshot(
   connectCode: string
-): Promise<{ snapshot: RatingSnapshot; seasons: SeasonData[]; displayName: string }> {
+): Promise<{ snapshot: RatingSnapshot; seasons: SeasonData[]; displayName: string; characters: ProfileCharacter[] }> {
   const cc = connectCode.toUpperCase().replace("/", "#");
   const data = await graphql<any>(PROFILE_QUERY, { cc, uid: null });
 
@@ -75,6 +82,14 @@ export async function fetchRatingSnapshot(
   const displayName: string = user.displayName ?? "";
   const profile = user.rankedNetplayProfile ?? {};
   const history: any[] = user.rankedNetplayProfileHistory ?? [];
+
+  // The current season's characters, most-played first. Empty after a season reset or for
+  // a brand-new player. Used by the overlay to show the opponent's actual mains (rather
+  // than the lagging per-game character) — see API_CHAR_TO_EXTERNAL in char-icons.ts.
+  const characters: ProfileCharacter[] = (profile.characters ?? [])
+    .map((c: any) => ({ character: String(c.character ?? ""), gameCount: c.gameCount ?? 0 }))
+    .filter((c: ProfileCharacter) => c.character && c.gameCount > 0)
+    .sort((a: ProfileCharacter, b: ProfileCharacter) => b.gameCount - a.gameCount);
 
   const snapshot: RatingSnapshot = {
     timestamp: new Date().toISOString(),
@@ -96,5 +111,5 @@ export async function fetchRatingSnapshot(
     losses: entry.losses ?? 0,
   }));
 
-  return { snapshot, seasons, displayName };
+  return { snapshot, seasons, displayName, characters };
 }

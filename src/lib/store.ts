@@ -2,6 +2,7 @@ import { writable, derived } from "svelte/store";
 import type { GameRow, SnapshotRow, SeasonRow } from "./db";
 import type { SetGrade } from "./grading";
 import { getRankTier, CHARACTERS } from "./parser";
+import { internalToExternal } from "./char-icons";
 
 // ── Persistent settings (auto-saved to localStorage) ───────────────────────
 
@@ -146,6 +147,10 @@ export interface ActiveSet {
   opponent_tag: string | null;          // opponent's Slippi display name, null while loading
   opponent_season_wins: number | null;  // opponent's current-season ranked W, null while loading
   opponent_season_losses: number | null;
+  // Opponent's top characters this season (external char ids, most-played first), from their
+  // Slippi profile — not the lagging per-game char. null while loading; [] if their profile
+  // lists none (season reset / new player), in which case the overlay falls back to the live char.
+  opponent_chars: number[] | null;
   all_time_wins: number;            // set-level record vs this opponent in our DB
   all_time_losses: number;
   session_already_faced: boolean;   // did we face them earlier this watcher session?
@@ -210,6 +215,7 @@ export interface OverlaySetResult {
   losses: number;
   opponentCode: string;
   opponentChar: string;
+  opponentCharId: number | null; // external char id for the post-set icon; null → text fallback
   ratingBefore: number | null;
   gradeLetter: string | null;  // null when the set couldn't be graded (bad/partial stats)
   // Featured category to show under the overall grade: best category on a win, worst on a
@@ -461,7 +467,8 @@ export const liveSetRecord = derived(liveGameStats, ($stats) => {
 
 export interface StatsOverlayOpponent {
   code: string;
-  char: string;
+  char: string;                // live in-game char name (text fallback when no icons resolve)
+  charIds: number[];           // external char ids to icon-ify: profile mains, else the live char
   tier: string | null;         // rank tier name, also selects the medal
   tierColor: string | null;    // rank tier color
   rating: number | null;
@@ -510,10 +517,18 @@ export const statsOverlayPayload = derived(
     const sessionDelta =
       rating !== null && $startRating !== null ? rating - $startRating : null;
 
+    // Prefer the opponent's profile mains (don't lag a mid-set char swap); fall back to the
+    // live in-game char (converted to an external id) until the profile lands or if it's empty.
+    const liveExternal = internalToExternal($active?.opponent_char_id ?? -1);
+    const charIds = ($active?.opponent_chars && $active.opponent_chars.length > 0)
+      ? $active.opponent_chars
+      : (liveExternal != null ? [liveExternal] : []);
+
     const opponent: StatsOverlayOpponent | null = $active
       ? {
           code: $active.opponent_code,
           char: CHARACTERS[$active.opponent_char_id] ?? "Unknown",
+          charIds,
           tier: $active.opponent_tier,
           tierColor: $active.opponent_tier_color,
           rating: $active.opponent_rating,

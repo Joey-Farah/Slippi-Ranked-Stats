@@ -1,3 +1,27 @@
+## What's New in v1.8.8
+
+### 🥊 See who your opponent actually plays (Premium)
+
+The overlay's opponent line now shows your opponent's **real mains as character icons**, pulled straight from their Slippi profile — their top characters this season, not just whoever they happened to pick in game 1. Previously, if they switched characters mid-set, the overlay kept showing their old one until the next game finished. Now it shows their actual go-to characters from the moment the set starts.
+
+### 🎯 A clearer live scoreboard + Rating display (Premium)
+
+A few overlay polish items so things read at a glance on stream:
+
+- **Live "Set Count:"** — the current set score now has its own clear row during a set, instead of being tucked at the end of the opponent's stats.
+- **Rating, untangled** — your current Rating now sits with your name and rank, while the **"Today's stats"** block shows your **session change**, and a set's result briefly shows its own **"THIS SET"** Rating change. No more guessing which number is which.
+- **"Rating" everywhere** — matched the wording to slippi.gg (was "MMR").
+
+### 🔄 No more refreshing your OBS overlay after an update (Premium)
+
+After the app updates, the overlay used to keep showing the old version until you manually hit **Refresh** on the Browser Source in OBS. It now **updates itself automatically** when a new version ships — set it up once and forget about it.
+
+### 🩹 Replays played while the app was closed now show up on launch
+
+If you played some ranked sets **without the app open**, those games weren't getting picked up until you ran a manual scan. The app now **scans for new replays automatically when it opens**, so your latest sets are there waiting for you.
+
+---
+
 ## What's New in v1.8.7
 
 ### 🎚️ Choose exactly what shows on your OBS overlay (Premium)
