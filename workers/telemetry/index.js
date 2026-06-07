@@ -48,15 +48,34 @@ export default {
       return corsResponse("ok", 200);
     }
 
-    // GET /stats — HTML dashboard (owner-only). Gated behind a secret token so install
-    // counts / DAU / premium numbers aren't public. The token is a Worker secret, never
-    // in the client app — set it with: wrangler secret put DASHBOARD_TOKEN
-    // View at: https://<worker-url>/stats?key=<token>. 404 (not 401) so the endpoint
-    // doesn't even advertise that it exists to someone probing without the key.
+    // GET /stats — HTML dashboard (owner-only). Gated behind a secret token (the
+    // DASHBOARD_TOKEN Worker secret, never shipped in the client app — set it with
+    // `wrangler secret put DASHBOARD_TOKEN`). Mobile-friendly auth: instead of forcing
+    // the long token into the URL every time, an unauthenticated visit shows a small
+    // login page (password-manager friendly). A correct token sets a long-lived
+    // HttpOnly session cookie (the token's SHA-256, so the raw secret never sits in the
+    // cookie jar) so future visits — e.g. a phone bookmark — just work for ~a year.
+    // A legacy ?key=<token> bookmark still works: it sets the cookie and redirects to
+    // the clean URL so the token doesn't linger in history.
     if (request.method === "GET" && url.pathname === "/stats") {
-      if (url.searchParams.get("key") !== env.DASHBOARD_TOKEN) {
-        return new Response("Not found", { status: 404 });
+      const expected = await sha256Hex(env.DASHBOARD_TOKEN ?? "");
+      const tokenSet = Boolean(env.DASHBOARD_TOKEN);
+      const keyParam = url.searchParams.get("key");
+
+      // One-time unlock via ?key= → set session cookie, strip token from the URL.
+      if (keyParam !== null) {
+        if (tokenSet && timingSafeEqual(await sha256Hex(keyParam), expected)) {
+          return new Response(null, { status: 302, headers: { Location: "/stats", "Set-Cookie": authCookie(expected) } });
+        }
+        return new Response(loginPage(true), { status: 401, headers: { "Content-Type": "text/html; charset=utf-8" } });
       }
+
+      const sessionHash = readCookie(request.headers.get("Cookie"), AUTH_COOKIE);
+      const authed = tokenSet && sessionHash && timingSafeEqual(sessionHash, expected);
+      if (!authed) {
+        return new Response(loginPage(false), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+      }
+
       const previous = readSnapshotCookie(request.headers.get("Cookie"));
       const { html, snapshot } = await buildDashboard(env.DB, previous);
 
@@ -70,6 +89,24 @@ export default {
         headers["Set-Cookie"] = `srs_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly`;
       }
       return new Response(html, { status: 200, headers });
+    }
+
+    // POST /login — exchange the dashboard token for the session cookie. The token
+    // arrives as a form field (so a phone password manager can autofill it and it never
+    // hits the URL). On success, set the cookie and redirect into the dashboard.
+    if (request.method === "POST" && url.pathname === "/login") {
+      let key = "";
+      try { key = ((await request.formData()).get("key") ?? "").toString(); } catch { /* ignore */ }
+      const expected = await sha256Hex(env.DASHBOARD_TOKEN ?? "");
+      if (env.DASHBOARD_TOKEN && timingSafeEqual(await sha256Hex(key), expected)) {
+        return new Response(null, { status: 302, headers: { Location: "/stats", "Set-Cookie": authCookie(expected) } });
+      }
+      return new Response(loginPage(true), { status: 401, headers: { "Content-Type": "text/html; charset=utf-8" } });
+    }
+
+    // GET /logout — clear the session cookie (revoke a device) and bounce to login.
+    if (request.method === "GET" && url.pathname === "/logout") {
+      return new Response(null, { status: 302, headers: { Location: "/stats", "Set-Cookie": `${AUTH_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly; Secure` } });
     }
 
     // POST /init — ensure schema exists (call once after creating DB). Same owner-only
@@ -88,20 +125,70 @@ export default {
   },
 };
 
-function readSnapshotCookie(header) {
+// Name of the long-lived session cookie set after a successful token login. Holds the
+// SHA-256 of the dashboard token (hex), not the token itself.
+const AUTH_COOKIE = "srs_auth";
+
+function readCookie(header, name) {
   if (!header) return null;
   for (const part of header.split(";")) {
     const idx = part.indexOf("=");
     if (idx < 0) continue;
-    const k = part.slice(0, idx).trim();
-    if (k !== "srs_snapshot") continue;
-    try {
-      return JSON.parse(decodeURIComponent(part.slice(idx + 1).trim()));
-    } catch {
-      return null;
-    }
+    if (part.slice(0, idx).trim() !== name) continue;
+    return part.slice(idx + 1).trim();
   }
   return null;
+}
+
+function readSnapshotCookie(header) {
+  const raw = readCookie(header, "srs_snapshot");
+  if (!raw) return null;
+  try {
+    return JSON.parse(decodeURIComponent(raw));
+  } catch {
+    return null;
+  }
+}
+
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Constant-time string compare so the token check doesn't leak length/prefix via timing.
+function timingSafeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function authCookie(hash) {
+  // 1 year. HttpOnly so JS can't read it; Secure since the worker is HTTPS-only.
+  return `${AUTH_COOKIE}=${hash}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly; Secure`;
+}
+
+function loginPage(showError) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SRS Stats — Sign in</title>
+<style>${STYLES}${LOGIN_STYLES}</style>
+</head>
+<body>
+<div class="login-wrap">
+  <form class="login-card" method="POST" action="/login" autocomplete="on">
+    <h1>SRS Stats</h1>
+    <div class="login-sub">Enter your dashboard token to continue.</div>
+    <input type="text" name="username" value="srs-dashboard" autocomplete="username" hidden readonly/>
+    <input class="login-input" type="password" name="key" placeholder="Dashboard token" autocomplete="current-password" autofocus required/>
+    ${showError ? `<div class="login-error">Incorrect token — try again.</div>` : ""}
+    <button class="login-btn" type="submit">Sign in</button>
+  </form>
+</div>
+</body></html>`;
 }
 
 async function buildDashboard(db, previous) {
@@ -204,7 +291,10 @@ async function buildDashboard(db, previous) {
 <style>${STYLES}</style>
 </head>
 <body>
-<h1>Slippi Ranked Stats — Telemetry</h1>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+  <h1>Slippi Ranked Stats — Telemetry</h1>
+  <a class="logout" href="/logout">sign out</a>
+</div>
 <div class="sub">Generated ${new Date(now).toLocaleString("en-US", { timeZone: "America/Chicago", dateStyle: "medium", timeStyle: "short" })} CST</div>
 ${sinceLine}
 
@@ -515,4 +605,19 @@ const STYLES = `
     .cards { grid-template-columns: 1fr; }
     .retention { grid-template-columns: 1fr; }
   }
+  .logout { color: #555; font-size: 13px; text-decoration: none; border: 1px solid #262626; border-radius: 6px; padding: 4px 10px; }
+  .logout:hover { color: #aaa; border-color: #3a3a3a; }
+`;
+
+const LOGIN_STYLES = `
+  .login-wrap { min-height: 70vh; display: flex; align-items: center; justify-content: center; }
+  .login-card { background: #1a1a1a; border: 1px solid #262626; border-radius: 10px; padding: 28px 24px; width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; }
+  .login-card h1 { margin: 0; font-size: 22px; }
+  .login-sub { color: #888; font-size: 14px; margin-bottom: 4px; }
+  /* 16px keeps iOS from zooming the page when the field is focused. */
+  .login-input { font-family: monospace; font-size: 16px; padding: 12px 14px; background: #0d0d0d; border: 1px solid #333; border-radius: 6px; color: #fff; width: 100%; box-sizing: border-box; }
+  .login-input:focus { outline: none; border-color: #4a9bff; }
+  .login-btn { font-family: monospace; font-size: 16px; font-weight: 700; padding: 12px; background: #4a9bff; color: #061018; border: none; border-radius: 6px; cursor: pointer; }
+  .login-btn:active { background: #3a86e6; }
+  .login-error { color: #e06464; font-size: 14px; }
 `;
