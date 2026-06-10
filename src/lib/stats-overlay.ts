@@ -215,17 +215,21 @@ function overlayDoc(boot: string): string {
               + esc(sLabel) + ': <span style="color:' + sgc + '">' + esc(sLetter) + "</span></div>";
           }
         }
-        var resEl = '<div class="setresult" style="color:' + (won ? "#2ecc71" : "#ff4d4f") + '">' + (won ? "SET WON" : "SET LOST") + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>";
+        // Set result line + opponent — gated together by the "setResult" toggle.
+        var setResultOn = vis(s, "setResult");
+        var resEl = setResultOn ? '<div class="setresult" style="color:' + (won ? "#2ecc71" : "#ff4d4f") + '">' + (won ? "SET WON" : "SET LOST") + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>" : "";
         // Opponent char as a stock icon (the char they played this set); text name as fallback.
         var vsChar = charsHtml(postSetData.opponentCharId != null ? [postSetData.opponentCharId] : []);
         var vsTail = vsChar ? " " + vsChar : (postSetData.opponentChar ? " · " + esc(postSetData.opponentChar) : "");
-        var vsEl = '<div class="vs">vs ' + esc(postSetData.opponentCode) + vsTail + "</div>";
-        // Per-set MMR change — appears once the rating refetch lands (rating moved off
-        // ratingBefore). Labelled THIS SET so it's never confused with the session total.
+        var vsEl = setResultOn ? '<div class="vs">vs ' + esc(postSetData.opponentCode) + vsTail + "</div>" : "";
+        // Per-set rating change — appears once the rating refetch lands (rating moved off
+        // ratingBefore). Labelled "Last set:" (the set is over by the time it shows) so it's never
+        // confused with the session total. Has its own "setRating" toggle, independent of the live
+        // "mmr" (current Rating) toggle.
         var setMmrEl = "";
-        if (vis(s, "mmr") && s.rating != null && postSetData.ratingBefore != null && s.rating !== postSetData.ratingBefore) {
+        if (vis(s, "setRating") && s.rating != null && postSetData.ratingBefore != null && s.rating !== postSetData.ratingBefore) {
           var sd = s.rating - postSetData.ratingBefore;
-          setMmrEl = '<div class="set-mmr"><span class="setcap">THIS SET</span><span style="color:' + (sd >= 0 ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(sd) + "</span></div>";
+          setMmrEl = '<div class="set-mmr"><span class="setcap">LAST SET:</span><span style="color:' + (sd >= 0 ? "#2ecc71" : "#ff4d4f") + '">' + fmtDelta(sd) + "</span></div>";
         }
         if (side) return '<div class="setblock">' + gradeEl + subEl + '<div class="setinfo">' + resEl + vsEl + setMmrEl + "</div></div>";
         return gradeEl + subEl + resEl + vsEl + setMmrEl;
@@ -284,10 +288,14 @@ function overlayDoc(boot: string): string {
       // session change — no more ambiguity between "current MMR" and "session/this-set change".
       h += medalHtml(s) + rankHtml(s);
       h += globalHtml(s) + seasonHtml(s) + mmrHtml(s);
-      h += contextHtml(s, false);
-      // The today block carries its own divider only when it's actually shown.
+      // Today's-stats block is persistent (always on screen), so it sits with the identity at the
+      // top — above the transient content. Keeps its own divider only when shown.
       var today = todayHtml(s);
       if (today) h += '<div class="divider"></div>' + today;
+      // Transient area at the BOTTOM — opponent line during a set, grade + result + this-set
+      // rating after. The appear-then-leave content stays below everything that's always on screen.
+      var ctx = contextHtml(s, false);
+      if (ctx) h += '<div class="divider"></div>' + ctx;
       h += "</div>";
       return h;
     }

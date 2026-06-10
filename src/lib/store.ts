@@ -91,10 +91,13 @@ export interface OverlayVisibility {
   today: boolean;        // today's session W/L record
   opponent: boolean;     // opponent scouting line during a set
   grade: boolean;        // post-set grade letter (+ standout stat)
+  setResult: boolean;    // post-set result line (SET WON/LOST · score · vs opp)
+  setRating: boolean;    // post-set "THIS SET" rating change (independent of the live Rating toggle)
 }
 export const OVERLAY_VISIBILITY_DEFAULT: OverlayVisibility = {
   tag: true, medal: true, rank: true, mmr: true, sessionDelta: true,
   global: true, season: true, today: true, opponent: true, grade: true,
+  setResult: true, setRating: true,
 };
 export const statsOverlayVisibility = persistedMerged<OverlayVisibility>(
   "srs_statsOverlayVisibility", OVERLAY_VISIBILITY_DEFAULT

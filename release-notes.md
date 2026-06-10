@@ -1,3 +1,23 @@
+## What's New in v1.8.9
+
+### 🎯 Your grades compare you to the right matchup again
+
+Set grades are scored against how players perform in **your exact matchup** — but a benchmark rebuild a while back accidentally left most of the cast without their own matchup data, so unless you (or your opponent) played Fox, Falco, or Marth, your grade quietly fell back to a generic "your character vs everyone" baseline. We re-ran the full benchmark across **all 25 characters**, so matchups like Sheik vs Pikachu or Peach vs Jigglypuff are graded against real same-matchup data again. Your existing grades will refresh to use the restored baselines.
+
+### 💯 A flawless stat now scores a perfect 100
+
+If you posted a perfect rate on a stat — say a 100% recovery set — the score used to cap at 95, which looked off sitting next to a bar that fills all the way to 100. A flawless performance now scores a true **100**.
+
+### 🎚️ Hide the post-set result and rating change separately (Premium)
+
+The Live Stats overlay's "Show on overlay" controls gained two switches: the **Set Result** line (SET WON/LOST · score · vs opponent) and the per-set **Rating change** can now each be hidden on their own. The rating change is no longer tied to your main Rating toggle.
+
+### 🧹 Tidier stacked overlay layout (Premium)
+
+In the stacked layout, the always-on info (tag, rank, Rating, Today's stats) now groups at the **top**, and the things that pop in and out — the opponent line and the post-set grade/result — sit **underneath**. The post-set rating change is also now labelled **"LAST SET:"** so it's clear it's about the set you just finished.
+
+---
+
 ## What's New in v1.8.8
 
 ### 🥊 See who your opponent actually plays (Premium)

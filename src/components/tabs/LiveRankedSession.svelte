@@ -32,6 +32,8 @@
     { key: "today",        label: "Today's W/L" },
     { key: "opponent",     label: "Opponent line" },
     { key: "grade",        label: "Post-set grade" },
+    { key: "setResult",    label: "Set result" },
+    { key: "setRating",    label: "Set Rating change" },
   ];
   function toggleVis(key: keyof OverlayVisibility) {
     statsOverlayVisibility.update((v) => ({ ...v, [key]: !v[key] }));

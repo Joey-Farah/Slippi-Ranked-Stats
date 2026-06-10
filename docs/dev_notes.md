@@ -6,6 +6,24 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-06-10 (v1.8.9 — matchup coverage RESTORED + flawless=100 + overlay toggles — READ FIRST)
+
+> **✅ v1.8.9 prepared overnight and STAGED ON MAIN LOCALLY — NOT released.** Owner gives final say + tests, then tags/pushes. Version bumped 1.8.8→1.8.9 (package.json, tauri.conf.json, Cargo.toml, Cargo.lock); release-notes.md + CLAUDE.md updated. Validated: 33/33 tests, `vite build` clean. **Do NOT tag/push without the owner's go-ahead.**
+>
+> 1. **Matchup baseline coverage was silently REGRESSED and is now restored (all users).** Root cause: commit `b7bb93a` ("rescan baselines with all stat fixes", 2026-05-21) re-ran `scripts/parse_hf_replays.py` with the **default `--character FALCO`** instead of `--character ALL`, so only Fox/Falco/Marth folders were parsed. `gradeSet` (`grading.ts`) looks up `by_matchup[player][opp] → by_player_char[player] → _overall`; with FFM-only data, every matchup NOT involving Fox/Falco/Marth fell back to the player-char baseline (e.g. a Sheik-vs-Pikachu set graded vs "Sheik vs everyone"). Proof of the regression: for all 22 non-FFM chars, their total game count exactly equalled the sum of FFM-vs-them. **Fix:** full `--character ALL` rescan from HuggingFace `erickfm/slippi-public-dataset-v3.7` (~192k games) + `regen_benchmarks.py`. Result: 21/24 player chars now have broad matchup coverage (≥50-sample matchups land in `grade-benchmarks.ts`; `grade_baselines.json` keeps ≥20 → 258 combos of 676). Sheik-vs-Pikachu / Peach-vs-Jigglypuff back. ⚠ **TRAP: the `--character` default is `FALCO` — ALWAYS pass `--character ALL` for a full rebuild.**
+> 2. **Flawless rate ⇒ score 100 (all users).** `percentileScore` (`grading.ts`) gained a saturated-ceiling remap: new `max` param + `BOUNDED_RATE_STATS` set ([0,1] rate stats). When a stat's p95 == the 1.0 ceiling (e.g. recovery — a perfect rate is only the 95th percentile, so it used to cap at 95), the top band is remapped p90→ceiling onto 90→100, and any value ≥ max returns 100. Non-saturated stats (edgeguard, p95 ≪ 1.0) untouched. `GRADING_LOGIC_VERSION` 4→5 → grades flag stale (regrade refreshes).
+> 3. **Overlay (Premium): two new independent toggles** — `setResult` (the SET WON/LOST · score · vs line) and `setRating` (per-set Rating change, decoupled from the `mmr` toggle). Added to `OverlayVisibility` + `OVERLAY_VISIBILITY_DEFAULT` (store.ts), gated by `vis()` in `stats-overlay.ts`, and in `VIS_OPTS` (LiveRankedSession.svelte).
+> 4. **Overlay (Premium): stacked-layout reorder** — `buildStacked` keeps the Today's block with the persistent identity at the top and pushes transient `contextHtml` (opponent line / post-set) to the bottom (side layout already did this). Owner-requested.
+> 5. **Overlay (Premium): "THIS SET" → "LAST SET:"** label on the post-set rating change.
+>
+> **STILL BANKED — Ice Climbers / Nana raw-stat fix.** Both parsers (`slp_parser.ts` + `parse_hf_replays.py`) discard the follower (Nana): the leader-only frame stream means hits/openings/edgeguards on Nana are invisible, so correct anti-IC play (split pressure between climbers) inflates openings-per-kill / deflates conversion rate. The v1.8.9 coverage fix makes IC grades **fair vs the same-matchup baseline** (the baseline shares the Nana-blindness → it cancels) but NOT **accurate to actual performance**. Real fix = merge Nana's frames into the opponent entity in BOTH parsers (lockstep) + another full rescan + regrade; **discuss the conversion/opening/kill/edgeguard semantics first.**
+>
+> **HF token:** the rescan used a HuggingFace read token (owner-provided, set as a process env var only — never written to the repo); owner is rotating it. HF throttled the big folders hard (~2 files/sec on Fox), so the rescan took ~10.6h.
+>
+> **Remaining to release:** owner tests the staged commit (regrade stale grades, eyeball overlay), then tags `v1.8.9` + pushes → signed CI release.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-06-05 (v1.8.8 — overlay opponent-char icons + Rating clarity + auto-scan — READ FIRST)
 
 > **✅ v1.8.8: overlay polish (Premium) + an all-users auto-scan fix.** Version bumped 1.8.7→1.8.8

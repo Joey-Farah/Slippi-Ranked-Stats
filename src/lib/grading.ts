@@ -106,6 +106,22 @@ const ABSOLUTE_STATS = new Set<keyof SetGrade["breakdown"]>([
   "lead_maintenance_rate",
 ]);
 
+/** Scored stats that are a rate bounded on [0,1], so 1.0 (100%) is a flawless,
+ *  achievable ceiling. percentileScore uses this to let a perfect rate reach a
+ *  perfect score even when the benchmark's p95 is saturated at 1.0 (e.g.
+ *  recovery, where a flawless game otherwise capped at 95). Excludes the
+ *  absolute comeback/lead stats, the display-only execution stats, and the
+ *  unbounded stats (kill%/death%, damage, openings-per-kill, stock duration). */
+const BOUNDED_RATE_STATS = new Set<keyof SetGrade["breakdown"]>([
+  "neutral_win_ratio",
+  "opening_conversion_rate",
+  "stage_control_ratio",
+  "edgeguard_success_rate",
+  "tech_chase_rate",
+  "recovery_success_rate",
+  "respawn_defense_rate",
+]);
+
 /** Stats shown in the breakdown display but not included in any category score. */
 export const DISPLAY_ONLY_STATS = new Set<keyof SetGrade["breakdown"]>([
   "l_cancel_ratio",
@@ -158,7 +174,7 @@ const SET_BLOWN_LEAD_PENALTY = -4;
  *  version). Folded into GRADE_VERSION so a logic-only change — which doesn't
  *  move BENCHMARKS_VERSION — still forces a regrade. Bump on any change to
  *  weights, curves, bonuses, or stat math. */
-export const GRADING_LOGIC_VERSION = "4"; // 4: comeback/lead end-position model (slp_parser.ts)
+export const GRADING_LOGIC_VERSION = "5"; // 5: flawless rate ⇒ score 100 (saturated-ceiling remap in percentileScore)
 
 /** The version token stored with each grade and compared to detect stale grades.
  *  Combines the benchmark-data version with the scoring-logic version so EITHER
@@ -270,11 +286,30 @@ export function featuredCategory(grade: SetGrade, won: boolean): FeaturedGrade |
 
 // ── Percentile scoring ─────────────────────────────────────────────────────
 
-function percentileScore(value: number, t: StatThresholds, inverted: boolean): number {
+/**
+ * Map a raw stat value to a 0–100 score against benchmark percentiles.
+ *
+ * `max` (optional) is the stat's natural ceiling — 1.0 for a rate (see
+ * BOUNDED_RATE_STATS). When the benchmark is *saturated* (p95 already sits at
+ * that ceiling, so a flawless value has no room to extrapolate above p95 and
+ * would otherwise cap at 95), the top band is remapped so p90→ceiling spans
+ * 90→100. A value at or beyond `max` always scores 100. Unbounded stats pass
+ * `max = null` and use the original curve, where 100 is earned by performing
+ * well above p95.
+ */
+function percentileScore(value: number, t: StatThresholds, inverted: boolean, max: number | null = null): number {
   let score: number;
 
   if (!inverted) {
-    if      (value >= t.p95) score = 95 + Math.min((value - t.p95) / Math.max(t.p95 - t.p90, 0.001) * 5, 5);
+    if (max !== null && value >= max) return 100;            // flawless rate ⇒ perfect score
+    if (max !== null && t.p95 >= max - 1e-9 && value >= t.p90) {
+      // Saturated ceiling: no room above p95, so stretch p90→ceiling onto 90→100
+      // (a flawless value would otherwise be stuck at 95). Non-saturated stats
+      // skip this and keep the original curve, so elite-but-not-perfect play on
+      // stats like edgeguard (p95 ≪ 1.0) is unaffected.
+      score = 90 + (value - t.p90) / Math.max(max - t.p90, 1e-9) * 10;
+    }
+    else if (value >= t.p95) score = 95 + Math.min((value - t.p95) / Math.max(t.p95 - t.p90, 0.001) * 5, 5);
     else if (value >= t.p90) score = 90 + (value - t.p90) / Math.max(t.p95 - t.p90, 0.001) * 5;
     else if (value >= t.p75) score = 75 + (value - t.p75) / Math.max(t.p90 - t.p75, 0.001) * 15;
     else if (value >= t.p50) score = 50 + (value - t.p50) / Math.max(t.p75 - t.p50, 0.001) * 25;
@@ -412,7 +447,8 @@ export function gradeSet(
         grade = scoreToGrade(score);
       }
     } else if (!skip && value !== null && thresholds) {
-      score = percentileScore(value, thresholds, inverted);
+      const statMax = BOUNDED_RATE_STATS.has(key) ? 1 : null;
+      score = percentileScore(value, thresholds, inverted, statMax);
       grade = scoreToGrade(score);
     }
 
