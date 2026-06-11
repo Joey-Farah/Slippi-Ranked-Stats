@@ -21,6 +21,29 @@ const FEATURE_LABELS = {
   overlay_enabled: "Turned on OBS overlay",
 };
 
+// The owner's own install_ids, excluded from every dashboard count so the owner's dev/test
+// machines don't inflate installs / premium / DAU / MAU. The v1.8.10+ client stops these
+// machines from pinging at all (isOwner kill-switch), so this list only needs the HISTORICAL
+// ids that were already recorded before that shipped — it's finite and won't keep growing.
+// Seed it from the /installs admin page (the rows flagged ⭑ premium that are your machines).
+const OWNER_INSTALL_IDS = [
+  "307770c8bc1339914ecf03e642ef51b4", // owner's macOS dev machine (confirmed: "Joey Donuts")
+  "b3d76c885bbc7469fdbda20c866f8dd6", // owner's Windows dev machine (ran 25 distinct versions)
+  "d1922e36fd0bd53be539f17057e79525", // owner's Windows dev machine (ran 23 distinct versions)
+  // Borderline candidates pending owner confirmation (ran many versions, may instead be real
+  // power users — left IN the counts until confirmed): 749f8a75… (12 ver), 28147e53/84e21c00/
+  // e198c5fa/c3c18e55 (8–9 ver). Add here if they turn out to be owner machines.
+];
+
+// SQL fragment that excludes the owner's installs. `prefix` is "WHERE" for queries with no
+// existing WHERE clause, "AND" to append to one. Safe to inline: OWNER_INSTALL_IDS is a
+// server-side constant of hex ids (never request input); each is still quote-stripped.
+function ownerExclusion(prefix = "AND") {
+  if (OWNER_INSTALL_IDS.length === 0) return "";
+  const list = OWNER_INSTALL_IDS.map(id => `'${String(id).replace(/'/g, "")}'`).join(",");
+  return ` ${prefix} install_id NOT IN (${list})`;
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
@@ -89,6 +112,31 @@ export default {
         headers["Set-Cookie"] = `srs_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly`;
       }
       return new Response(html, { status: 200, headers });
+    }
+
+    // GET /installs — owner-only admin list of every install_id (first/last seen, events, os,
+    // version, whether it fired premium, and whether it's already in OWNER_INSTALL_IDS). Used to
+    // identify your own test machines so you can seed OWNER_INSTALL_IDS. Same token gate as /stats.
+    if (request.method === "GET" && url.pathname === "/installs") {
+      const expected = await sha256Hex(env.DASHBOARD_TOKEN ?? "");
+      const tokenSet = Boolean(env.DASHBOARD_TOKEN);
+      const keyParam = url.searchParams.get("key");
+
+      if (keyParam !== null) {
+        if (tokenSet && timingSafeEqual(await sha256Hex(keyParam), expected)) {
+          return new Response(null, { status: 302, headers: { Location: "/installs", "Set-Cookie": authCookie(expected) } });
+        }
+        return new Response(loginPage(true), { status: 401, headers: { "Content-Type": "text/html; charset=utf-8" } });
+      }
+
+      const sessionHash = readCookie(request.headers.get("Cookie"), AUTH_COOKIE);
+      const authed = tokenSet && sessionHash && timingSafeEqual(sessionHash, expected);
+      if (!authed) {
+        return new Response(loginPage(false), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+      }
+
+      const html = await buildInstallsPage(env.DB);
+      return new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
 
     // POST /login — exchange the dashboard token for the session cookie. The token
@@ -209,28 +257,28 @@ async function buildDashboard(db, previous) {
         COUNT(DISTINCT install_id) AS installs,
         COUNT(*) AS events,
         COUNT(DISTINCT CASE WHEN event = 'premium' THEN install_id END) AS premium
-      FROM events
+      FROM events ${ownerExclusion("WHERE")}
     `).first(),
-    db.prepare("SELECT COUNT(DISTINCT install_id) AS n FROM events WHERE ts > ?").bind(now - DAY).first(),
-    db.prepare("SELECT COUNT(DISTINCT install_id) AS n FROM events WHERE ts > ?").bind(now - 7 * DAY).first(),
-    db.prepare("SELECT COUNT(DISTINCT install_id) AS n FROM events WHERE ts > ?").bind(now - 30 * DAY).first(),
+    db.prepare(`SELECT COUNT(DISTINCT install_id) AS n FROM events WHERE ts > ?${ownerExclusion()}`).bind(now - DAY).first(),
+    db.prepare(`SELECT COUNT(DISTINCT install_id) AS n FROM events WHERE ts > ?${ownerExclusion()}`).bind(now - 7 * DAY).first(),
+    db.prepare(`SELECT COUNT(DISTINCT install_id) AS n FROM events WHERE ts > ?${ownerExclusion()}`).bind(now - 30 * DAY).first(),
     db.prepare(`
       SELECT version, COUNT(DISTINCT install_id) AS installs
-      FROM events WHERE version != ''
+      FROM events WHERE version != ''${ownerExclusion()}
       GROUP BY version
     `).all(),
     db.prepare(`
       SELECT os, COUNT(DISTINCT install_id) AS installs
-      FROM events WHERE os != ''
+      FROM events WHERE os != ''${ownerExclusion()}
       GROUP BY os
     `).all(),
     db.prepare(`
       SELECT date(ts/1000, 'unixepoch', '-6 hours') AS day, COUNT(DISTINCT install_id) AS dau
-      FROM events WHERE ts > ?
+      FROM events WHERE ts > ?${ownerExclusion()}
       GROUP BY day ORDER BY day ASC
     `).bind(now - 30 * DAY).all(),
     db.prepare(`
-      SELECT event, COUNT(*) AS n FROM events
+      SELECT event, COUNT(*) AS n FROM events ${ownerExclusion("WHERE")}
       GROUP BY event ORDER BY n DESC
     `).all(),
     // Distinct users who fired each feature event within the MAU window. Divided
@@ -238,7 +286,7 @@ async function buildDashboard(db, previous) {
     db.prepare(`
       SELECT event, COUNT(DISTINCT install_id) AS users
       FROM events
-      WHERE ts > ? AND event IN ('scan_run', 'watcher_start', 'set_graded', 'overlay_enabled')
+      WHERE ts > ? AND event IN ('scan_run', 'watcher_start', 'set_graded', 'overlay_enabled')${ownerExclusion()}
       GROUP BY event
     `).bind(now - 30 * DAY).all(),
     computeRetention(db, now, DAY),
@@ -382,7 +430,7 @@ async function computeRetention(db, now, DAY) {
       return db.prepare(`
         WITH fs AS (
           SELECT install_id, MIN(ts) AS first_ts
-          FROM events
+          FROM events ${ownerExclusion("WHERE")}
           GROUP BY install_id
           HAVING MIN(ts) <= ?
         )
@@ -405,6 +453,62 @@ async function computeRetention(db, now, DAY) {
 function ratePct(num, denom) {
   if (!denom) return null;
   return Math.round((100 * num) / denom);
+}
+
+// Owner-only admin page: one row per install_id so you can spot your own test machines and seed
+// OWNER_INSTALL_IDS. NOT owner-filtered — the whole point is to see every install, including the
+// ones already excluded (flagged "excluded").
+async function buildInstallsPage(db) {
+  const rows = (await db.prepare(`
+    SELECT install_id,
+      MIN(ts) AS first_ts,
+      MAX(ts) AS last_ts,
+      COUNT(*) AS events,
+      MAX(CASE WHEN event = 'premium' THEN 1 ELSE 0 END) AS premium,
+      (SELECT os      FROM events e2 WHERE e2.install_id = e.install_id AND os != ''      ORDER BY ts DESC LIMIT 1) AS os,
+      (SELECT version FROM events e3 WHERE e3.install_id = e.install_id AND version != '' ORDER BY ts DESC LIMIT 1) AS version
+    FROM events e
+    GROUP BY install_id
+    ORDER BY first_ts ASC
+  `).all()).results ?? [];
+
+  const ownerSet = new Set(OWNER_INSTALL_IDS);
+  const fmt = (ts) => new Date(ts).toLocaleString("en-US", { timeZone: "America/Chicago", dateStyle: "short", timeStyle: "short" });
+  const premiumCount = rows.filter(r => r.premium).length;
+
+  const body = rows.map(r => {
+    const owner = ownerSet.has(r.install_id);
+    return `<tr class="${owner ? "owner-row" : ""}">
+      <td class="mono">${escapeHtml(r.install_id)}${owner ? ` <span class="tag-owner">excluded</span>` : ""}</td>
+      <td>${r.premium ? `<span class="tag-prem">★ premium</span>` : ""}</td>
+      <td>${r.events}</td>
+      <td>${escapeHtml(r.os ?? "")}</td>
+      <td>${escapeHtml(r.version ?? "")}</td>
+      <td class="dim">${fmt(r.first_ts)}</td>
+      <td class="dim">${fmt(r.last_ts)}</td>
+    </tr>`;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SRS Stats — Installs</title>
+<style>${STYLES}${INSTALLS_STYLES}</style>
+</head>
+<body>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+  <h1>Installs — admin</h1>
+  <a class="logout" href="/stats">← dashboard</a>
+</div>
+<div class="sub">${rows.length} installs · ${premiumCount} fired a premium ping · ${OWNER_INSTALL_IDS.length} excluded as owner</div>
+<div class="since">Find your own test machines below (the ★ premium ones that are yours), copy their ids into <strong>OWNER_INSTALL_IDS</strong> in the telemetry worker, and redeploy — they'll drop out of every dashboard count.</div>
+<table>
+  <thead><tr><th>install_id</th><th>premium</th><th>events</th><th>os</th><th>version</th><th>first seen</th><th>last seen</th></tr></thead>
+  <tbody>${body || `<tr><td colspan="7" class="empty">No installs yet.</td></tr>`}</tbody>
+</table>
+</body></html>`;
 }
 
 function overviewCard(label, curr, prev) {
@@ -607,6 +711,15 @@ const STYLES = `
   }
   .logout { color: #555; font-size: 13px; text-decoration: none; border: 1px solid #262626; border-radius: 6px; padding: 4px 10px; }
   .logout:hover { color: #aaa; border-color: #3a3a3a; }
+`;
+
+const INSTALLS_STYLES = `
+  .mono { font-family: monospace; color: #ddd; word-break: break-all; }
+  .dim { color: #888; white-space: nowrap; }
+  .owner-row td { color: #6cb8e0; }
+  .tag-owner { color: #e0a064; font-size: 11px; border: 1px solid #5a4530; border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
+  .tag-prem { color: #6ce064; font-size: 12px; }
+  td { vertical-align: top; }
 `;
 
 const LOGIN_STYLES = `

@@ -32,6 +32,12 @@ function randomId(): string {
 
 export const installId = persisted<string>("srs_installId", randomId());
 
+// True when the linked Discord account is the project owner's (set by discord.ts when the
+// verified Discord user id matches OWNER_DISCORD_ID). Persisted so it's known at next launch
+// before the verify completes. Used only to suppress telemetry on the owner's own test
+// machines so they don't pollute the install / premium / DAU counts (see telemetry.ts).
+export const isOwner = persisted<boolean>("srs_isOwner", false);
+
 export const connectCode = persisted<string>("srs_connectCode", "");
 
 // The player's Slippi display tag (e.g. "Joey Dadnuts"). Fetched from the API

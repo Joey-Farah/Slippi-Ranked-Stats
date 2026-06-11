@@ -6,6 +6,44 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-06-11 (telemetry owner-exclusion — WORKERS DEPLOYED, client pending release — READ FIRST)
+
+> **Stop telemetry over-counting the owner's own test installs as premium users / installs.**
+> The dashboard's "Premium users" = `COUNT(DISTINCT install_id WHERE event='premium')`, and the
+> `premium` ping (`discord.ts`) fires on every premium-role verify — i.e. the owner, on every test
+> machine. `install_id` is a per-machine localStorage random (`store.ts`). So each dev/test install
+> counted as a premium user + an install + DAU/MAU. Fix = client kill-switch + server-side exclusion.
+>
+> **✅ ALREADY DEPLOYED to Cloudflare this session (both workers live):**
+> 1. **discord-check worker** now returns `userId` (was computed, discarded). Deployed.
+> 2. **telemetry worker** — `OWNER_INSTALL_IDS` exclusion applied to **every** count (totals,
+>    premium, DAU/WAU/MAU, version, OS, retention, features, all-events) + a new token-gated
+>    **`/installs`** admin page (per-install list to spot owner machines). Deployed with 3 ids seeded
+>    → live counts went **premium 30→27, installs 354→351**.
+>    - Seeded (confident): `307770c8…` (this Mac, PROVEN — localStorage username "Joey Donuts"),
+>      `b3d76c88…` (25 distinct versions), `d1922e36…` (23 versions). The big version counts are the
+>      tell — no normal user runs ~24 builds.
+>    - **BORDERLINE, left IN the counts pending owner yes/no:** `749f8a75…` (12 ver),
+>      `28147e53…/84e21c00…/e198c5fa…/c3c18e55…` (8–9 ver). `db7823a8…` (other macOS) is likely a
+>      REAL Mac supporter (owner only has this one Mac). To exclude more: add ids to
+>      `OWNER_INSTALL_IDS` and `cd workers/telemetry && npx wrangler deploy`.
+>    - ⚠ **Redeploying the telemetry worker from a clean checkout will KEEP the seeded ids only
+>      because they're now committed** — but if you ever edit/clear that array, re-seed from above.
+>      Find owner ids without the dashboard token via `npx wrangler d1 execute srs-telemetry --remote`.
+> 3. **Client kill-switch (NOT yet active — ships with next release):** `pingTelemetry()` no-ops when
+>    `import.meta.env.DEV`, `isOwner` (new persisted store, set in `discord.ts` when the verified
+>    Discord id === `OWNER_DISCORD_ID` = `101538614428602368`), or a manual `srs_telemetryOff=1`
+>    localStorage flag. Until a release ships this, owner machines keep pinging — but the exclusion
+>    list keeps the dashboard correct meanwhile. Once shipped, the list stops needing new ids.
+>
+> **Validated:** `vite build` clean, 61/61 tests, both workers `node --check` clean, exclusion
+> verified against the live D1 DB. **NOT version-bumped, NOT tagged** — the owner is building the
+> release from the other machine. **REMAINING TO RELEASE:** bump 1.8.9→1.8.10 (package.json,
+> tauri.conf.json, Cargo.toml, Cargo.lock), add release-notes.md entry, tag `v1.8.10`, push → CI.
+> (Owner may also bundle other in-progress ideas into the same bump.)
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-06-10 (v1.8.9 — matchup coverage RESTORED + flawless=100 + overlay toggles — READ FIRST)
 
 > **✅ v1.8.9 prepared overnight and STAGED ON MAIN LOCALLY — NOT released.** Owner gives final say + tests, then tags/pushes. Version bumped 1.8.8→1.8.9 (package.json, tauri.conf.json, Cargo.toml, Cargo.lock); release-notes.md + CLAUDE.md updated. Validated: 33/33 tests, `vite build` clean. **Do NOT tag/push without the owner's go-ahead.**

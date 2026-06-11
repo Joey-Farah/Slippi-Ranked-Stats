@@ -66,14 +66,14 @@ export default {
         { headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` } }
       );
     } catch {
-      return cors({ premium: null, reason: "transient", username }, 502);
+      return cors({ premium: null, reason: "transient", username, userId }, 502);
     }
 
     if (memberRes.status === 404) {
-      return cors({ premium: false, reason: "not_in_guild", username });
+      return cors({ premium: false, reason: "not_in_guild", username, userId });
     }
     if (!memberRes.ok) {
-      return cors({ premium: null, reason: "transient", username }, 502);
+      return cors({ premium: null, reason: "transient", username, userId }, 502);
     }
 
     const member = await memberRes.json();
@@ -84,6 +84,7 @@ export default {
       premium: hasPremium,
       reason: hasPremium ? "premium" : "no_role",
       username,
+      userId,
     });
   },
 };

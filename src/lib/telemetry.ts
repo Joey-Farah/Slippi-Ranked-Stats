@@ -5,9 +5,23 @@
 import { get } from "svelte/store";
 import { getVersion } from "@tauri-apps/api/app";
 import { fetch } from "@tauri-apps/plugin-http";
-import { installId } from "./store";
+import { installId, isOwner } from "./store";
 
 const ENDPOINT = "https://srs-telemetry.joeyfarah.workers.dev/ping";
+
+// Don't report from the owner's own machines — otherwise every dev/test install shows up as a
+// premium user + an install + DAU/MAU on the dashboard. Suppressed for: dev builds (`tauri dev`),
+// installs linked to the owner's Discord account (isOwner), or a manual `srs_telemetryOff` flag.
+function telemetryDisabled(): boolean {
+  if (import.meta.env.DEV) return true;
+  if (get(isOwner)) return true;
+  try {
+    if (localStorage.getItem("srs_telemetryOff") === "1") return true;
+  } catch {
+    // ignore — localStorage should always exist in the webview
+  }
+  return false;
+}
 
 function detectOs(): string {
   const ua = navigator.userAgent.toLowerCase();
@@ -25,6 +39,7 @@ async function appVersion(): Promise<string> {
 }
 
 export async function pingTelemetry(event: string): Promise<void> {
+  if (telemetryDisabled()) return;
   try {
     const version = await appVersion();
     fetch(ENDPOINT, {

@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
 import {
   isPremium,
+  isOwner,
   discordToken,
   discordUsername,
   discordRefreshToken,
@@ -13,6 +14,12 @@ import { pingTelemetry } from "./telemetry";
 
 const CLIENT_ID = "1489690383171719188";
 const REDIRECT_URI = "http://localhost:14523";
+
+// The project owner's Discord user id. When the verified account matches this, the install is
+// flagged as the owner's (isOwner) so telemetry pings are suppressed — otherwise the owner's own
+// test machines count as premium users / installs on the dashboard. A Discord user id is public,
+// so baking it into the client is fine.
+const OWNER_DISCORD_ID = "101538614428602368";
 
 // Worker that performs the role check using a bot token (server-side).
 // Avoids Discord's flaky user-context /users/@me/guilds/{id}/member endpoint.
@@ -212,7 +219,7 @@ export async function verifyPatronRole(
   // means: leave premium untouched, retry later.
   if (res.status >= 500) return "transient";
 
-  let data: { premium: boolean | null; reason: string; username?: string | null };
+  let data: { premium: boolean | null; reason: string; username?: string | null; userId?: string | null };
   try {
     data = await res.json();
   } catch {
@@ -220,6 +227,11 @@ export async function verifyPatronRole(
   }
 
   if (data.username !== undefined) discordUsername.set(data.username);
+  // Recognize the owner so telemetry can skip the owner's own test installs. Only touched when
+  // the worker actually identified the user (userId present) — leaves the prior value otherwise.
+  if (data.userId !== undefined && data.userId !== null) {
+    isOwner.set(data.userId === OWNER_DISCORD_ID);
+  }
 
   switch (data.reason) {
     case "premium":
