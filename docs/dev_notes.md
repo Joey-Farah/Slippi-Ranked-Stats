@@ -6,6 +6,18 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-06-16 (Discord weekly re-auth — REAL ROOT CAUSE found + fixed via Discord portal — READ FIRST)
+
+> **The v1.8.4 "silent refresh" fix was correct in code but could NEVER work — the Discord app was missing the `PUBLIC_OAUTH2_CLIENT` flag.** This supersedes the v1.8.4 TO-DO claim below ("renew seamlessly forever after"), which was never live-verified and was **false**.
+>
+> **Root cause:** Discord requires a `client_secret` on the `refresh_token` grant **unless** the application has the `PUBLIC_OAUTH2_CLIENT` flag. We're a public/PKCE client and send no secret. So: **linking works** (PKCE `code_verifier` satisfies the authorization_code grant → a `refresh_token` is returned + stored), but the weekly `refreshDiscordToken()` (`discord.ts:74-82`) gets **`401 invalid_client`** → our 4xx branch clears the refresh token (`discord.ts:90`) → forced re-link, **recurring every ~7 days forever.** Confirmed via Discord docs + discord-api-docs#5531.
+>
+> **Fix (done 2026-06-16 — NO code change, NO release):** owner enabled the **"Public Client" toggle** on the SRS app's **OAuth2 tab** in the Discord Developer Portal (client ID `1489690383171719188`), which sets `PUBLIC_OAUTH2_CLIENT`. Once on: installs with a stored refresh token renew silently on next launch; any whose token was already wiped re-link **once** to repopulate, then never again. **Not yet live-verified against a real 7-day expiry** — verify next time an access token rolls over (no re-link prompt = fixed).
+>
+> **Banked follow-up (optional):** add a distinct console.warn in `refreshDiscordToken()` when Discord returns `invalid_client`, so a future regression of this exact class is obvious instead of looking like a normal expiry. The 4xx-clears-refresh-token behavior is correct now that the flag is set.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-06-11 (telemetry owner-exclusion — WORKERS DEPLOYED, client pending release — READ FIRST)
 
 > **Stop telemetry over-counting the owner's own test installs as premium users / installs.**
@@ -41,7 +53,6 @@ hand-off mechanism between work sessions and across machines.
 > release from the other machine. **REMAINING TO RELEASE:** bump 1.8.9→1.8.10 (package.json,
 > tauri.conf.json, Cargo.toml, Cargo.lock), add release-notes.md entry, tag `v1.8.10`, push → CI.
 > (Owner may also bundle other in-progress ideas into the same bump.)
-
 ---
 
 ## ⚠ SESSION HANDOFF — 2026-06-10 (v1.8.9 — matchup coverage RESTORED + flawless=100 + overlay toggles — READ FIRST)
