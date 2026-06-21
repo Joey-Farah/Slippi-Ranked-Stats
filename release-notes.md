@@ -1,3 +1,15 @@
+## What's New in v1.8.10
+
+### 🧊 Ice Climbers grades finally count Nana
+
+Set grades in Ice Climbers matchups were distorted because the grading engine only ever watched the lead climber (Popo) — every hit, every bit of damage, and every edgeguard on **Nana was invisible**. That made correct anti-Ice-Climbers play (splitting pressure between the two climbers) look inefficient, and let Ice Climbers players' own neutral look better than it really was. The grader now sees **both climbers**: hitting either one counts as an opening, damage dealt to Nana counts, and Nana getting edgeguarded — or your Nana failing to make it back — now registers. Whether you play Ice Climbers or fight them, your grade reflects what actually happened on screen.
+
+### 📊 A fuller grading benchmark for every character
+
+We rebuilt the entire grading benchmark and ingested a lot more of the dataset this time — about **222,000 games, up from ~192,000**. The previous build had been throttled and quietly dropped a chunk of replays across the cast, so every character now has more matchup data behind its grades and your scores compare against a broader, more representative sample. Your existing grades will refresh to use the new baselines.
+
+---
+
 ## What's New in v1.8.9
 
 ### 🎯 Your grades compare you to the right matchup again

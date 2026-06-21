@@ -217,6 +217,134 @@ def _get_positions(post):
         return None, None
 
 
+# ── Ice Climbers follower (Nana) support ──────────────────────────────────────
+# peppi NULL-PADS the follower arrays to leader length: None on every frame Nana
+# is dead. Her stocks field MIRRORS Popo's shared stock, so the ONLY death signal
+# is the present->null transition. We fold hits on Nana into openings/damage and
+# her offstage trips into edgeguard/recovery; kills stay Popo-only (Nana ≠ a stock).
+
+def _follower_lists(post):
+    """Extract (state, x, y, percent) as Python lists with None on absent frames."""
+    states = post.state.to_pylist()
+    pcts   = post.percent.to_pylist()
+    try:
+        pos = post.position
+        if hasattr(pos, 'x'):
+            xs = pos.x.to_pylist(); ys = pos.y.to_pylist()
+        else:
+            xs = pos.field('x').to_pylist(); ys = pos.field('y').to_pylist()
+    except (AttributeError, TypeError, ValueError):
+        xs = [None] * len(states); ys = [None] * len(states)
+    return states, xs, ys, pcts
+
+
+def _nullable_mask(states, predicate_ranges):
+    """Boolean mask over a None-padded state list; None frames are always False."""
+    mask = np.zeros(len(states), dtype=bool)
+    for i, s in enumerate(states):
+        if s is None:
+            continue
+        for lo, hi in predicate_ranges:
+            if lo <= s <= hi:
+                mask[i] = True
+                break
+    return mask
+
+
+def _follower_in_stun(states):
+    """In-stun mask for a None-padded follower state list (mirrors _make_in_stun_mask)."""
+    mask = np.zeros(len(states), dtype=bool)
+    for i, s in enumerate(states):
+        if s is None:
+            continue
+        if ((75 <= s <= 91) or s == 38 or s == 185 or s == 193
+                or (223 <= s <= 232)
+                or (266 <= s <= 304 and s != 293)
+                or (327 <= s <= 338)):
+            mask[i] = True
+    return mask
+
+
+def _follower_percent_array(pcts):
+    """Follower percent with None->0.0 (so combined = popo + 0 when Nana is dead)."""
+    return np.array([0.0 if v is None else float(v) for v in pcts], dtype=float)
+
+
+def _follower_damage(pcts):
+    """Total damage dealt to Nana = sum of positive percent deltas, resetting across
+    death gaps (None). Matches the Popo 'peak per life' total when summed in."""
+    total = 0.0
+    prev = None
+    for v in pcts:
+        if v is None:
+            prev = None        # reset across the death gap
+            continue
+        if prev is not None and v > prev:
+            total += v - prev
+        prev = v
+    return total
+
+
+def _follower_offstage_trips(states, xs, ys, ledge_x, is_edgeguard):
+    """Count Nana's independent offstage trips to FOLD INTO the Popo edgeguard/recovery
+    totals. Death = present->null transition; her last present frame's position says
+    whether she died offstage. is_edgeguard=True: death offstage = success. False
+    (recovery): death offstage = counted failure; making it back = success. Blast
+    kills (one on-stage-origin knockback to the blast zone) are excluded. Mirrors
+    countFollowerTrips in slp_parser.ts."""
+    OFF_Y = -5.0
+    EG_WINDOW = 480
+
+    def is_off(x, y):
+        if x is None or y is None:
+            return False
+        return abs(x) > ledge_x or y < OFF_Y
+
+    sit = 0; success = 0
+    trip_open = False; trip_start = -1
+    prev_i = None; prev_x = None; prev_y = None
+    ko_active = False; ko_started_on = False; prev_in_kb = False
+    n = len(states)
+
+    for i in range(n):
+        st = states[i]
+        if st is None:
+            if prev_i is not None:                      # present->null = Nana died here
+                if trip_open and is_off(prev_x, prev_y):
+                    if ko_active and ko_started_on:
+                        sit -= 1                         # blast kill → exclude trip
+                    elif is_edgeguard:
+                        success += 1                     # died offstage = edgeguard success
+                    # recovery: died offstage = failed recovery, already in sit
+                trip_open = False
+                ko_active = False; prev_in_kb = False
+                prev_i = None
+            continue
+
+        x = xs[i]; y = ys[i]
+        off = is_off(x, y)
+        prev_off = (prev_x is not None) and is_off(prev_x, prev_y)
+        if not trip_open and off and (prev_i is None or not prev_off):
+            sit += 1; trip_open = True; trip_start = i
+        if trip_open:
+            if (not off) or _made_it_back(int(st)):
+                if not is_edgeguard:
+                    success += 1                         # recovery: made it back
+                trip_open = False
+            elif i > trip_start + EG_WINDOW:
+                trip_open = False
+
+        in_kb = 75 <= int(st) <= 91
+        if in_kb and not prev_in_kb:
+            ko_active = True; ko_started_on = not off
+        elif not in_kb:
+            ko_active = False
+        prev_in_kb = in_kb
+        prev_i = i; prev_x = x; prev_y = y
+
+    return sit, success
+
+
 def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     """
     Compute all 18 performance stats for player_idx in the given peppi game.
@@ -237,6 +365,9 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     p_post = p_port.leader.post
     o_post = o_port.leader.post
     p_pre  = p_port.leader.pre
+    # Followers (Nana) — present only for Ice Climbers ports, None otherwise.
+    p_foll = p_port.follower
+    o_foll = o_port.follower
 
     # Convert PyArrow arrays to numpy (zero-copy when possible)
     p_state  = np.array(p_post.state,   copy=False)
@@ -274,6 +405,24 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     o_stun = _make_in_stun_mask(o_state)
     p_stun = _make_in_stun_mask(p_state)
 
+    # ── Ice Climbers: fold Nana into the opponent/player entity ───────────────
+    # Entity is in-stun / in-control if EITHER climber is, so hits on Nana count
+    # as openings. Combined percent (Popo + Nana, Nana=0 when dead) drives the
+    # conversion-start / multi-hit tracking. Position lists feed Nana's edgeguard
+    # / recovery trips below. All no-ops when the port isn't Ice Climbers.
+    of_states = of_x = of_y = of_pct = None
+    pf_states = pf_x = pf_y = pf_pct = None
+    o_pct_conv = o_pct
+    if o_foll is not None:
+        of_states, of_x, of_y, of_pct = _follower_lists(o_foll.post)
+        o_stun = o_stun | _follower_in_stun(of_states)
+        o_ctrl = o_ctrl | _nullable_mask(of_states, IN_CONTROL_RANGES)
+        o_pct_conv = o_pct + _follower_percent_array(of_pct)
+    if p_foll is not None:
+        pf_states, pf_x, pf_y, pf_pct = _follower_lists(p_foll.post)
+        p_stun = p_stun | _follower_in_stun(pf_states)
+        p_ctrl = p_ctrl | _nullable_mask(pf_states, IN_CONTROL_RANGES)
+
     player_conv_count    = 0
     player_neutral_wins  = 0
     player_conv_active   = False
@@ -294,7 +443,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     for i in range(n_frames):
         # Our conversion on opponent
         cur_o_stun = bool(o_stun[i])
-        cur_o_pct  = float(o_pct[i])
+        cur_o_pct  = float(o_pct_conv[i])   # combined Popo+Nana for multi-hit tracking
         if cur_o_stun:
             if not player_conv_active:
                 player_conv_active  = True
@@ -417,6 +566,10 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # kill attribution. D/O = total damage / total openings.
     total_damage = float(np.sum(o_pct[raw_kill_frames])) if len(raw_kill_frames) > 0 else 0.0
     total_damage += float(o_pct[-1])
+    # Ice Climbers: add damage dealt to Nana so damage_per_opening counts hits on her
+    # (and a Nana kill shows up as a high-damage opening). No-op for non-IC opponents.
+    if of_pct is not None:
+        total_damage += _follower_damage(of_pct)
 
     # ── Opening conversion rate ──────────────────────────────────────────────
     # Of all conversions (openings), what fraction dealt ≥20% or killed?
@@ -451,11 +604,12 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # origin knockback) is excluded from the stat entirely. 8 s timeout closes
     # without a success. Overlapping dips collapsed to one trip (matches slp_parser.ts).
     edgeguard_success_rate = None
+    eg_sit = 0; eg_success = 0
     if o_x is not None and o_y is not None:
         o_offstage    = (np.abs(o_x) > ledge_x) | (o_y < -5.0)
         offstage_frs  = np.where(o_offstage[1:] & ~o_offstage[:-1])[0] + 1
         if len(offstage_frs) > 0:
-            eg_sit = 0; eg_success = 0; next_allowed = 0
+            next_allowed = 0
             for fo in offstage_frs:
                 fo = int(fo)
                 if fo < next_allowed:
@@ -472,7 +626,13 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                     if (not o_offstage[fw]) or _made_it_back(int(o_state[fw])):  # dropped: back over stage / ledge
                         resolved = fw; break
                 next_allowed = resolved
-            edgeguard_success_rate = eg_success / eg_sit if eg_sit > 0 else None
+    # Ice Climbers opponent: fold Nana's independent offstage trips into the same
+    # counters (death-by-absence). No-op when the opponent isn't Ice Climbers.
+    if of_states is not None:
+        ns, nsucc = _follower_offstage_trips(of_states, of_x, of_y, ledge_x, True)
+        eg_sit += ns; eg_success += nsucc
+    if eg_sit > 0:
+        edgeguard_success_rate = eg_success / eg_sit
 
     # ── Recovery success rate ────────────────────────────────────────────────
     # Mirror of edgeguard, from your side. Opens when you go offstage. Success =
@@ -481,11 +641,12 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # back. A blast kill (death from one on-stage-origin knockback) is excluded.
     # Overlapping dips collapsed to one trip (matches slp_parser.ts).
     recovery_success_rate = None
+    rec_sit = 0; rec_success = 0
     if p_x is not None and p_y is not None:
         p_offstage    = (np.abs(p_x) > ledge_x) | (p_y < -5.0)
         p_offstage_frs = np.where(p_offstage[1:] & ~p_offstage[:-1])[0] + 1
         if len(p_offstage_frs) > 0:
-            rec_sit = 0; rec_success = 0; next_allowed = 0
+            next_allowed = 0
             for fo in p_offstage_frs:
                 fo = int(fo)
                 if fo < next_allowed:
@@ -500,7 +661,13 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
                     if (not p_offstage[fw]) or _made_it_back(int(p_state[fw])):  # back over stage / on ledge
                         rec_success += 1; resolved = fw; break
                 next_allowed = resolved
-            recovery_success_rate = rec_success / rec_sit if rec_sit > 0 else None
+    # Ice Climbers player: fold Nana's offstage trips (death-by-absence) into the
+    # same counters — Nana dying offstage = a failed recovery. No-op for non-IC.
+    if pf_states is not None:
+        ns, nsucc = _follower_offstage_trips(pf_states, pf_x, pf_y, ledge_x, False)
+        rec_sit += ns; rec_success += nsucc
+    if rec_sit > 0:
+        recovery_success_rate = rec_success / rec_sit
 
     # ── Hit advantage rate ───────────────────────────────────────────────────
     p_atk      = _make_state_mask(p_state, ATTACKING_RANGES)

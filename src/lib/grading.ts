@@ -174,7 +174,7 @@ const SET_BLOWN_LEAD_PENALTY = -4;
  *  version). Folded into GRADE_VERSION so a logic-only change — which doesn't
  *  move BENCHMARKS_VERSION — still forces a regrade. Bump on any change to
  *  weights, curves, bonuses, or stat math. */
-export const GRADING_LOGIC_VERSION = "5"; // 5: flawless rate ⇒ score 100 (saturated-ceiling remap in percentileScore)
+export const GRADING_LOGIC_VERSION = "6"; // 6: Ice Climbers/Nana — follower frames folded into openings, damage, edgeguard & recovery (both parsers)
 
 /** The version token stored with each grade and compared to detect stale grades.
  *  Combines the benchmark-data version with the scoring-logic version so EITHER

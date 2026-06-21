@@ -98,6 +98,12 @@ interface StreamResult {
   actionFrames: Record<number, [number, number][]>;
   // Per-frame snapshots (state, x, y, percent, stocks) used for advanced stats
   frameData: Record<number, FrameSnapshot[]>;
+  // Follower (Nana) per-frame snapshots, keyed by port. Only populated for Ice
+  // Climbers ports; absent otherwise. A GAP in frame numbers means Nana was dead
+  // that frame — peppi null-pads it, the raw stream simply omits the follower
+  // post-frame event. That absence is the only reliable Nana-death signal (her
+  // stocks field mirrors Popo's shared stock).
+  followerFrameData: Record<number, FrameSnapshot[]>;
   // L-cancel tracking (replay spec v3.0.0+): offset 0x31 of post-frame payload
   lCancelSuccesses: Record<number, number>;
   lCancelAttempts: Record<number, number>;
@@ -210,6 +216,7 @@ function computeConversionStats(
   oppPort: number,
   frameData: Record<number, FrameSnapshot[]>,
   totalDamageTaken: Record<number, number>,
+  followerFrameData: Record<number, FrameSnapshot[]>,
 ): {
   openings_per_kill: number | null;
   neutral_win_ratio: number | null;
@@ -222,6 +229,11 @@ function computeConversionStats(
   const playerFrames = frameData[playerPort] ?? [];
   const oppMap       = new Map<number, FrameSnapshot>();
   for (const snap of frameData[oppPort] ?? []) oppMap.set(snap.frame, snap);
+  // Follower (Nana) frames, if either side is Ice Climbers. Empty maps otherwise.
+  const oppFollMap    = new Map<number, FrameSnapshot>();
+  for (const snap of followerFrameData[oppPort]    ?? []) oppFollMap.set(snap.frame, snap);
+  const playerFollMap = new Map<number, FrameSnapshot>();
+  for (const snap of followerFrameData[playerPort] ?? []) playerFollMap.set(snap.frame, snap);
 
   const NULL_RESULT = {
     openings_per_kill: null, neutral_win_ratio: null, damage_per_opening: null,
@@ -269,11 +281,17 @@ function computeConversionStats(
     const opp = oppMap.get(snap.frame);
     if (!opp) continue;
 
-    // Compute stun/control states.
-    const oppInStun    = isInStun(opp.state);
-    const oppInCtrl    = isInControl(opp.state);
-    const playerInStun = isInStun(snap.state);
-    const playerInCtrl = isInControl(snap.state);
+    // Compute stun/control states. For Ice Climbers the entity is "in stun"/"in
+    // control" if EITHER climber is, so hits on Nana register as openings. The
+    // combined percent (Popo + Nana, Nana=0 when dead) drives conversion-start /
+    // multi-hit tracking. Kill attribution below stays Popo-only (Nana ≠ a stock).
+    const oppFoll    = oppFollMap.get(snap.frame);
+    const playerFoll = playerFollMap.get(snap.frame);
+    const oppInStun    = isInStun(opp.state)     || (oppFoll    !== undefined && isInStun(oppFoll.state));
+    const oppInCtrl    = isInControl(opp.state)  || (oppFoll    !== undefined && isInControl(oppFoll.state));
+    const playerInStun = isInStun(snap.state)    || (playerFoll !== undefined && isInStun(playerFoll.state));
+    const playerInCtrl = isInControl(snap.state) || (playerFoll !== undefined && isInControl(playerFoll.state));
+    const oppCombinedPercent = opp.percent + (oppFoll?.percent ?? 0);
 
     // Capture before prevOppStocks is updated — needed to guard the conversion
     // start block below (prevOppStocks is overwritten before that check runs).
@@ -313,16 +331,16 @@ function computeConversionStats(
         playerConvActive   = true;
         playerConvCount++;
         convHitCount       = 1;
-        convLastOppPercent = opp.percent;
+        convLastOppPercent = oppCombinedPercent;
         if (!oppConvActive) playerNeutralWins++;
-        convStartPct    = opp.percent;
+        convStartPct    = oppCombinedPercent;
         convStartStocks = opp.stocks;
       } else if (!prevOppInStun) {
         convHitCount++;                    // re-entered stun = new hit
-        convLastOppPercent = opp.percent;
-      } else if (opp.percent > convLastOppPercent + 0.5) {
+        convLastOppPercent = oppCombinedPercent;
+      } else if (oppCombinedPercent > convLastOppPercent + 0.5) {
         convHitCount++;                    // damage while already in stun = multi-hit move
-        convLastOppPercent = opp.percent;
+        convLastOppPercent = oppCombinedPercent;
       }
       playerResetCtr = 0;
     } else if (playerConvActive) {
@@ -377,6 +395,68 @@ function computeConversionStats(
   };
 }
 
+/**
+ * Count a follower's (Nana's) independent offstage trips, to FOLD INTO the
+ * Popo-based edgeguard / recovery totals. Nana's death is detected by FRAME
+ * ABSENCE: a gap in her frame numbers means she died (her stocks field mirrors
+ * Popo's, so it can't be used). Her last present frame before a gap tells us
+ * whether she died offstage.
+ *   isEdgeguard=true  (opponent is IC): a Nana death offstage = a success.
+ *   isEdgeguard=false (player is IC):   a Nana death offstage = a counted failure
+ *                                       (in sit, not success); making it back = success.
+ * Blast kills (one on-stage-origin knockback to the blast zone) are excluded,
+ * matching the Popo logic. ledgeX/OFFSTAGE_Y/EG_WINDOW mirror computeAdvancedStats.
+ */
+function countFollowerTrips(
+  follFrames: FrameSnapshot[],
+  ledgeX: number,
+  isEdgeguard: boolean,
+): { sit: number; success: number } {
+  const OFFSTAGE_Y = -5;
+  const EG_WINDOW  = 480;
+  const isOff = (s: FrameSnapshot) => Math.abs(s.x) > ledgeX || s.y < OFFSTAGE_Y;
+
+  let sit = 0; let success = 0;
+  let tripOpen = false; let tripStart = -1;
+  let prev: FrameSnapshot | null = null;
+  let koActive = false; let koStartedOn = false; let prevInKb = false;
+
+  for (const snap of follFrames) {
+    // Death-by-absence: a gap before this frame means Nana died at `prev`.
+    if (prev !== null && snap.frame > prev.frame + 1) {
+      if (tripOpen && isOff(prev)) {
+        if (koActive && koStartedOn) sit--;       // blast kill → exclude trip
+        else if (isEdgeguard)        success++;   // died offstage = edgeguard success
+        // recovery: died offstage = failed recovery, already counted in sit
+      }
+      tripOpen = false;
+      koActive = false; prevInKb = false;         // reset run tracking across the death gap
+    }
+
+    const off = isOff(snap);
+    if (!tripOpen && off && (prev === null || !isOff(prev))) {
+      sit++; tripOpen = true; tripStart = snap.frame;
+    }
+    if (tripOpen) {
+      if (!off || madeItBack(snap.state)) {
+        if (!isEdgeguard) success++;              // recovery: made it back = success
+        tripOpen = false;                         // edgeguard: dropped (no success)
+      } else if (snap.frame > tripStart + EG_WINDOW) {
+        tripOpen = false;                         // timed out
+      }
+    }
+
+    // Knockback-run tracking (feeds the blast-kill check on the next death gap).
+    const inKb = inKnockback(snap.state);
+    if (inKb && !prevInKb) { koActive = true; koStartedOn = !off; }
+    else if (!inKb)        { koActive = false; }
+    prevInKb = inKb;
+
+    prev = snap;
+  }
+  return { sit, success };
+}
+
 /** Compute position- and timing-based stats. */
 function computeAdvancedStats(
   playerPort: number,
@@ -384,6 +464,7 @@ function computeAdvancedStats(
   frameData: Record<number, FrameSnapshot[]>,
   result: "win" | "loss",
   stageId: number,
+  followerFrameData: Record<number, FrameSnapshot[]>,
 ): {
   stage_control_ratio:    number | null;
   tech_chase_rate:        number | null;
@@ -637,6 +718,20 @@ function computeAdvancedStats(
   // surviving stock was never recorded because no subsequent death triggered it.
   stockDurations.push(playerFrames.at(-1)!.frame - stockStart);
 
+  // Ice Climbers: fold Nana's independent offstage trips into the Popo-based
+  // edgeguard (opponent's Nana) and recovery (player's Nana) counters. Non-IC
+  // ports have no follower frames → both calls are no-ops.
+  const oppFollFrames    = followerFrameData[oppPort];
+  const playerFollFrames = followerFrameData[playerPort];
+  if (oppFollFrames && oppFollFrames.length > 0) {
+    const t = countFollowerTrips(oppFollFrames, LEDGE_X, true);
+    egSit += t.sit; egSuccess += t.success;
+  }
+  if (playerFollFrames && playerFollFrames.length > 0) {
+    const t = countFollowerTrips(playerFollFrames, LEDGE_X, false);
+    recSit += t.sit; recSuccess += t.success;
+  }
+
   return {
     stage_control_ratio:    onStageFrames > 0 ? centerFrames / onStageFrames : null,
     tech_chase_rate:        techSit       > 0 ? techHit      / techSit       : null,
@@ -704,6 +799,9 @@ function parseEventStream(data: Uint8Array): StreamResult {
   const defensiveOptions: Record<number, number> = {};
   const prevActionState: Record<number, number> = {};
   const frameData: Record<number, FrameSnapshot[]> = {};
+  // Follower (Nana) frames + a per-port running percent for her damage accrual.
+  const followerFrameData: Record<number, FrameSnapshot[]> = {};
+  const prevFollowerPercent: Record<number, number> = {};
   let durationFrames = 0;
 
   while (pos < eventsEnd) {
@@ -783,6 +881,28 @@ function parseEventStream(data: Uint8Array): StreamResult {
           }
           prevStocksTrack[port] = stocks;
           prevPercentsTrack[port] = percent;
+        } else if (isFollower && port <= 3) {
+          // Follower (Nana). Same payload layout as the leader; capture a snapshot
+          // so conversion + edgeguard/recovery can see hits on Nana. Frames are
+          // emitted only while she's alive, so the per-port frame map naturally
+          // has gaps where she was dead (the death signal).
+          const frameNum    = view.getInt32(ps, false);
+          const actionState = view.getUint16(ps + 7, false);
+          const stocks      = data[ps + 32];
+          const percent     = view.getFloat32(ps + 21, false);
+          const x           = view.getFloat32(ps + 9,  false);
+          const y           = view.getFloat32(ps + 13, false);
+          if (!followerFrameData[port]) followerFrameData[port] = [];
+          followerFrameData[port].push({ frame: frameNum, state: actionState, x, y, percent, stocks, lastHitBy: data[ps + 31] });
+
+          // Nana damage: sum positive percent deltas (drops at respawn ignored) into
+          // the SAME total as Popo, so damage_per_opening counts hits on Nana and a
+          // Nana kill shows up as a high-damage opening (implicitly rewarded).
+          const prevP = prevFollowerPercent[port];
+          if (prevP !== undefined && percent > prevP) {
+            totalDamageTaken[port] = (totalDamageTaken[port] ?? 0) + (percent - prevP);
+          }
+          prevFollowerPercent[port] = percent;
         }
       }
 
@@ -832,8 +952,13 @@ function parseEventStream(data: Uint8Array): StreamResult {
     for (const snap of frameData[port]) seen.set(snap.frame, snap);
     frameData[port] = Array.from(seen.values()).sort((a, b) => a.frame - b.frame);
   }
+  for (const port of Object.keys(followerFrameData).map(Number)) {
+    const seen = new Map<number, FrameSnapshot>();
+    for (const snap of followerFrameData[port]) seen.set(snap.frame, snap);
+    followerFrameData[port] = Array.from(seen.values()).sort((a, b) => a.frame - b.frame);
+  }
 
-  return { matchId, stageId, gameEndMethod, lrasInitiator, finalStocks, totalDamageTaken, durationFrames, actionFrames, frameData, lCancelSuccesses, lCancelAttempts, stockPercents, inputCounts, defensiveOptions };
+  return { matchId, stageId, gameEndMethod, lrasInitiator, finalStocks, totalDamageTaken, durationFrames, actionFrames, frameData, followerFrameData, lCancelSuccesses, lCancelAttempts, stockPercents, inputCounts, defensiveOptions };
 }
 
 // ── Metadata parser ────────────────────────────────────────────────────────
@@ -1010,10 +1135,10 @@ export function parseSlpBytes(
   const deaths = 4 - (stream.finalStocks[playerPort] ?? 0);
 
   const convStats = computeConversionStats(
-    playerPort, oppPort, stream.frameData, stream.totalDamageTaken
+    playerPort, oppPort, stream.frameData, stream.totalDamageTaken, stream.followerFrameData
   );
   const winLoss: "win" | "loss" = (result === "win" || result === "lras_win") ? "win" : "loss";
-  const advStats = computeAdvancedStats(playerPort, oppPort, stream.frameData, winLoss, stream.stageId);
+  const advStats = computeAdvancedStats(playerPort, oppPort, stream.frameData, winLoss, stream.stageId, stream.followerFrameData);
 
   return [{
     filename,
@@ -1133,9 +1258,9 @@ export function parseSlpBytesMultiCode(
 
     const kills  = 4 - (finalStocks[oppPort]    ?? 0);
     const deaths = 4 - (finalStocks[playerPort] ?? 0);
-    const convStats = computeConversionStats(playerPort, oppPort, stream.frameData, stream.totalDamageTaken);
+    const convStats = computeConversionStats(playerPort, oppPort, stream.frameData, stream.totalDamageTaken, stream.followerFrameData);
     const winLoss: "win" | "loss" = (result === "win" || result === "lras_win") ? "win" : "loss";
-    const advStats = computeAdvancedStats(playerPort, oppPort, stream.frameData, winLoss, stream.stageId);
+    const advStats = computeAdvancedStats(playerPort, oppPort, stream.frameData, winLoss, stream.stageId, stream.followerFrameData);
 
     out.push({
       code: connectCode,
