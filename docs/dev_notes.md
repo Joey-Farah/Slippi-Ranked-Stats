@@ -55,6 +55,52 @@ hand-off mechanism between work sessions and across machines.
 > (Owner may also bundle other in-progress ideas into the same bump.)
 ---
 
+## ▶ BANKED IDEA — Rank-stratified grading benchmarks (dataset found 2026-07-11, worth pursuing, NOT started)
+
+Found a HuggingFace dataset that could turn the grader into a **rank-aware** system — grade each
+player against their **own tier** instead of the current pooled-across-all-skill baselines. Banked for
+a future session; discuss the design before touching the pipeline.
+
+**The dataset:** `erickfm/melee-ranked-replays` (https://huggingface.co/datasets/erickfm/melee-ranked-replays).
+- **Rank labels baked in** — files are tarballs bucketed by **rank PAIR**: `diamond-diamond`,
+  `diamond-platinum`, `master-diamond`, `master-master`, `master-platinum`, `platinum-platinum`
+  (higher rank first in mixed pairs). Per-replay metadata JSON: `{filename, p1(char), p2(char),
+  rank(pair), archive}`. **No Slippi-API scraping needed** — the skill label is handed to you.
+- **Ranked-only**, MIT license, 25 chars, **~1.19M replays / 1.43 TB**.
+
+**Why it matters:** today `scripts/grade_baselines.json` pools every skill level, so a Platinum is
+graded against a distribution that secretly includes Masters. Per-rank baselines → grade a Diamond vs
+Diamonds. Real fairness/accuracy upgrade to the premium grading feature.
+
+**Catches to design around (grill first):**
+- **Plat / Diamond / Master ONLY** — no Bronze/Silver/Gold, no Grandmaster. Great for high-level
+  benchmarks; does NOT give a full-ladder skill census.
+- **Labels are per-PAIR, not per-player** — same-rank tarballs are unambiguous; for mixed pairs you
+  must confirm which port is the higher-ranked one before attributing stats (verify vs the metadata).
+- **1.43 TB** (~6.5× the ~222 GB v3.7; the v3.7 rescan took ~10.6h throttled). Tarballs are
+  per-character-and-rank → **selectively download** (same-rank pairs only / capped sample per tier);
+  do NOT pull the whole thing.
+- **Anonymized — no connect codes** (the author scrubbed `names.code`/`names.netplay` before
+  publishing, for PII reasons). Fine here — the rank bracket replaces per-player linkage.
+- Integration: `parse_hf_replays.py` buckets by rank → a new per-rank baseline tier in the benchmark
+  schema + `BENCHMARKS_VERSION` bump + the existing stale-grade regrade machinery.
+- **⚠ our HF parser does NOT filter by match type** — it parses whatever `.slp` are in the char dirs.
+  (So the current v3.7 benchmark composition is "whatever v3.7 contains"; match-type of v3.7 is
+  unconfirmed. The new set is ranked-only by construction, which sidesteps that.)
+
+**Recommended first step:** feasibility probe — pull 1–2 tarballs, confirm the rank→port mapping and a
+clean per-bracket parse, before committing to any big scan.
+
+**Related banked idea (for UNLABELED sets like v3.7):** derive skill without a million API pings via
+*label-a-sample-then-infer* — look up current rating for a few thousand unique connect codes (v3.7
+retains codes), fit a gameplay-stats→tier model (IPM / L-cancel% / wavedash / neutral-win are
+rank-correlated), infer the rest with zero further calls (average per-player). Zero-API fallback = an
+unsupervised execution index (relative spread, not absolute tiers). Ceiling: rating at record-time
+isn't in the file, so current-rating labels add irreducible noise. Needs a parser change to emit
+`(connect_code, stats)` per game (currently discarded). The labeled dataset above avoids all of this.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-06-10 (v1.8.9 — matchup coverage RESTORED + flawless=100 + overlay toggles — READ FIRST)
 
 > **✅ v1.8.9 prepared overnight and STAGED ON MAIN LOCALLY — NOT released.** Owner gives final say + tests, then tags/pushes. Version bumped 1.8.8→1.8.9 (package.json, tauri.conf.json, Cargo.toml, Cargo.lock); release-notes.md + CLAUDE.md updated. Validated: 33/33 tests, `vite build` clean. **Do NOT tag/push without the owner's go-ahead.**
