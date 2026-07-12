@@ -81,6 +81,61 @@ def test_reopen_preserves_rows(tmp_path):
     db2.close()
 
 
+# ── build_baselines_from_db ───────────────────────────────────────────────────
+
+def seed_db(path, n_per_char=25):
+    """Two matchups' worth of synthetic rows: Fox vs Marth (ranked, master)
+    and Marth vs Fox mirrors, plus a handful of v37 rows."""
+    db = StatsDB(path, STAT_KEYS)
+    recs = []
+    for i in range(n_per_char):
+        recs.append((f"m-{i}.slp", 0, "ranked", "Fox", "Marth", "master", "master-master",
+                     make_stats(neutral_win_ratio=0.6)))
+        recs.append((f"m-{i}.slp", 1, "ranked", "Marth", "Fox", "master", "master-master",
+                     make_stats(neutral_win_ratio=0.4)))
+    for i in range(5):
+        recs.append((f"FOX/v37-{i}.slp", 0, "v37", "Fox", "Marth", None, None,
+                     make_stats(neutral_win_ratio=0.8)))
+    db.insert_batch(recs)
+    db.close()
+
+def test_build_baselines_from_db(tmp_path):
+    from parse_hf_replays import build_baselines_from_db
+    db_path = str(tmp_path / "t.sqlite")
+    out_path = str(tmp_path / "baselines.json")
+    seed_db(db_path)
+    build_baselines_from_db(db_path, out_path)
+
+    import json
+    with open(out_path) as f:
+        data = json.load(f)
+
+    # same top-level shape regen_benchmarks.py expects
+    assert "_overall" in data["by_player_char"]
+    assert data["by_player_char"]["Fox"]["sample_size"] == 30          # 25 ranked + 5 v37
+    assert data["by_player_char"]["Marth"]["sample_size"] == 25
+    # matchup below MIN_MATCHUP_SAMPLES threshold is dropped, above kept
+    assert "Marth" in data["by_matchup"]["Fox"]
+    # pooled = ranked + v37 values mixed
+    fox_nwr = data["by_player_char"]["Fox"]["neutral_win_ratio"]
+    assert fox_nwr["sample_size"] == 30
+    assert 0.6 < fox_nwr["avg"] < 0.7
+    # by_rank captures ranked-only, per-rank
+    assert data["by_rank"]["master"]["_overall"]["neutral_win_ratio"]["sample_size"] == 50
+    assert data["by_rank"]["master"]["Fox"]["neutral_win_ratio"]["avg"] == 0.6
+    # source counts recorded
+    assert data["sources"] == {"ranked": 50, "v37": 5}
+
+def test_make_records_maps_ports_and_rank():
+    from parse_hf_replays import make_records
+    results = [(make_stats(), "Fox", "Marth", 0), (make_stats(), "Marth", "Fox", 1)]
+    recs = make_records("f.slp", "ranked", "master", "master-master", results)
+    assert [(r[0], r[1], r[2], r[3], r[4], r[5], r[6]) for r in recs] == [
+        ("f.slp", 0, "ranked", "Fox", "Marth", "master", "master-master"),
+        ("f.slp", 1, "ranked", "Marth", "Fox", "master", "master-master"),
+    ]
+
+
 # ── scan_tarball_file against real probe tarballs ────────────────────────────
 
 @pytest.mark.skipif(not os.path.exists(os.path.join(PROBE_DIR, "mm_a3.tar.gz")),

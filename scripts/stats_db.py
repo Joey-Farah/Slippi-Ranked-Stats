@@ -33,6 +33,10 @@ class StatsDB:
                 PRIMARY KEY (filename, port)
             ) WITHOUT ROWID
         """)
+        # Group-by columns used by build_baselines_from_db
+        self.con.execute("CREATE INDEX IF NOT EXISTS idx_games_player ON games (player_char)")
+        self.con.execute("CREATE INDEX IF NOT EXISTS idx_games_opp    ON games (opp_char)")
+        self.con.execute("CREATE INDEX IF NOT EXISTS idx_games_rank   ON games (rank)")
         self.con.commit()
         cols = ["filename", "port", "source", "player_char", "opp_char",
                 "rank", "rank_pair"] + self.stat_keys

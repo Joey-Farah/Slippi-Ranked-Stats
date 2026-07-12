@@ -927,6 +927,13 @@ def parse_rank_pair(filename: str) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m else None
 
 
+def make_records(filename: str, source: str, rank: str | None, rank_pair: str | None,
+                 results: list) -> list[tuple]:
+    """StatsDB record tuples from process_both_ports results."""
+    return [(filename, port, source, player_char, opp_char, rank, rank_pair, stats)
+            for stats, player_char, opp_char, port in results]
+
+
 def scan_tarball_file(tar_path: str, db, work_dir: str, source: str = "ranked",
                       insert_chunk: int = 1000) -> tuple[int, int, int]:
     """
@@ -968,9 +975,7 @@ def scan_tarball_file(tar_path: str, db, work_dir: str, source: str = "ranked",
             if not results:
                 err += 1
                 continue
-            for stats, player_char, opp_char, port in results:
-                records.append((fname, port, source, player_char, opp_char,
-                                rank, rank_pair, stats))
+            records.extend(make_records(fname, source, rank, rank_pair, results))
             new += 1
             if len(records) >= insert_chunk:
                 flush()
@@ -1087,6 +1092,81 @@ def run_ranked_scan(args):
           f"err={totals['err']} in {(time.time()-t_start)/3600:.1f}h", flush=True)
 
 
+# ── Baseline generation from the StatsDB sidecar ────────────────────────────
+
+def build_baselines_from_db(db_path: str, output_path: str):
+    """
+    grade_baselines.json from the raw-stats sidecar: pooled sections
+    (by_player_char / by_opponent_char / by_matchup / _overall) over ALL rows
+    regardless of source or rank, plus a by_rank section (ranked rows with a
+    per-player rank only) and per-source row counts.
+    """
+    import sqlite3
+    con = sqlite3.connect(db_path)
+    stat_cols = ", ".join(f'"{k}"' for k in STAT_KEYS)
+
+    def entry_for(where: str, params: tuple = ()) -> dict:
+        """Percentile entry (sample_size + one block per stat) for one group."""
+        rows = con.execute(f"SELECT {stat_cols} FROM games {where}", params).fetchall()
+        entry = {"sample_size": len(rows)}
+        cols = list(zip(*rows)) if rows else [[] for _ in STAT_KEYS]
+        for key, col in zip(STAT_KEYS, cols):
+            entry[key] = compute_percentiles([v for v in col if v is not None])
+        return entry
+
+    def distinct(sql: str, params: tuple = ()) -> list:
+        return [r[0] for r in con.execute(sql, params)]
+
+    print(f"Building baselines from {db_path}...", flush=True)
+    total = con.execute("SELECT COUNT(*) FROM games").fetchone()[0]
+    sources = dict(con.execute("SELECT source, COUNT(*) FROM games GROUP BY source"))
+
+    by_player_char = {c: entry_for("WHERE player_char = ?", (c,))
+                      for c in distinct("SELECT DISTINCT player_char FROM games")}
+    by_opponent_char = {c: entry_for("WHERE opp_char = ?", (c,))
+                        for c in distinct("SELECT DISTINCT opp_char FROM games")}
+
+    by_matchup: dict = {}
+    pairs = con.execute(
+        "SELECT player_char, opp_char, COUNT(*) FROM games GROUP BY player_char, opp_char"
+    ).fetchall()
+    for player_char, opp_char, n in pairs:
+        if n < MIN_MATCHUP_SAMPLES:
+            continue
+        by_matchup.setdefault(player_char, {})[opp_char] = entry_for(
+            "WHERE player_char = ? AND opp_char = ?", (player_char, opp_char))
+
+    overall_entry = entry_for("")
+    by_player_char["_overall"] = overall_entry
+    by_opponent_char["_overall"] = overall_entry
+
+    by_rank: dict = {}
+    for rank in distinct("SELECT DISTINCT rank FROM games WHERE rank IS NOT NULL"):
+        by_rank[rank] = {"_overall": entry_for("WHERE rank = ?", (rank,))}
+        for c in distinct("SELECT DISTINCT player_char FROM games WHERE rank = ?", (rank,)):
+            by_rank[rank][c] = entry_for("WHERE rank = ? AND player_char = ?", (rank, c))
+    con.close()
+
+    output = {
+        "generated_at":     datetime.now(timezone.utc).isoformat(),
+        "source":           "stats_db:" + "+".join(sorted(sources)),
+        "sources":          sources,
+        "replay_count":     total,
+        "by_player_char":   dict(sorted(by_player_char.items())),
+        "by_opponent_char": dict(sorted(by_opponent_char.items())),
+        "by_matchup":       {p: dict(sorted(v.items())) for p, v in sorted(by_matchup.items())},
+        "by_rank":          by_rank,
+    }
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2)
+
+    matchup_count = sum(len(v) for v in by_matchup.values())
+    print(f"Baselines written to: {output_path}")
+    print(f"Rows: {total}  Sources: {sources}")
+    print(f"Player chars: {len(by_player_char) - 1}  Matchups: {matchup_count}  "
+          f"Ranks: {sorted(by_rank)}", flush=True)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def process_character_dir(
@@ -1101,6 +1181,9 @@ def process_character_dir(
     overall_accum: dict,
     # Shared counters — passed as a mutable dict
     counters: dict,
+    # Optional StatsDB sidecar — v37 rows keyed by full repo path (v3.7
+    # basenames are human-readable timestamps, not collision-safe)
+    db=None,
 ) -> bool:
     """
     Download + parse all replays from a single character directory.
@@ -1175,6 +1258,8 @@ def process_character_dir(
         for file_path, local in local_paths:
             results = process_both_ports(local)
             if results:
+                if db is not None:
+                    db.insert_batch(make_records(file_path, "v37", None, None, results))
                 for stats, player_char, opp_char, _port in results:
                     accumulate_stats(by_player_char, player_char, stats)
                     accumulate_stats(by_opponent_char, opp_char, stats)
@@ -1301,9 +1386,10 @@ def main():
                         help=f"Concurrent download threads (default: {DL_WORKERS})")
     parser.add_argument("--output",     default=os.path.join(os.path.dirname(__file__), "grade_baselines.json"),
                         help="Output path for grade_baselines.json")
-    parser.add_argument("--dataset",    choices=["v37", "ranked"], default="v37",
+    parser.add_argument("--dataset",    choices=["v37", "ranked", "db"], default="v37",
                         help="v37 = per-file tournament dataset (default); "
-                             "ranked = melee-ranked-replays tarballs into the StatsDB sidecar")
+                             "ranked = melee-ranked-replays tarballs into the StatsDB sidecar; "
+                             "db = no scan, build grade_baselines.json from the sidecar")
     parser.add_argument("--db", default=os.path.join(os.path.dirname(__file__), "raw_stats.sqlite"),
                         help="StatsDB path for --dataset ranked (default: scripts/raw_stats.sqlite)")
     parser.add_argument("--limit-tarballs", type=int, default=0,
@@ -1312,6 +1398,9 @@ def main():
 
     if args.dataset == "ranked":
         run_ranked_scan(args)
+        return
+    if args.dataset == "db":
+        build_baselines_from_db(args.db, args.output)
         return
 
     # Determine which characters to process
@@ -1326,6 +1415,10 @@ def main():
     by_matchup: dict      = {}
     overall_accum: dict   = {s: [] for s in STAT_KEYS}
     counters = {"total_processed": 0, "total_errors": 0}
+
+    # v37 scans also seed the StatsDB sidecar so future re-pools are queries
+    from stats_db import StatsDB
+    db = StatsDB(args.db, STAT_KEYS)
 
     # Load global checkpoint (tracks which characters are fully done)
     scripts_dir = os.path.dirname(__file__)
@@ -1366,6 +1459,7 @@ def main():
             by_matchup=by_matchup,
             overall_accum=overall_accum,
             counters=counters,
+            db=db,
         )
 
         if success:
@@ -1401,6 +1495,8 @@ def main():
         by_player_char, by_opponent_char, by_matchup, overall_accum,
         counters["total_processed"], source, args.output,
     )
+
+    db.close()
 
     # Clean up global checkpoint on full completion
     if os.path.exists(global_ckpt_path):
