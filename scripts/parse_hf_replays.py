@@ -32,8 +32,10 @@ Requirements: peppi-py, numpy, huggingface_hub
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
+import tarfile
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -49,6 +51,13 @@ from huggingface_hub import list_repo_tree, hf_hub_download
 
 REPO_ID   = "erickfm/slippi-public-dataset-v3.7"
 REPO_TYPE = "dataset"
+
+# --dataset ranked: anonymized plat+ ranked replays, tarballs per (char, rank pair,
+# archive). Filenames carry the rank pair: "master-platinum-<hex>.slp". The hex
+# hash is globally unique → dedup key (each non-ditto replay appears in BOTH
+# players' character tarballs).
+RANKED_REPO_ID = "erickfm/melee-ranked-replays"
+RANK_RE = re.compile(r"^([a-z]+)-([a-z]+)-[0-9a-f]+\.slp$")
 
 # External (CSS) character IDs → names. peppi-py uses external IDs, NOT the
 # internal IDs that py-slippi uses. Verified empirically against filenames in
@@ -781,10 +790,10 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     }
 
 
-def process_both_ports(filepath: str) -> list[tuple[dict, str, str]]:
+def process_both_ports(filepath: str) -> list[tuple[dict, str, str, int]]:
     """
     Parse a 1v1 replay once and compute stats from both ports' perspectives.
-    Returns list of (stats_dict, player_char_name, opp_char_name) tuples.
+    Returns list of (stats_dict, player_char_name, opp_char_name, player_idx) tuples.
     """
     try:
         game = peppi.read_slippi(filepath)
@@ -811,7 +820,7 @@ def process_both_ports(filepath: str) -> list[tuple[dict, str, str]]:
         opp_idx = 1 - player_idx
         stats = compute_game_stats(game, player_idx, opp_idx)
         if stats is not None:
-            results.append((stats, char_names[player_idx], char_names[opp_idx]))
+            results.append((stats, char_names[player_idx], char_names[opp_idx], player_idx))
 
     return results
 
@@ -910,6 +919,174 @@ def accumulate_matchup_stats(accum: dict, player_char: str, opp_char: str, stats
             accum[player_char][opp_char][stat].append(val)
 
 
+# ── Ranked dataset (tarball) scan ────────────────────────────────────────────
+
+def parse_rank_pair(filename: str) -> tuple[str, str] | None:
+    """Rank pair from a ranked-dataset filename, e.g. 'master-platinum-<hex>.slp'."""
+    m = RANK_RE.match(os.path.basename(filename))
+    return (m.group(1), m.group(2)) if m else None
+
+
+def scan_tarball_file(tar_path: str, db, work_dir: str, source: str = "ranked",
+                      insert_chunk: int = 1000) -> tuple[int, int, int]:
+    """
+    Stream a local .tar.gz of replays into the StatsDB.
+    Members are extracted one at a time and deleted after parsing, so peak
+    disk is the tarball plus one replay. Rank is attributed per player only
+    for same-rank pairs; mixed pairs keep rank_pair but rank=NULL (no
+    port→rank mapping exists in the dataset).
+    Returns (new_replays, dup_replays, errors).
+    """
+    os.makedirs(work_dir, exist_ok=True)
+    new = dup = err = 0
+    records = []
+
+    def flush():
+        if records:
+            db.insert_batch(records)
+            records.clear()
+
+    with tarfile.open(tar_path, "r:gz") as tf:
+        for member in tf:
+            if not member.isfile() or not member.name.endswith(".slp"):
+                continue
+            fname = os.path.basename(member.name)
+            if db.seen(fname):
+                dup += 1
+                continue
+            pair = parse_rank_pair(fname)
+            rank_pair = f"{pair[0]}-{pair[1]}" if pair else None
+            rank = pair[0] if pair and pair[0] == pair[1] else None
+
+            tf.extract(member, path=work_dir, filter="data")
+            local = os.path.join(work_dir, member.name)
+            try:
+                results = process_both_ports(local)
+            finally:
+                os.remove(local)
+
+            if not results:
+                err += 1
+                continue
+            for stats, player_char, opp_char, port in results:
+                records.append((fname, port, source, player_char, opp_char,
+                                rank, rank_pair, stats))
+            new += 1
+            if len(records) >= insert_chunk:
+                flush()
+    flush()
+    return new, dup, err
+
+
+def list_ranked_tarballs() -> list[tuple[str, int]]:
+    """All (tarball_path, size_bytes) in the ranked dataset, discovered live
+    (the repo's README disagrees with its actual layout, so trust the tree)."""
+    top = list(list_repo_tree(RANKED_REPO_ID, repo_type=REPO_TYPE))
+    char_dirs = sorted(i.path for i in top if hasattr(i, "tree_id"))
+    tarballs = []
+    for d in char_dirs:
+        for it in list_repo_tree(RANKED_REPO_ID, path_in_repo=d, repo_type=REPO_TYPE):
+            if not hasattr(it, "tree_id") and it.path.endswith(".tar.gz"):
+                tarballs.append((it.path, it.size))
+    return tarballs
+
+
+def run_ranked_scan(args):
+    """Full melee-ranked-replays scan: download tarballs one at a time
+    (smallest first), stream-parse into the StatsDB, checkpoint per tarball.
+    The next tarball is prefetched while the current one parses."""
+    from stats_db import StatsDB
+
+    scripts_dir = os.path.dirname(os.path.abspath(__file__))
+    ckpt_path = os.path.join(scripts_dir, "parse_ranked_checkpoint.json")
+    db = StatsDB(args.db, STAT_KEYS)
+
+    print("Listing ranked-dataset tarballs...", flush=True)
+    tarballs = sorted(list_ranked_tarballs(), key=lambda t: t[1])
+    total_bytes = sum(s for _, s in tarballs)
+    print(f"{len(tarballs)} tarballs, {total_bytes/1e12:.2f} TB total", flush=True)
+    if args.limit_tarballs:
+        tarballs = tarballs[:args.limit_tarballs]
+        print(f"--limit-tarballs: processing first {len(tarballs)} (smallest)", flush=True)
+
+    ckpt = {}
+    if os.path.exists(ckpt_path):
+        with open(ckpt_path) as f:
+            ckpt = json.load(f)
+    completed = set(ckpt.get("completed_tarballs", []))
+    totals = ckpt.get("totals", {"new": 0, "dup": 0, "err": 0})
+
+    remaining = [(p, s) for p, s in tarballs if p not in completed]
+    done_bytes = sum(s for p, s in tarballs if p in completed)
+    print(f"Resume: {len(completed)} tarballs done, {len(remaining)} remaining "
+          f"({(total_bytes - done_bytes)/1e12:.2f} TB to go)", flush=True)
+
+    dl_dir = os.path.join("/tmp", "hf_ranked_dl")
+    work_dir = os.path.join("/tmp", "hf_ranked_work")
+    shutil.rmtree(dl_dir, ignore_errors=True)
+
+    def download(path):
+        for attempt in range(3):
+            try:
+                return hf_hub_download(repo_id=RANKED_REPO_ID, filename=path,
+                                       repo_type=REPO_TYPE, local_dir=dl_dir)
+            except Exception as e:
+                wait = 30 * (attempt + 1)
+                print(f"    download failed ({type(e).__name__}), retry in {wait}s", flush=True)
+                time.sleep(wait)
+        return None
+
+    t_start = time.time()
+    session_bytes = 0
+    prefetch_pool = ThreadPoolExecutor(max_workers=1)
+    next_future = prefetch_pool.submit(download, remaining[0][0]) if remaining else None
+
+    try:
+        for i, (path, size) in enumerate(remaining):
+            local = next_future.result() if next_future else download(path)
+            if i + 1 < len(remaining):
+                next_future = prefetch_pool.submit(download, remaining[i + 1][0])
+            else:
+                next_future = None
+            if local is None:
+                print(f"  SKIP {path} (3 download failures)", flush=True)
+                totals["err"] += 1
+                continue
+
+            t0 = time.time()
+            new, dup, err = scan_tarball_file(local, db, work_dir)
+            os.remove(local)
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+            totals["new"] += new
+            totals["dup"] += dup
+            totals["err"] += err
+            completed.add(path)
+            done_bytes += size
+            session_bytes += size
+            save_checkpoint(ckpt_path, {
+                "completed_tarballs": sorted(completed),
+                "totals": totals,
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+            })
+
+            elapsed = time.time() - t_start
+            rate = session_bytes / max(elapsed, 1)
+            eta_h = (total_bytes - done_bytes) / max(rate, 1) / 3600
+            print(f"  [{i+1}/{len(remaining)}] {path}"
+                  f"  {size/1e6:.0f}MB  new={new} dup={dup} err={err}"
+                  f"  ({time.time()-t0:.0f}s)"
+                  f"  | total {done_bytes/1e9:.1f}/{total_bytes/1e9:.0f}GB"
+                  f"  {rate/1e6:.1f}MB/s  ETA {eta_h:.1f}h"
+                  f"  rows={db.count()}", flush=True)
+    finally:
+        prefetch_pool.shutdown(wait=False, cancel_futures=True)
+        db.close()
+
+    print(f"\nRANKED SCAN COMPLETE: new={totals['new']} dup={totals['dup']} "
+          f"err={totals['err']} in {(time.time()-t_start)/3600:.1f}h", flush=True)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def process_character_dir(
@@ -998,7 +1175,7 @@ def process_character_dir(
         for file_path, local in local_paths:
             results = process_both_ports(local)
             if results:
-                for stats, player_char, opp_char in results:
+                for stats, player_char, opp_char, _port in results:
                     accumulate_stats(by_player_char, player_char, stats)
                     accumulate_stats(by_opponent_char, opp_char, stats)
                     accumulate_matchup_stats(by_matchup, player_char, opp_char, stats)
@@ -1124,7 +1301,18 @@ def main():
                         help=f"Concurrent download threads (default: {DL_WORKERS})")
     parser.add_argument("--output",     default=os.path.join(os.path.dirname(__file__), "grade_baselines.json"),
                         help="Output path for grade_baselines.json")
+    parser.add_argument("--dataset",    choices=["v37", "ranked"], default="v37",
+                        help="v37 = per-file tournament dataset (default); "
+                             "ranked = melee-ranked-replays tarballs into the StatsDB sidecar")
+    parser.add_argument("--db", default=os.path.join(os.path.dirname(__file__), "raw_stats.sqlite"),
+                        help="StatsDB path for --dataset ranked (default: scripts/raw_stats.sqlite)")
+    parser.add_argument("--limit-tarballs", type=int, default=0,
+                        help="ranked only: stop after N smallest tarballs (testing)")
     args = parser.parse_args()
+
+    if args.dataset == "ranked":
+        run_ranked_scan(args)
+        return
 
     # Determine which characters to process
     if args.character.upper() == "ALL":
