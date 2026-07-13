@@ -1043,16 +1043,42 @@ def run_ranked_scan(args):
 
     t_start = time.time()
     session_bytes = 0
+
+    # Stall watchdog: hf_hub_download has no transfer timeout, so a hung TCP
+    # connection blocks the scan forever (observed in practice). The watchdog
+    # hard-exits the process when no tarball completes within a generous
+    # size-based deadline; run the scan under a supervisor loop that relaunches
+    # it (resume is free via the per-tarball checkpoint).
+    watchdog_state = {"deadline": time.time() + 1800}
+    def watchdog():
+        while True:
+            time.sleep(60)
+            if time.time() > watchdog_state["deadline"]:
+                print(f"\nWATCHDOG: no tarball completed by deadline — "
+                      f"assuming stalled download, exiting for supervisor restart", flush=True)
+                os._exit(42)
+    import threading
+    threading.Thread(target=watchdog, daemon=True).start()
+
+    def arm_watchdog(size_bytes):
+        # ≥30 min, or the tarball's size at a floor of 0.5 MB/s — whichever is longer
+        watchdog_state["deadline"] = time.time() + max(1800, size_bytes / 500_000)
+
     prefetch_pool = ThreadPoolExecutor(max_workers=1)
     next_future = prefetch_pool.submit(download, remaining[0][0]) if remaining else None
+    if remaining:
+        arm_watchdog(remaining[0][1])
 
     try:
         for i, (path, size) in enumerate(remaining):
             local = next_future.result() if next_future else download(path)
             if i + 1 < len(remaining):
                 next_future = prefetch_pool.submit(download, remaining[i + 1][0])
+                # deadline covers current parse + next download, sized to the larger
+                arm_watchdog(max(size, remaining[i + 1][1]))
             else:
                 next_future = None
+                arm_watchdog(size)
             if local is None:
                 print(f"  SKIP {path} (3 download failures)", flush=True)
                 totals["err"] += 1
