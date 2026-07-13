@@ -1028,7 +1028,8 @@ def run_ranked_scan(args):
 
     dl_dir = os.path.join("/tmp", "hf_ranked_dl")
     work_dir = os.path.join("/tmp", "hf_ranked_work")
-    shutil.rmtree(dl_dir, ignore_errors=True)
+    # dl_dir is intentionally NOT wiped: hf_hub_download resumes partial
+    # downloads (.incomplete files), so restarts after a stall are cheap.
 
     def download(path):
         for attempt in range(3):
@@ -1050,9 +1051,33 @@ def run_ranked_scan(args):
     # size-based deadline; run the scan under a supervisor loop that relaunches
     # it (resume is free via the per-tarball checkpoint).
     watchdog_state = {"deadline": time.time() + 1800}
+
+    def _dl_bytes():
+        total = 0
+        for root, _dirs, files in os.walk(dl_dir):
+            for f in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, f))
+                except OSError:
+                    pass
+        return total
+
     def watchdog():
+        # Two triggers: (a) downloaded bytes frozen for 10 min (primary — hung
+        # TCP connections are common on big tarballs), (b) absolute size-based
+        # deadline (backup). Partial downloads survive the restart.
+        last_bytes = -1
+        last_change = time.time()
         while True:
             time.sleep(60)
+            b = _dl_bytes()
+            if b != last_bytes:
+                last_bytes = b
+                last_change = time.time()
+            elif time.time() - last_change > 600:
+                print(f"\nWATCHDOG: downloaded bytes frozen for 10 min — "
+                      f"stalled connection, exiting for supervisor restart", flush=True)
+                os._exit(42)
             if time.time() > watchdog_state["deadline"]:
                 print(f"\nWATCHDOG: no tarball completed by deadline — "
                       f"assuming stalled download, exiting for supervisor restart", flush=True)
