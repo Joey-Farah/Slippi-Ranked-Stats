@@ -6,6 +6,37 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-07-14 (MERGED BASELINES committed — ranked+v3.7, 2.13M samples — DO NOT RELEASE until Joey tests — READ FIRST)
+
+> **State: committed to main, NOT released.** Joey wants to review grade behavior in a
+> test build of the app before shipping to users. Do not tag/build a release from this.
+>
+> **What landed:** `scripts/grade_baselines.json` + `src/lib/grade-benchmarks.ts` regenerated
+> from the new **StatsDB sidecar** (`scripts/raw_stats.sqlite`, multi-GB, gitignored, THIS Mac only):
+> - **2,129,888 rows** total: 1,699,122 from `erickfm/melee-ranked-replays` (848,061 unique
+>   replays, ALL 934 tarballs of the 1.43TB dataset, plat+ ranked, anonymized) + 430,766 from
+>   the v3.7 tournament rescan (221,380 games). Sample pool grew ~5×.
+> - **569 matchup entries** in grade-benchmarks.ts (was 283); baselines JSON keeps 636 (≥20).
+> - **`by_rank` sections captured** (platinum 493k / master 202k / diamond 117k samples) —
+>   fuel for the banked rank-stratified grading upgrade; re-pooling = a query, no rescan.
+> - `BENCHMARKS_VERSION` = generation timestamp (auto-bumped) → all stored grades regrade on update.
+> - **Shift vs old baselines is MILD** (p50s moved ≤3% on most stats) — the v3.7 tournament pool
+>   was already ~plat+ skill. Exception: `l_cancel_ratio` p90 went 0.0 → 1.0 (top-end grading
+>   for that stat is meaningfully tougher). Release notes should still mention grades may shift.
+> - Pipeline code: `--dataset ranked` scan mode + StatsDB (`scripts/stats_db.py`) + progress
+>   watchdog/supervisor self-healing + `--dataset db` baseline builder (commits 77bf6f9,
+>   33027a1, watchdog fixes). 11 pytest + 61 vitest green.
+> - Ops notes: HF blocked the legacy download path for the ranked repo mid-scan (repo-wide,
+>   confirmed from multiple IPs); the hf_xet library path kept working. Joey duplicated the
+>   dataset to his own HF account as plan B (can delete it). Ethernet ≈ 15-25MB/s vs WiFi ~6.
+>
+> **NEXT UP:** (1) Joey tests grading in a dev build → then release (bundle w/ anything else).
+> (2) LONG-TERM (Joey, 2026-07-14): find/build a dataset covering EVERY ranked skill tier
+> (bronze→GM) for truly representative grading — no public source exists today; options are
+> the v3.7 connect-code skill-inference idea (banked below) or collecting community replays.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-06-16 (Discord weekly re-auth — REAL ROOT CAUSE found + fixed via Discord portal — READ FIRST)
 
 > **The v1.8.4 "silent refresh" fix was correct in code but could NEVER work — the Discord app was missing the `PUBLIC_OAUTH2_CLIENT` flag.** This supersedes the v1.8.4 TO-DO claim below ("renew seamlessly forever after"), which was never live-verified and was **false**.
