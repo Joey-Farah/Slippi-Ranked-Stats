@@ -6,10 +6,25 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-07-14 (MERGED BASELINES committed — ranked+v3.7, 2.13M samples — DO NOT RELEASE until Joey tests — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-07-14 (MERGED BASELINES — ranked+v3.7, 2.13M samples — TESTED & APPROVED, shipping as v1.8.11 — READ FIRST)
 
-> **State: committed to main, NOT released.** Joey wants to review grade behavior in a
-> test build of the app before shipping to users. Do not tag/build a release from this.
+> **State: TESTED & APPROVED — shipping as v1.8.11.** Joey reviewed grade behavior in a dev
+> build (2026-07-14) and signed off. Version bumped 1.8.10→1.8.11 across package.json /
+> tauri.conf.json / Cargo.toml / Cargo.lock + a release-notes.md entry. Ready to tag `v1.8.11`
+> (check `git tag` — may already be pushed).
+>
+> **Test findings (old 2026-06-21 baselines → new 2026-07-14).** Re-scored all 891 regraded
+> JOEY#870 sets under both benchmark sets; the recompute matched the app's stored grades on
+> 891/891 (high confidence). Mean overall change **−0.7 pts**, median −0.8, **89% kept their
+> letter** (all single-step moves, no cliffs). The drift is entirely the **Defense** category
+> (−3.9 pts avg): the ranked pool's `avg_stock_duration` p50 rose ~10% (2262→2464 frames),
+> recovery/death nudged up; Neutral/Punish flat. Matchup outliers were thin-sample corrections:
+> Falco vs Ice Climbers **−7.1** (old IC bucket was small/soft), Falco vs Pikachu **+5.8**.
+> **Matchup self-comparison verified character-agnostic:** 891/891 of Joey's sets used a
+> dedicated `by_matchup[player][opp]` bucket (zero fallbacks); all 26 chars have buckets
+> (569/676 combos; Fox/Falco/Marth/Sheik/Peach/Captain Falcon = full cast; low-pop chars like
+> Pichu/Kirby partial → graceful fallback to the char baseline by design). The v1.8.9
+> `--character FALCO` matchup-drop bug is confirmed NOT present.
 >
 > **What landed:** `scripts/grade_baselines.json` + `src/lib/grade-benchmarks.ts` regenerated
 > from the new **StatsDB sidecar** (`scripts/raw_stats.sqlite`, multi-GB, gitignored, THIS Mac only):
@@ -30,7 +45,8 @@ hand-off mechanism between work sessions and across machines.
 >   confirmed from multiple IPs); the hf_xet library path kept working. Joey duplicated the
 >   dataset to his own HF account as plan B (can delete it). Ethernet ≈ 15-25MB/s vs WiFi ~6.
 >
-> **NEXT UP:** (1) Joey tests grading in a dev build → then release (bundle w/ anything else).
+> **NEXT UP:** (1) ✅ Tested & approved → **v1.8.11 release prepared this session** (version bump +
+> release-notes + this handoff). Remaining: tag/push `v1.8.11` to trigger the Windows+macOS CI build.
 > (2) LONG-TERM (Joey, 2026-07-14): find/build a dataset covering EVERY ranked skill tier
 > (bronze→GM) for truly representative grading — no public source exists today; options are
 > the v3.7 connect-code skill-inference idea (banked below) or collecting community replays.

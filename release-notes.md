@@ -1,3 +1,14 @@
+## What's New in v1.8.11
+
+### 📊 Grades now measured against a much deeper benchmark
+
+We rebuilt the grading benchmark on a dramatically larger, higher-level pool of play — about **2.1 million stat samples**, most of them from Platinum-and-above ranked matches, roughly **5× the previous benchmark**. Your set grades are scored against how real players actually perform, so a bigger, more representative sample means fairer and more stable grades. Two things you'll notice:
+
+- **Many more matchups graded against their own data.** The number of character matchups with a dedicated baseline nearly doubled (**283 → 569**), so more of the exact matchups you play are compared to that same matchup instead of falling back to a general "your character vs everyone" average.
+- **Your existing grades will refresh.** Because the baselines changed, past grades recalculate to use the new ones. Most grades move only slightly — the biggest shifts are in defense and survival stats, since high-level ranked players tend to live a bit longer per stock, so some grades tighten up.
+
+---
+
 ## What's New in v1.8.10
 
 ### 🧊 Ice Climbers grades finally count Nana
