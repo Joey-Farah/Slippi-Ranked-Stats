@@ -6,6 +6,39 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-07-14 (MARKETING LANDING PAGE — v1 shipped, more polish planned — READ FIRST)
+
+> **State: LIVE, iterating.** Built a single-page marketing site at `site/index.html`, deployed
+> via GitHub Actions (`.github/workflows/pages.yml`, triggers on push to `main` touching
+> `site/**`) to GitHub Pages (repo Settings → Pages → source = GitHub Actions, already flipped
+> on). Live at `https://joey-farah.github.io/Slippi-Ranked-Stats/`. Motivation: Joey wanted
+> something more shareable/marketable than a raw GitHub Releases link, without giving up the
+> GitHub-based release pipeline (Pages sits in front of it, doesn't replace it).
+>
+> **What's there:** download buttons that fetch `releases/latest` from the GitHub API
+> client-side and point at the exact `.exe`/`.dmg` asset (falls back to the releases page if
+> the API call fails/rate-limits) — no hardcoded version/filename to maintain. Design pass
+> grounded in Melee's own visual language rather than generic dark-gradient SaaS-template
+> looks: a HUD-scoreboard hero (count-up animated, shows real benchmark numbers — 2.13M
+> samples / 569 matchups / 3 categories), the three grading categories tagged with Melee's
+> port colors (red/blue/green), and the actual Platinum/Diamond/Master rank medal SVGs pulled
+> from `src/assets/ranks/` to back the "real ranked data" claim. Fonts: Chakra Petch (display)
+> + Inter (body) + JetBrains Mono (stat readouts) via Google Fonts.
+>
+> **Known gap / NEXT UP:** screenshots on the page (`site/screenshots/grades.png`,
+> `last-session.png`) are copies of the old ones in `docs/screenshots/` — the app's UI has
+> moved on since those were taken. **Joey is getting fresh screenshots** before the next
+> landing-page pass. Beyond that, this is a v1 — Joey flagged there's "more we could improve
+> on" but didn't specify what yet, so **first task next session: ask what specifically feels
+> unfinished** (more sections? real product demo/video per the 2026 SaaS-trend research done
+> this session? copy polish? custom domain — banked separately, needs Joey to buy a domain
+> first) rather than assuming and re-designing blind.
+>
+> Also still open: no custom domain yet (`joey-farah.github.io/...` for now) — deferred until
+> Joey has a domain in mind, then it's just a `site/CNAME` file + DNS records.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-07-14 (MERGED BASELINES — ranked+v3.7, 2.13M samples — TESTED & APPROVED, shipping as v1.8.11 — READ FIRST)
 
 > **State: TESTED & APPROVED — shipping as v1.8.11.** Joey reviewed grade behavior in a dev
