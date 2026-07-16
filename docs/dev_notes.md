@@ -11,7 +11,8 @@ hand-off mechanism between work sessions and across machines.
 > **State: LIVE, iterating.** Built a single-page marketing site at `site/index.html`, deployed
 > via GitHub Actions (`.github/workflows/pages.yml`, triggers on push to `main` touching
 > `site/**`) to GitHub Pages (repo Settings → Pages → source = GitHub Actions, already flipped
-> on). Live at `https://joey-farah.github.io/Slippi-Ranked-Stats/`. Motivation: Joey wanted
+> on). Live at `https://stats.thelombardiproject.com` (custom domain wired 2026-07-16; the old
+> `joey-farah.github.io/Slippi-Ranked-Stats/` URL now redirects there). Motivation: Joey wanted
 > something more shareable/marketable than a raw GitHub Releases link, without giving up the
 > GitHub-based release pipeline (Pages sits in front of it, doesn't replace it).
 >
@@ -34,8 +35,24 @@ hand-off mechanism between work sessions and across machines.
 > this session? copy polish? custom domain — banked separately, needs Joey to buy a domain
 > first) rather than assuming and re-designing blind.
 >
-> Also still open: no custom domain yet (`joey-farah.github.io/...` for now) — deferred until
-> Joey has a domain in mind, then it's just a `site/CNAME` file + DNS records.
+> **✅ CUSTOM DOMAIN DONE (2026-07-16): `stats.thelombardiproject.com`.** `site/CNAME` holds the
+> domain (the Pages workflow uploads `site/` as the artifact root, so it lands at the site root and
+> GitHub picks it up); Cloudflare DNS has `CNAME stats → joey-farah.github.io`, **DNS-only / grey
+> cloud**. ⚠ The grey cloud is load-bearing — if the record is Cloudflare-proxied, CF terminates TLS
+> with its own cert, GitHub's ACME challenge fails, and Pages hangs on "certificate not yet created."
+> To proxy it later (for CF analytics), turn orange only AFTER the cert exists AND set SSL/TLS mode to
+> **Full**, not Flexible (else redirect loop). Sequencing note for any future domain move: add the DNS
+> record BEFORE pushing the CNAME file — the file switches the canonical domain immediately and
+> redirects the github.io URL, so pushing first takes the site down until DNS answers.
+>
+> **Why a subdomain of thelombardiproject.com and not a standalone `slippirankedstats.com`:** Joey
+> already owns Lombardi (his Melee savestate training platform — "drill the reads that decide sets"),
+> so the audience is identical and the two halves are complementary (SRS diagnoses a weak category,
+> Lombardi sells the drill for it). Costs $0, one brand instead of two, and fully reversible — buy a
+> standalone domain later and redirect if SRS outgrows the association. Joey also raised a trademark
+> concern about buying a domain with "Slippi" in it; the read was that Nintendo doesn't own "Slippi"
+> (it's Fizzi/project-slippi's), and buying a domain adds ~no exposure the app's own name + public repo
+> don't already carry, so the concern didn't drive the decision — but the subdomain moots it anyway.
 
 ---
 
