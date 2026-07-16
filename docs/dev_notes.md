@@ -26,14 +26,44 @@ hand-off mechanism between work sessions and across machines.
 > from `src/assets/ranks/` to back the "real ranked data" claim. Fonts: Chakra Petch (display)
 > + Inter (body) + JetBrains Mono (stat readouts) via Google Fonts.
 >
-> **Known gap / NEXT UP:** screenshots on the page (`site/screenshots/grades.png`,
-> `last-session.png`) are copies of the old ones in `docs/screenshots/` — the app's UI has
-> moved on since those were taken. **Joey is getting fresh screenshots** before the next
-> landing-page pass. Beyond that, this is a v1 — Joey flagged there's "more we could improve
-> on" but didn't specify what yet, so **first task next session: ask what specifically feels
-> unfinished** (more sections? real product demo/video per the 2026 SaaS-trend research done
-> this session? copy polish? custom domain — banked separately, needs Joey to buy a domain
-> first) rather than assuming and re-designing blind.
+> **NEXT UP (updated 2026-07-16 — the "what feels unfinished" question got ANSWERED this session):**
+>
+> **1. SCREENSHOTS — Joey is taking them, then Claude wires them in.** Current assets are bad, not
+> just stale: `site/screenshots/grades.png` is **954×181** — a thin letterbox strip of only the grade
+> *distribution* bar — sitting in a 50/50 `.shots-grid` cell next to `last-session.png` at
+> **1552×1060**, so the two cells are wildly mismatched. Worse, **the actual differentiator (a set's
+> letter grade + Neutral/Punish/Defense breakdown + per-stat rows) is pictured NOWHERE on the page.**
+> Shot list agreed: (a) **Grading tab, a real set's full breakdown**; (b) **Last Session** retake, full
+> window not a partial scroll; (c) **the OBS overlay running over real gameplay** (see #2). Specs: same
+> window size for (a)/(b) so the grid cells match (`Win+Alt+PrtScn` = clean active-window capture),
+> ~3:2, native res (page scales down, so bigger = sharper). Also agreed: **drop the fake browser chrome**
+> (`.shot-frame .chrome`, the three dots) — it reads as a browser window for a *desktop* app.
+>
+> **2. THE OBS OVERLAY IS NOT ON THE LANDING PAGE AT ALL.** The premium box sells "live session
+> tracking & the full grade breakdown" and never mentions it. It's the flagship Premium feature (6
+> releases of work since v1.8.0), the most visually striking and *shareable* thing in the product, and
+> the audience is streamers. **Cheapest real win available, and the copy/structure half doesn't wait on
+> screenshots.** Other page gaps noted: no setup/how-it-works story (nobody learns it's ~3 clicks), and
+> no answer to the trust questions a replay-touching tool raises (does this get me banned? does it need
+> Slippi Launcher running?).
+>
+> **3. ⚠ OPEN FORK — UI REWORK vs SCREENSHOTS FIRST. Joey has NOT decided; ask before doing either.**
+> Joey said the app UI "feels stale." **He's right, and there's a concrete diagnosis:**
+> `src/styles/global.css` sets `--accent: #2ecc71` / `--loss: #e74c3c` — Emerald and Alizarin from the
+> **2013 Flat UI Colors palette**, the fingerprint of early-2010s flat design; `--font: 'Segoe UI'` (the
+> Windows system default); and `App.svelte:226-231` still labels every tab with an **emoji** (`⚡ Ranked
+> Sessions`, `🎮 Matchup Stats`, …) — the loudest "hobby project" tell in the app. Tile soup too: the
+> session view stacks ~14 equal-weight stat cards before any content, so nothing is emphasized.
+> **THE THESIS (Claude's, Joey hasn't signed off): this is NOT a blind redesign — the new design system
+> already exists, because Joey built it on the landing page and likes it.** `site/index.html` has
+> `#0a0b0f` near-black, `#8b7bf7` brand violet, **Melee's own port colors** for red/blue/green, Chakra
+> Petch (display) / Inter (body) / JetBrains Mono (numerals), and a HUD motif grounded in Melee rather
+> than a SaaS template. So the rework ≈ **token swap + adopt the 2 fonts + replace 6 emoji with the SVG
+> icons the landing page already uses + a hierarchy pass** — far cheaper/lower-risk than inventing a
+> look, and it makes the download→open transition coherent. **The fork:** screenshots are the most
+> rework-sensitive asset on the page — restyle first and you shoot once; shoot now and they get retaken.
+> Claude offered either a full rework plan or a single-tab prototype to compare side-by-side; **Joey
+> hadn't answered when the session ended.**
 >
 > **✅ CUSTOM DOMAIN DONE (2026-07-16): `stats.thelombardiproject.com`.** `site/CNAME` holds the
 > domain (the Pages workflow uploads `site/` as the artifact root, so it lands at the site root and
