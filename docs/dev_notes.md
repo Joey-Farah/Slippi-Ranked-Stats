@@ -6,7 +6,7 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-07-17 (MARKETING LANDING PAGE — now on Vercel + own domain — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-07-17 (MARKETING LANDING PAGE — content pass done, UI-rework fork still open — READ FIRST)
 
 > **State: LIVE at `https://slippirankedstats.com`, hosted on Vercel.** The site
 > (`site/index.html`) moved off GitHub Pages this session. Deploy mechanism: a root-level
@@ -67,49 +67,45 @@ hand-off mechanism between work sessions and across machines.
 > from `src/assets/ranks/` to back the "real ranked data" claim. Fonts: Chakra Petch (display)
 > + Inter (body) + JetBrains Mono (stat readouts) via Google Fonts.
 >
-> **NEXT UP (updated 2026-07-16 — the "what feels unfinished" question got ANSWERED this session):**
+> **2026-07-17 CONTENT PASS — screenshots + premium section + hero, all shipped.** Joey supplied
+> real in-app screenshots this session (stitched two overlapping captures into one with Python/PIL
+> where a single laptop screenshot couldn't fit the whole grading detail view — no ImageMagick on
+> this machine, PIL was already available). Landed:
+> - `site/screenshots/session-breakdown.png`, `grading-distribution.png`, `grading-detail.png` —
+>   showcase section now tells a breadth→depth story (session analytics → grade distribution
+>   across all sets → one set's full Neutral/Punish/Defense stat-by-stat breakdown). Dropped the
+>   fake browser-chrome dots (`.shot-frame .chrome` removed) and the old `grades.png`/
+>   `last-session.png` (bad crops, no longer referenced).
+> - `site/screenshots/overlay-preview.png` (a tight crop of just the live-preview card, not the
+>   whole settings screen) — the premium box now **shows** the OBS overlay instead of only
+>   describing live tracking in text; this was previously the single biggest gap (flagship
+>   Premium feature, never mentioned on the page at all).
+> - Hero HUD panel got a 4th "payoff" row: real dataset stats (2.13M samples / 569 matchups) used
+>   to just sit there proving the benchmark was real without showing what it *produces* — now it
+>   closes the loop with a real example (`Falco vs Fox · Win 2–0` → `S · 76`, same numbers as the
+>   showcase's detail screenshot, not invented for marketing). Rank-medal trust badge upgraded
+>   from small plain text to a bordered pill with bigger medals + glow. Added a second, subtler
+>   ambient background gradient to soften the flat black void Joey flagged around the hero.
 >
-> **1. SCREENSHOTS — Joey is taking them, then Claude wires them in.** Current assets are bad, not
-> just stale: `site/screenshots/grades.png` is **954×181** — a thin letterbox strip of only the grade
-> *distribution* bar — sitting in a 50/50 `.shots-grid` cell next to `last-session.png` at
-> **1552×1060**, so the two cells are wildly mismatched. Worse, **the actual differentiator (a set's
-> letter grade + Neutral/Punish/Defense breakdown + per-stat rows) is pictured NOWHERE on the page.**
-> Shot list agreed: (a) **Grading tab, a real set's full breakdown**; (b) **Last Session** retake, full
-> window not a partial scroll; (c) **the OBS overlay running over real gameplay** (see #2). Specs: same
-> window size for (a)/(b) so the grid cells match (`Win+Alt+PrtScn` = clean active-window capture),
-> ~3:2, native res (page scales down, so bigger = sharper). Also agreed: **drop the fake browser chrome**
-> (`.shot-frame .chrome`, the three dots) — it reads as a browser window for a *desktop* app.
->
-> **2. THE OBS OVERLAY IS NOT ON THE LANDING PAGE AT ALL.** The premium box sells "live session
-> tracking & the full grade breakdown" and never mentions it. It's the flagship Premium feature (6
-> releases of work since v1.8.0), the most visually striking and *shareable* thing in the product, and
-> the audience is streamers. **Cheapest real win available, and the copy/structure half doesn't wait on
-> screenshots.** Other page gaps noted: no setup/how-it-works story (nobody learns it's ~3 clicks), and
-> no answer to the trust questions a replay-touching tool raises (does this get me banned? does it need
-> Slippi Launcher running?).
->
-> **3. ⚠ OPEN FORK — UI REWORK vs SCREENSHOTS FIRST. Joey has NOT decided; ask before doing either.**
-> Joey said the app UI "feels stale." **He's right, and there's a concrete diagnosis:**
-> `src/styles/global.css` sets `--accent: #2ecc71` / `--loss: #e74c3c` — Emerald and Alizarin from the
-> **2013 Flat UI Colors palette**, the fingerprint of early-2010s flat design; `--font: 'Segoe UI'` (the
-> Windows system default); and `App.svelte:226-231` still labels every tab with an **emoji** (`⚡ Ranked
+> **⚠ STILL OPEN — UI REWORK vs LEAVE THE APP AS-IS. Joey has NOT decided; ask before doing either.**
+> Diagnosed 2026-07-16, untouched since: `src/styles/global.css` sets `--accent: #2ecc71` /
+> `--loss: #e74c3c` — Emerald and Alizarin from the **2013 Flat UI Colors palette**; `--font: 'Segoe
+> UI'` (Windows system default); `App.svelte:226-231` labels every tab with an **emoji** (`⚡ Ranked
 > Sessions`, `🎮 Matchup Stats`, …) — the loudest "hobby project" tell in the app. Tile soup too: the
 > session view stacks ~14 equal-weight stat cards before any content, so nothing is emphasized.
-> **THE THESIS (Claude's, Joey hasn't signed off): this is NOT a blind redesign — the new design system
-> already exists, because Joey built it on the landing page and likes it.** `site/index.html` has
-> `#0a0b0f` near-black, `#8b7bf7` brand violet, **Melee's own port colors** for red/blue/green, Chakra
-> Petch (display) / Inter (body) / JetBrains Mono (numerals), and a HUD motif grounded in Melee rather
-> than a SaaS template. So the rework ≈ **token swap + adopt the 2 fonts + replace 6 emoji with the SVG
-> icons the landing page already uses + a hierarchy pass** — far cheaper/lower-risk than inventing a
-> look, and it makes the download→open transition coherent. **The fork:** screenshots are the most
-> rework-sensitive asset on the page — restyle first and you shoot once; shoot now and they get retaken.
-> Claude offered either a full rework plan or a single-tab prototype to compare side-by-side; **Joey
-> hadn't answered as of 2026-07-16; as of 2026-07-17 the session moved to hosting/domain work
-> instead, so this fork is still open.**
+> **THE THESIS (Claude's, Joey hasn't signed off): this is NOT a blind redesign — the new design
+> system already exists on the landing page** (`#0a0b0f` near-black, `#8b7bf7` brand violet, Melee's
+> port colors, Chakra Petch/Inter/JetBrains Mono) and Joey already likes it, so the rework would be
+> a token swap + font swap + emoji→SVG-icon swap + a hierarchy pass, not inventing a new look. Since
+> the landing page now has real screenshots wired in, this fork just got **more expensive to defer**
+> — any UI rework after this point means re-shooting all three showcase screenshots + the overlay
+> preview. Worth surfacing that tradeoff explicitly next session before doing more screenshot work
+> elsewhere.
 >
-> **2026-07-17 session: moved hosting to Vercel + bought `slippirankedstats.com` — see the top of
-> this handoff for the full domain/DNS writeup.** Content work (screenshots, OBS overlay section,
-> the UI-rework fork above) is next up, untouched this session.
+> **Also still open, lower priority:** no setup/how-it-works story on the page (nobody learns it's
+> ~3 clicks: point at replay folder, scan, done), and no answer to the trust questions a
+> replay-touching tool raises (does this get me banned? does it need Slippi Launcher running?).
+> General copy polish pass hasn't happened yet either.
 
 ---
 
