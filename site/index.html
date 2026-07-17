@@ -233,6 +233,8 @@
 
   /* ---------- showcase ---------- */
   section.showcase { padding: 70px 0 20px; display: flex; flex-direction: column; align-items: center; }
+  .shot { display: flex; flex-direction: column; align-items: center; }
+  .shot + .shot { margin-top: 50px; }
   .shot-frame {
     background: var(--bg-panel);
     border: 1px solid var(--border);
@@ -414,10 +416,18 @@
   </header>
 
   <section class="showcase reveal">
-    <div class="shot-frame">
-      <img src="screenshots/grading-detail.png" alt="A set's full grade breakdown across Neutral, Punish, and Defense, scored stat by stat against a matchup baseline" />
+    <div class="shot">
+      <div class="shot-frame">
+        <img src="screenshots/grading-distribution.png" alt="Grade distribution across 73 graded sets, from S down to F, with an overall average grade" />
+      </div>
+      <div class="shot-caption">Every set you play, graded — see your distribution across S through F</div>
     </div>
-    <div class="shot-caption">Every set graded against your matchup — Neutral, Punish, and Defense, broken down stat by stat</div>
+    <div class="shot">
+      <div class="shot-frame">
+        <img src="screenshots/grading-detail.png" alt="A set's full grade breakdown across Neutral, Punish, and Defense, scored stat by stat against a matchup baseline" />
+      </div>
+      <div class="shot-caption">Then zoom into any set — Neutral, Punish, and Defense, broken down stat by stat</div>
+    </div>
   </section>
 
   <section class="features">
