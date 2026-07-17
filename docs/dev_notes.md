@@ -6,15 +6,56 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-07-14 (MARKETING LANDING PAGE — v1 shipped, more polish planned — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-07-17 (MARKETING LANDING PAGE — now on Vercel + own domain — READ FIRST)
 
-> **State: LIVE, iterating.** Built a single-page marketing site at `site/index.html`, deployed
-> via GitHub Actions (`.github/workflows/pages.yml`, triggers on push to `main` touching
-> `site/**`) to GitHub Pages (repo Settings → Pages → source = GitHub Actions, already flipped
-> on). Live at `https://stats.thelombardiproject.com` (custom domain wired 2026-07-16; the old
-> `joey-farah.github.io/Slippi-Ranked-Stats/` URL now redirects there). Motivation: Joey wanted
-> something more shareable/marketable than a raw GitHub Releases link, without giving up the
-> GitHub-based release pipeline (Pages sits in front of it, doesn't replace it).
+> **State: LIVE at `https://slippirankedstats.com`, hosted on Vercel.** The site
+> (`site/index.html`) moved off GitHub Pages this session. Deploy mechanism: a root-level
+> `vercel.json` (`{"outputDirectory": "site"}`) tells Vercel to serve `site/` without needing
+> the dashboard's Root Directory field (that field wasn't showing up for Joey — this sidesteps
+> it entirely). The Vercel project (`slippi-ranked-stats`, team `joey-farahs-projects`) is
+> git-connected to this repo via the Vercel GitHub App (needed to be manually granted access at
+> github.com/settings/installations — wasn't authorized for this repo by default) so every push
+> to `main` auto-deploys, same trigger condition as the old Pages workflow. **The old GitHub
+> Pages path is retired**: `.github/workflows/pages.yml` and `site/CNAME` were deleted this
+> session (Vercel doesn't use a CNAME file — the domain is attached via the dashboard's Domains
+> tab instead). Motivation: Joey wanted something more shareable/marketable than a raw GitHub
+> Releases link, without giving up the GitHub-based release pipeline (the landing page sits in
+> front of it, doesn't replace it).
+>
+> **Domain: `slippirankedstats.com`, bought and DNS'd through Cloudflare.** Two DNS records
+> needed, **both must be DNS-only (grey cloud)**, not proxied — same reason as the GitHub Pages
+> saga (Cloudflare's proxy terminates TLS itself, breaking Vercel's own cert/serving):
+> - `@` (apex) → Vercel gave a CNAME-style target; Cloudflare auto-flattens an apex CNAME to A
+>   records when resolved externally, so this works even though apex records can't normally be
+>   a CNAME. Resolves to Vercel edge IPs (`64.29.17.65` / `216.198.79.65` at time of writing —
+>   Vercel rotates these, don't hardcode).
+> - `www` → CNAME to the Vercel-provided target (a generated `*.vercel-dns-*.com` hostname, not
+>   a plain IP — this is correct/expected, not a mistake). **This was the actual bug this
+>   session**: `www` got left proxied (orange cloud) while `@` was already fixed, so it resolved
+>   to Cloudflare's own proxy IPs instead of Vercel's — apex correctly redirects to `www`, so
+>   the whole site 404'd until this was caught. If the domain ever seems broken again, check
+>   BOTH records' proxy toggle individually — don't assume fixing one fixes both.
+> - Apex redirects to `www` (Vercel's default when both are added) — `https://slippirankedstats.com` →
+>   `https://www.slippirankedstats.com`, both work.
+>
+> **Why `slippirankedstats.com` and not a `thelombardiproject.com` subdomain (the previous
+> plan) or `slprankedstats.com` (briefly considered):** Joey wants the URL to match the app name
+> exactly (it's called "Slippi Ranked Stats" everywhere — README, in-app title, repo) rather
+> than a shortened/de-Slippi'd string, and decided the trademark exposure is low/symbolic once
+> paired with a disclaimer (added to the footer this session: "independent, fan-made tool... not
+> affiliated with, endorsed by, or sponsored by Nintendo or Project Slippi"). Domain-only
+> avoidance of the word "Slippi" was considered and rejected as mostly theater — if the name
+> itself were a real problem, the URL wording wouldn't fix that; the disclaimer is what's
+> actually doing the legal work here, not the domain string.
+>
+> **Why Vercel over GitHub Pages:** apex-domain DNS on GitHub Pages needs either 4 hardcoded A
+> records or Cloudflare's proxied-only CNAME flattening (a paid-tier-adjacent quirk that kept
+> rejecting DNS-only apex CNAMEs as "invalid content"). Vercel handles apex domains natively
+> with one flattened record and auto-issues/renews its own cert — Joey already had this working
+> painlessly for `thelombardiproject.com` on Vercel, so the landing page was migrated to match.
+> No payment method is on file for the Vercel account (confirmed this session) — Hobby-tier
+> usage limits are far above what a single static page needs, and without a card on file
+> overages would prompt an upgrade rather than silently bill.
 >
 > **What's there:** download buttons that fetch `releases/latest` from the GitHub API
 > client-side and point at the exact `.exe`/`.dmg` asset (falls back to the releases page if
@@ -63,26 +104,12 @@ hand-off mechanism between work sessions and across machines.
 > look, and it makes the download→open transition coherent. **The fork:** screenshots are the most
 > rework-sensitive asset on the page — restyle first and you shoot once; shoot now and they get retaken.
 > Claude offered either a full rework plan or a single-tab prototype to compare side-by-side; **Joey
-> hadn't answered when the session ended.**
+> hadn't answered as of 2026-07-16; as of 2026-07-17 the session moved to hosting/domain work
+> instead, so this fork is still open.**
 >
-> **✅ CUSTOM DOMAIN DONE (2026-07-16): `stats.thelombardiproject.com`.** `site/CNAME` holds the
-> domain (the Pages workflow uploads `site/` as the artifact root, so it lands at the site root and
-> GitHub picks it up); Cloudflare DNS has `CNAME stats → joey-farah.github.io`, **DNS-only / grey
-> cloud**. ⚠ The grey cloud is load-bearing — if the record is Cloudflare-proxied, CF terminates TLS
-> with its own cert, GitHub's ACME challenge fails, and Pages hangs on "certificate not yet created."
-> To proxy it later (for CF analytics), turn orange only AFTER the cert exists AND set SSL/TLS mode to
-> **Full**, not Flexible (else redirect loop). Sequencing note for any future domain move: add the DNS
-> record BEFORE pushing the CNAME file — the file switches the canonical domain immediately and
-> redirects the github.io URL, so pushing first takes the site down until DNS answers.
->
-> **Why a subdomain of thelombardiproject.com and not a standalone `slippirankedstats.com`:** Joey
-> already owns Lombardi (his Melee savestate training platform — "drill the reads that decide sets"),
-> so the audience is identical and the two halves are complementary (SRS diagnoses a weak category,
-> Lombardi sells the drill for it). Costs $0, one brand instead of two, and fully reversible — buy a
-> standalone domain later and redirect if SRS outgrows the association. Joey also raised a trademark
-> concern about buying a domain with "Slippi" in it; the read was that Nintendo doesn't own "Slippi"
-> (it's Fizzi/project-slippi's), and buying a domain adds ~no exposure the app's own name + public repo
-> don't already carry, so the concern didn't drive the decision — but the subdomain moots it anyway.
+> **2026-07-17 session: moved hosting to Vercel + bought `slippirankedstats.com` — see the top of
+> this handoff for the full domain/DNS writeup.** Content work (screenshots, OBS overlay section,
+> the UI-rework fork above) is next up, untouched this session.
 
 ---
 
