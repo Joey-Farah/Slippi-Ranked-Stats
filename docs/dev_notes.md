@@ -6,15 +6,56 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-07-14 (MARKETING LANDING PAGE — v1 shipped, more polish planned — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-07-17 (MARKETING LANDING PAGE — content pass done, UI-rework fork still open — READ FIRST)
 
-> **State: LIVE, iterating.** Built a single-page marketing site at `site/index.html`, deployed
-> via GitHub Actions (`.github/workflows/pages.yml`, triggers on push to `main` touching
-> `site/**`) to GitHub Pages (repo Settings → Pages → source = GitHub Actions, already flipped
-> on). Live at `https://stats.thelombardiproject.com` (custom domain wired 2026-07-16; the old
-> `joey-farah.github.io/Slippi-Ranked-Stats/` URL now redirects there). Motivation: Joey wanted
-> something more shareable/marketable than a raw GitHub Releases link, without giving up the
-> GitHub-based release pipeline (Pages sits in front of it, doesn't replace it).
+> **State: LIVE at `https://slippirankedstats.com`, hosted on Vercel.** The site
+> (`site/index.html`) moved off GitHub Pages this session. Deploy mechanism: a root-level
+> `vercel.json` (`{"outputDirectory": "site"}`) tells Vercel to serve `site/` without needing
+> the dashboard's Root Directory field (that field wasn't showing up for Joey — this sidesteps
+> it entirely). The Vercel project (`slippi-ranked-stats`, team `joey-farahs-projects`) is
+> git-connected to this repo via the Vercel GitHub App (needed to be manually granted access at
+> github.com/settings/installations — wasn't authorized for this repo by default) so every push
+> to `main` auto-deploys, same trigger condition as the old Pages workflow. **The old GitHub
+> Pages path is retired**: `.github/workflows/pages.yml` and `site/CNAME` were deleted this
+> session (Vercel doesn't use a CNAME file — the domain is attached via the dashboard's Domains
+> tab instead). Motivation: Joey wanted something more shareable/marketable than a raw GitHub
+> Releases link, without giving up the GitHub-based release pipeline (the landing page sits in
+> front of it, doesn't replace it).
+>
+> **Domain: `slippirankedstats.com`, bought and DNS'd through Cloudflare.** Two DNS records
+> needed, **both must be DNS-only (grey cloud)**, not proxied — same reason as the GitHub Pages
+> saga (Cloudflare's proxy terminates TLS itself, breaking Vercel's own cert/serving):
+> - `@` (apex) → Vercel gave a CNAME-style target; Cloudflare auto-flattens an apex CNAME to A
+>   records when resolved externally, so this works even though apex records can't normally be
+>   a CNAME. Resolves to Vercel edge IPs (`64.29.17.65` / `216.198.79.65` at time of writing —
+>   Vercel rotates these, don't hardcode).
+> - `www` → CNAME to the Vercel-provided target (a generated `*.vercel-dns-*.com` hostname, not
+>   a plain IP — this is correct/expected, not a mistake). **This was the actual bug this
+>   session**: `www` got left proxied (orange cloud) while `@` was already fixed, so it resolved
+>   to Cloudflare's own proxy IPs instead of Vercel's — apex correctly redirects to `www`, so
+>   the whole site 404'd until this was caught. If the domain ever seems broken again, check
+>   BOTH records' proxy toggle individually — don't assume fixing one fixes both.
+> - Apex redirects to `www` (Vercel's default when both are added) — `https://slippirankedstats.com` →
+>   `https://www.slippirankedstats.com`, both work.
+>
+> **Why `slippirankedstats.com` and not a `thelombardiproject.com` subdomain (the previous
+> plan) or `slprankedstats.com` (briefly considered):** Joey wants the URL to match the app name
+> exactly (it's called "Slippi Ranked Stats" everywhere — README, in-app title, repo) rather
+> than a shortened/de-Slippi'd string, and decided the trademark exposure is low/symbolic once
+> paired with a disclaimer (added to the footer this session: "independent, fan-made tool... not
+> affiliated with, endorsed by, or sponsored by Nintendo or Project Slippi"). Domain-only
+> avoidance of the word "Slippi" was considered and rejected as mostly theater — if the name
+> itself were a real problem, the URL wording wouldn't fix that; the disclaimer is what's
+> actually doing the legal work here, not the domain string.
+>
+> **Why Vercel over GitHub Pages:** apex-domain DNS on GitHub Pages needs either 4 hardcoded A
+> records or Cloudflare's proxied-only CNAME flattening (a paid-tier-adjacent quirk that kept
+> rejecting DNS-only apex CNAMEs as "invalid content"). Vercel handles apex domains natively
+> with one flattened record and auto-issues/renews its own cert — Joey already had this working
+> painlessly for `thelombardiproject.com` on Vercel, so the landing page was migrated to match.
+> No payment method is on file for the Vercel account (confirmed this session) — Hobby-tier
+> usage limits are far above what a single static page needs, and without a card on file
+> overages would prompt an upgrade rather than silently bill.
 >
 > **What's there:** download buttons that fetch `releases/latest` from the GitHub API
 > client-side and point at the exact `.exe`/`.dmg` asset (falls back to the releases page if
@@ -26,63 +67,45 @@ hand-off mechanism between work sessions and across machines.
 > from `src/assets/ranks/` to back the "real ranked data" claim. Fonts: Chakra Petch (display)
 > + Inter (body) + JetBrains Mono (stat readouts) via Google Fonts.
 >
-> **NEXT UP (updated 2026-07-16 — the "what feels unfinished" question got ANSWERED this session):**
+> **2026-07-17 CONTENT PASS — screenshots + premium section + hero, all shipped.** Joey supplied
+> real in-app screenshots this session (stitched two overlapping captures into one with Python/PIL
+> where a single laptop screenshot couldn't fit the whole grading detail view — no ImageMagick on
+> this machine, PIL was already available). Landed:
+> - `site/screenshots/session-breakdown.png`, `grading-distribution.png`, `grading-detail.png` —
+>   showcase section now tells a breadth→depth story (session analytics → grade distribution
+>   across all sets → one set's full Neutral/Punish/Defense stat-by-stat breakdown). Dropped the
+>   fake browser-chrome dots (`.shot-frame .chrome` removed) and the old `grades.png`/
+>   `last-session.png` (bad crops, no longer referenced).
+> - `site/screenshots/overlay-preview.png` (a tight crop of just the live-preview card, not the
+>   whole settings screen) — the premium box now **shows** the OBS overlay instead of only
+>   describing live tracking in text; this was previously the single biggest gap (flagship
+>   Premium feature, never mentioned on the page at all).
+> - Hero HUD panel got a 4th "payoff" row: real dataset stats (2.13M samples / 569 matchups) used
+>   to just sit there proving the benchmark was real without showing what it *produces* — now it
+>   closes the loop with a real example (`Falco vs Fox · Win 2–0` → `S · 76`, same numbers as the
+>   showcase's detail screenshot, not invented for marketing). Rank-medal trust badge upgraded
+>   from small plain text to a bordered pill with bigger medals + glow. Added a second, subtler
+>   ambient background gradient to soften the flat black void Joey flagged around the hero.
 >
-> **1. SCREENSHOTS — Joey is taking them, then Claude wires them in.** Current assets are bad, not
-> just stale: `site/screenshots/grades.png` is **954×181** — a thin letterbox strip of only the grade
-> *distribution* bar — sitting in a 50/50 `.shots-grid` cell next to `last-session.png` at
-> **1552×1060**, so the two cells are wildly mismatched. Worse, **the actual differentiator (a set's
-> letter grade + Neutral/Punish/Defense breakdown + per-stat rows) is pictured NOWHERE on the page.**
-> Shot list agreed: (a) **Grading tab, a real set's full breakdown**; (b) **Last Session** retake, full
-> window not a partial scroll; (c) **the OBS overlay running over real gameplay** (see #2). Specs: same
-> window size for (a)/(b) so the grid cells match (`Win+Alt+PrtScn` = clean active-window capture),
-> ~3:2, native res (page scales down, so bigger = sharper). Also agreed: **drop the fake browser chrome**
-> (`.shot-frame .chrome`, the three dots) — it reads as a browser window for a *desktop* app.
->
-> **2. THE OBS OVERLAY IS NOT ON THE LANDING PAGE AT ALL.** The premium box sells "live session
-> tracking & the full grade breakdown" and never mentions it. It's the flagship Premium feature (6
-> releases of work since v1.8.0), the most visually striking and *shareable* thing in the product, and
-> the audience is streamers. **Cheapest real win available, and the copy/structure half doesn't wait on
-> screenshots.** Other page gaps noted: no setup/how-it-works story (nobody learns it's ~3 clicks), and
-> no answer to the trust questions a replay-touching tool raises (does this get me banned? does it need
-> Slippi Launcher running?).
->
-> **3. ⚠ OPEN FORK — UI REWORK vs SCREENSHOTS FIRST. Joey has NOT decided; ask before doing either.**
-> Joey said the app UI "feels stale." **He's right, and there's a concrete diagnosis:**
-> `src/styles/global.css` sets `--accent: #2ecc71` / `--loss: #e74c3c` — Emerald and Alizarin from the
-> **2013 Flat UI Colors palette**, the fingerprint of early-2010s flat design; `--font: 'Segoe UI'` (the
-> Windows system default); and `App.svelte:226-231` still labels every tab with an **emoji** (`⚡ Ranked
+> **⚠ STILL OPEN — UI REWORK vs LEAVE THE APP AS-IS. Joey has NOT decided; ask before doing either.**
+> Diagnosed 2026-07-16, untouched since: `src/styles/global.css` sets `--accent: #2ecc71` /
+> `--loss: #e74c3c` — Emerald and Alizarin from the **2013 Flat UI Colors palette**; `--font: 'Segoe
+> UI'` (Windows system default); `App.svelte:226-231` labels every tab with an **emoji** (`⚡ Ranked
 > Sessions`, `🎮 Matchup Stats`, …) — the loudest "hobby project" tell in the app. Tile soup too: the
 > session view stacks ~14 equal-weight stat cards before any content, so nothing is emphasized.
-> **THE THESIS (Claude's, Joey hasn't signed off): this is NOT a blind redesign — the new design system
-> already exists, because Joey built it on the landing page and likes it.** `site/index.html` has
-> `#0a0b0f` near-black, `#8b7bf7` brand violet, **Melee's own port colors** for red/blue/green, Chakra
-> Petch (display) / Inter (body) / JetBrains Mono (numerals), and a HUD motif grounded in Melee rather
-> than a SaaS template. So the rework ≈ **token swap + adopt the 2 fonts + replace 6 emoji with the SVG
-> icons the landing page already uses + a hierarchy pass** — far cheaper/lower-risk than inventing a
-> look, and it makes the download→open transition coherent. **The fork:** screenshots are the most
-> rework-sensitive asset on the page — restyle first and you shoot once; shoot now and they get retaken.
-> Claude offered either a full rework plan or a single-tab prototype to compare side-by-side; **Joey
-> hadn't answered when the session ended.**
+> **THE THESIS (Claude's, Joey hasn't signed off): this is NOT a blind redesign — the new design
+> system already exists on the landing page** (`#0a0b0f` near-black, `#8b7bf7` brand violet, Melee's
+> port colors, Chakra Petch/Inter/JetBrains Mono) and Joey already likes it, so the rework would be
+> a token swap + font swap + emoji→SVG-icon swap + a hierarchy pass, not inventing a new look. Since
+> the landing page now has real screenshots wired in, this fork just got **more expensive to defer**
+> — any UI rework after this point means re-shooting all three showcase screenshots + the overlay
+> preview. Worth surfacing that tradeoff explicitly next session before doing more screenshot work
+> elsewhere.
 >
-> **✅ CUSTOM DOMAIN DONE (2026-07-16): `stats.thelombardiproject.com`.** `site/CNAME` holds the
-> domain (the Pages workflow uploads `site/` as the artifact root, so it lands at the site root and
-> GitHub picks it up); Cloudflare DNS has `CNAME stats → joey-farah.github.io`, **DNS-only / grey
-> cloud**. ⚠ The grey cloud is load-bearing — if the record is Cloudflare-proxied, CF terminates TLS
-> with its own cert, GitHub's ACME challenge fails, and Pages hangs on "certificate not yet created."
-> To proxy it later (for CF analytics), turn orange only AFTER the cert exists AND set SSL/TLS mode to
-> **Full**, not Flexible (else redirect loop). Sequencing note for any future domain move: add the DNS
-> record BEFORE pushing the CNAME file — the file switches the canonical domain immediately and
-> redirects the github.io URL, so pushing first takes the site down until DNS answers.
->
-> **Why a subdomain of thelombardiproject.com and not a standalone `slippirankedstats.com`:** Joey
-> already owns Lombardi (his Melee savestate training platform — "drill the reads that decide sets"),
-> so the audience is identical and the two halves are complementary (SRS diagnoses a weak category,
-> Lombardi sells the drill for it). Costs $0, one brand instead of two, and fully reversible — buy a
-> standalone domain later and redirect if SRS outgrows the association. Joey also raised a trademark
-> concern about buying a domain with "Slippi" in it; the read was that Nintendo doesn't own "Slippi"
-> (it's Fizzi/project-slippi's), and buying a domain adds ~no exposure the app's own name + public repo
-> don't already carry, so the concern didn't drive the decision — but the subdomain moots it anyway.
+> **Also still open, lower priority:** no setup/how-it-works story on the page (nobody learns it's
+> ~3 clicks: point at replay folder, scan, done), and no answer to the trust questions a
+> replay-touching tool raises (does this get me banned? does it need Slippi Launcher running?).
+> General copy polish pass hasn't happened yet either.
 
 ---
 
