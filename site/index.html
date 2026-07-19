@@ -237,12 +237,12 @@
     border-radius: 8px;
     border: 1px solid var(--border);
   }
-  .hud-result .hud-result-caption {
-    margin: 10px 2px 2px;
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.03em;
-    color: var(--ink-dimmer);
+  .hud-heading {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink-dim);
+    margin: 0 0 12px 4px;
   }
   .hud-row .label {
     font-family: var(--font-display);
@@ -326,25 +326,6 @@
   }
   .feature p { margin: 0; font-size: 13.8px; color: var(--ink-dim); }
 
-  /* ---------- premium ---------- */
-  section.premium { padding: 90px 0 90px; }
-  .premium-box {
-    background: linear-gradient(160deg, var(--bg-panel), var(--bg-panel-alt));
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 40px;
-    max-width: 620px;
-    margin: 0 auto;
-    text-align: center;
-  }
-  .premium-box .eyebrow { justify-content: center; margin-bottom: 12px; }
-  .premium-box h3 {
-    font-family: var(--font-display);
-    font-size: 20px;
-    margin: 0 0 10px;
-  }
-  .premium-box p { margin: 0 auto; color: var(--ink-dim); font-size: 14.5px; max-width: 480px; }
-
   /* ---------- footer ---------- */
   footer {
     border-top: 1px solid var(--border);
@@ -409,26 +390,28 @@
       </div>
     </div>
 
-    <div class="hud reveal">
-      <div class="hud-titlebar">
-        <span class="dot r"></span><span class="dot b"></span><span class="dot g"></span>
-        grade_baselines.json
-      </div>
-      <div class="hud-row red">
-        <span class="num" data-count="2129888" data-suffix="">0</span>
-        <span class="label">Stat samples in the benchmark</span>
-      </div>
-      <div class="hud-row blue">
-        <span class="num" data-count="569" data-suffix="">0</span>
-        <span class="label">Character matchups with their own baseline</span>
-      </div>
-      <div class="hud-row green">
-        <span class="num" data-count="15" data-suffix="">0</span>
-        <span class="label">Stats scored across Neutral, Punish &amp; Defense</span>
-      </div>
-      <div class="hud-result">
-        <img src="screenshots/hero-grade-card.png" alt="A real graded set from the app: Falco vs Fox, Win 2-0, graded S / 76" />
-        <div class="hud-result-caption">A real graded set from the app — every set you play gets one of these</div>
+    <div>
+      <div class="hud-heading">Every set you play gets graded by our stats engine:</div>
+      <div class="hud reveal">
+        <div class="hud-titlebar">
+          <span class="dot r"></span><span class="dot b"></span><span class="dot g"></span>
+          grade_baselines.json
+        </div>
+        <div class="hud-row red">
+          <span class="num" data-count="2129888" data-suffix="">0</span>
+          <span class="label">Stat samples in the benchmark</span>
+        </div>
+        <div class="hud-row blue">
+          <span class="num" data-count="569" data-suffix="">0</span>
+          <span class="label">Character matchups with their own baseline</span>
+        </div>
+        <div class="hud-row green">
+          <span class="num" data-count="15" data-suffix="">0</span>
+          <span class="label">Stats scored across Neutral, Punish &amp; Defense</span>
+        </div>
+        <div class="hud-result">
+          <img src="screenshots/hero-grade-card.png" alt="A real graded set from the app: Falco vs Fox, Win 2-0, graded S / 76" />
+        </div>
       </div>
     </div>
   </header>
@@ -459,7 +442,7 @@
         <div class="shot-frame">
           <img src="screenshots/grading-detail.png" alt="A set's full grade breakdown across Neutral, Punish, and Defense, scored stat by stat against a matchup baseline" />
         </div>
-        <div class="shot-caption">Then zoom into any set — Neutral, Punish, and Defense, broken down stat by stat</div>
+        <div class="shot-caption">Then zoom into any set — Neutral, Punish, and Defense, broken down stat by stat (full breakdown is Premium)</div>
       </div>
     </div>
     <div class="shot-row">
@@ -514,20 +497,6 @@
         <h3>Defense</h3>
         <p>Recovery rate, stock duration, and survival — graded against your exact matchup.</p>
       </div>
-    </div>
-  </section>
-
-  <section class="premium reveal">
-    <div class="premium-box">
-      <div class="eyebrow">Premium</div>
-      <h3>An always-on stream overlay, plus the full grade breakdown</h3>
-      <p>
-        Your rank, Rating, and season record on screen the whole set — then your
-        grade and Rating change the moment it ends. No editing, no manual
-        updates: point OBS at a local file and it just runs. Also unlocks the
-        full per-stat grade breakdown with matchup-specific baselines. The
-        overall grade and core stats stay free for everyone.
-      </p>
     </div>
   </section>
 
