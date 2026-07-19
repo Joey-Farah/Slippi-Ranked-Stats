@@ -279,7 +279,7 @@
   section.showcase { padding: 70px 0 20px; display: flex; flex-direction: column; align-items: center; }
   section.showcase > * + * { margin-top: 50px; }
   .shot { display: flex; flex-direction: column; align-items: center; }
-  .shot-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; width: 100%; }
+  .shot-row { display: flex; gap: 24px; justify-content: center; align-items: flex-start; flex-wrap: wrap; width: 100%; }
   .shot-row .shot { flex: 1 1 320px; max-width: 480px; }
   .shot-row .shot-frame { max-width: 100%; }
   .shot-frame {
@@ -480,30 +480,30 @@
       </div>
       <div class="shot">
         <div class="shot-frame">
-          <img src="screenshots/matchup-stats.png" alt="Win rate against every opponent character, filterable and sortable, plus an opponent spotlight and recent sets" />
-        </div>
-        <div class="shot-caption">Win rate against every character you've faced, sorted best to worst</div>
-      </div>
-    </div>
-    <div class="shot-row">
-      <div class="shot">
-        <div class="shot-frame">
-          <img src="screenshots/rating-history.png" alt="Rating tracked over time with a 20-set rolling average and season markers" />
-        </div>
-        <div class="shot-caption">Rating tracked over time, with a rolling average and season markers</div>
-      </div>
-      <div class="shot">
-        <div class="shot-frame">
           <img src="screenshots/grading-distribution.png" alt="Grade distribution across 73 graded sets, from S down to F, with an overall average grade" />
         </div>
         <div class="shot-caption">Every set you play, graded — see your distribution across S through F</div>
       </div>
     </div>
+    <div class="shot-row">
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/matchup-stats.png" alt="Win rate against every opponent character, filterable and sortable, plus an opponent spotlight and recent sets" />
+        </div>
+        <div class="shot-caption">Win rate against every character you've faced, sorted best to worst</div>
+      </div>
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/grading-detail.png" alt="A set's full grade breakdown across Neutral, Punish, and Defense, scored stat by stat against a matchup baseline" />
+        </div>
+        <div class="shot-caption">Then zoom into any set — Neutral, Punish, and Defense, broken down stat by stat</div>
+      </div>
+    </div>
     <div class="shot">
       <div class="shot-frame">
-        <img src="screenshots/grading-detail.png" alt="A set's full grade breakdown across Neutral, Punish, and Defense, scored stat by stat against a matchup baseline" />
+        <img src="screenshots/rating-history.png" alt="Rating tracked over time with a 20-set rolling average and season markers" />
       </div>
-      <div class="shot-caption">Then zoom into any set — Neutral, Punish, and Defense, broken down stat by stat</div>
+      <div class="shot-caption">Rating tracked over time, with a rolling average and season markers</div>
     </div>
   </section>
 
