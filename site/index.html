@@ -228,43 +228,22 @@
   .hud-row.blue .num { color: var(--port-blue); }
   .hud-row.green .num { color: var(--port-green); }
   .hud-result {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 18px 20px;
+    padding: 14px;
     border-top: 1px solid var(--border);
-    background: rgba(139, 123, 247, 0.05);
   }
-  .hud-result .result-label {
+  .hud-result img {
+    width: 100%;
+    display: block;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .hud-result .hud-result-caption {
+    margin: 10px 2px 2px;
     font-family: var(--font-mono);
     font-size: 11.5px;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
     color: var(--ink-dimmer);
-    text-transform: uppercase;
   }
-  .hud-result .result-label strong { color: var(--ink-dim); font-weight: 600; }
-  .mini-grade {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-  .mini-grade .badge {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    border: 1.5px solid #ff4fd8;
-    box-shadow: 0 0 14px rgba(255, 79, 216, 0.45);
-    color: #ff4fd8;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 17px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .mini-grade .score { font-family: var(--font-mono); font-size: 13px; color: var(--ink-dim); }
   .hud-row .label {
     font-family: var(--font-display);
     font-size: 12.5px;
@@ -448,11 +427,8 @@
         <span class="label">Stats scored across Neutral, Punish &amp; Defense</span>
       </div>
       <div class="hud-result">
-        <span class="result-label">Set grade example &mdash; <strong>Falco vs Fox &middot; Win 2&ndash;0</strong></span>
-        <span class="mini-grade">
-          <span class="badge">S</span>
-          <span class="score">76</span>
-        </span>
+        <img src="screenshots/hero-grade-card.png" alt="A real graded set from the app: Falco vs Fox, Win 2-0, graded S / 76" />
+        <div class="hud-result-caption">A real graded set from the app — every set you play gets one of these</div>
       </div>
     </div>
   </header>
