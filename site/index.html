@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Slippi Ranked Stats</title>
-<meta name="description" content="Slippi Ranked Stats scans your replay folder and grades every ranked set — Neutral, Punish, and Defense — against real ranked data." />
+<meta name="description" content="A desktop app for analyzing your Slippi Ranked sets — matchups, stages, sessions, rating history, and a grade for every set against real ranked data." />
 <link rel="icon" href="srs-logo.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -75,7 +75,7 @@
     font-size: 15px;
     letter-spacing: 0.02em;
   }
-  nav.top .brand img { width: 26px; height: 26px; }
+  nav.top .brand img { width: 38px; height: 38px; }
   nav.top a.ghlink {
     color: var(--ink-dim);
     text-decoration: none;
@@ -277,8 +277,11 @@
 
   /* ---------- showcase ---------- */
   section.showcase { padding: 70px 0 20px; display: flex; flex-direction: column; align-items: center; }
+  section.showcase > * + * { margin-top: 50px; }
   .shot { display: flex; flex-direction: column; align-items: center; }
-  .shot + .shot { margin-top: 50px; }
+  .shot-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; width: 100%; }
+  .shot-row .shot { flex: 1 1 320px; max-width: 480px; }
+  .shot-row .shot-frame { max-width: 100%; }
   .shot-frame {
     background: var(--bg-panel);
     border: 1px solid var(--border);
@@ -410,11 +413,12 @@
   <header class="hero">
     <div>
       <div class="eyebrow">Local-first &middot; No uploads &middot; Free to use</div>
-      <h1 class="headline">Your rank says where<br />you stand. This says <em>why</em>.</h1>
+      <h1 class="headline">A desktop app for analyzing your Slippi <em>Ranked</em> sets.</h1>
       <p class="sub">
-        Slippi Ranked Stats scans your replay folder and grades every ranked
-        set — Neutral, Punish, and Defense — against real ranked data. No
-        cloud, no manual uploads, just what actually happened in your games.
+        Point it at your replay folder and get a full breakdown of your
+        play — matchups, stages, sessions, rating history — plus a grade
+        for every set across Neutral, Punish, and Defense, measured against
+        real ranked data. Runs locally; nothing is uploaded.
       </p>
 
       <div class="downloads">
@@ -423,7 +427,7 @@
           <span>Download for Windows</span>
         </a>
         <a id="dl-mac" class="btn secondary" href="https://github.com/Joey-Farah/Slippi-Ranked-Stats/releases/latest">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.44 2.11-1.32 2.94-.88.83-1.94 1.31-3.19 1.24-.05-1.13.43-2.14 1.31-2.98.87-.84 2.02-1.29 3.2-1.2zm4.15 16.62c-.43.99-.94 1.9-1.53 2.74-.81 1.16-1.47 1.96-1.99 2.4-.79.71-1.63 1.08-2.53 1.1-.65 0-1.43-.19-2.34-.57-.91-.38-1.75-.57-2.52-.57-.8 0-1.66.19-2.6.57-.94.38-1.7.58-2.28.6-.86.04-1.72-.34-2.57-1.13-.56-.48-1.25-1.31-2.08-2.5-.89-1.28-1.63-2.76-2.2-4.46-.62-1.84-.93-3.62-.93-5.35 0-1.98.43-3.68 1.28-5.11.68-1.15 1.58-2.05 2.71-2.72a7.4 7.4 0 0 1 3.66-1.1c.71 0 1.63.22 2.79.66 1.15.44 1.89.66 2.22.66.24 0 1.06-.26 2.44-.77 1.31-.47 2.42-.67 3.33-.6 2.46.2 4.31 1.17 5.53 2.92-2.2 1.33-3.29 3.2-3.27 5.6.02 1.87.68 3.43 2 4.66.6.57 1.26.99 2 1.27-.16.47-.33.92-.53 1.36z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17.11 3.08 12.94 4.6 10.13c.75-1.4 2.09-2.29 3.55-2.31 1.29-.02 2.5.87 3.29.87.78 0 2.25-1.07 3.79-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.27-2.15 3.78.03 3 2.63 4 2.66 4.01-.02.06-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11"/></svg>
           <span>Download for macOS</span>
         </a>
       </div>
@@ -453,8 +457,8 @@
         <span class="label">Character matchups with their own baseline</span>
       </div>
       <div class="hud-row green">
-        <span class="num" data-count="3" data-suffix="">0</span>
-        <span class="label">Categories: Neutral, Punish, Defense</span>
+        <span class="num" data-count="15" data-suffix="">0</span>
+        <span class="label">Stats scored across Neutral, Punish &amp; Defense</span>
       </div>
       <div class="hud-result">
         <span class="result-label">That's what turns <strong>Falco vs Fox &middot; Win 2&ndash;0</strong> into&hellip;</span>
@@ -467,17 +471,33 @@
   </header>
 
   <section class="showcase reveal">
-    <div class="shot">
-      <div class="shot-frame">
-        <img src="screenshots/session-breakdown.png" alt="A play session's breakdown: stage win rates, score distribution, and a momentum chart across the session" />
+    <div class="shot-row">
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/session-breakdown.png" alt="A play session's breakdown: stage win rates, score distribution, and a momentum chart across the session" />
+        </div>
+        <div class="shot-caption">Every session tracked automatically — stage win rates, score distribution, momentum</div>
       </div>
-      <div class="shot-caption">Every session tracked automatically — stage win rates, score distribution, momentum</div>
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/matchup-stats.png" alt="Win rate against every opponent character, filterable and sortable, plus an opponent spotlight and recent sets" />
+        </div>
+        <div class="shot-caption">Win rate against every character you've faced, sorted best to worst</div>
+      </div>
     </div>
-    <div class="shot">
-      <div class="shot-frame">
-        <img src="screenshots/grading-distribution.png" alt="Grade distribution across 73 graded sets, from S down to F, with an overall average grade" />
+    <div class="shot-row">
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/rating-history.png" alt="Rating tracked over time with a 20-set rolling average and season markers" />
+        </div>
+        <div class="shot-caption">Rating tracked over time, with a rolling average and season markers</div>
       </div>
-      <div class="shot-caption">Every set you play, graded — see your distribution across S through F</div>
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/grading-distribution.png" alt="Grade distribution across 73 graded sets, from S down to F, with an overall average grade" />
+        </div>
+        <div class="shot-caption">Every set you play, graded — see your distribution across S through F</div>
+      </div>
     </div>
     <div class="shot">
       <div class="shot-frame">
@@ -572,8 +592,7 @@
     const dmg = assets.find(a => a.name.endsWith('.dmg'));
     if (exe) winBtn.href = exe.browser_download_url;
     if (dmg) macBtn.href = dmg.browser_download_url;
-    note.innerHTML = `Latest version: <strong>${data.tag_name}</strong> &middot; ` +
-      `<a href="https://github.com/Joey-Farah/Slippi-Ranked-Stats/releases/latest">view on GitHub</a>`;
+    note.innerHTML = `Latest version: <strong>${data.tag_name}</strong>`;
   } catch (e) {
     note.innerHTML = `Couldn't auto-detect the latest version — ` +
       `<a href="https://github.com/Joey-Farah/Slippi-Ranked-Stats/releases/latest">grab it from Releases</a>.`;
