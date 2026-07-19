@@ -354,30 +354,17 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 40px;
-    display: grid;
-    grid-template-columns: 190px 1fr;
-    gap: 36px;
-    align-items: center;
+    max-width: 620px;
+    margin: 0 auto;
+    text-align: center;
   }
-  .premium-visual {
-    width: 100%;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6);
-  }
-  @media (max-width: 700px) {
-    .premium-box { grid-template-columns: 1fr; text-align: center; }
-    .premium-visual { max-width: 190px; margin: 0 auto; }
-  }
-  .premium-box .eyebrow { margin-bottom: 12px; }
+  .premium-box .eyebrow { justify-content: center; margin-bottom: 12px; }
   .premium-box h3 {
     font-family: var(--font-display);
     font-size: 20px;
     margin: 0 0 10px;
   }
-  .premium-box p { margin: 0 0 20px; color: var(--ink-dim); font-size: 14.5px; max-width: 480px; }
-  .premium-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-  @media (max-width: 700px) { .premium-actions { justify-content: center; } }
+  .premium-box p { margin: 0 auto; color: var(--ink-dim); font-size: 14.5px; max-width: 480px; }
 
   /* ---------- footer ---------- */
   footer {
@@ -499,11 +486,19 @@
         <div class="shot-caption">Then zoom into any set — Neutral, Punish, and Defense, broken down stat by stat</div>
       </div>
     </div>
-    <div class="shot">
-      <div class="shot-frame">
-        <img src="screenshots/rating-history.png" alt="Rating tracked over time with a 20-set rolling average and season markers" />
+    <div class="shot-row">
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/rating-history.png" alt="Rating tracked over time with a 20-set rolling average and season markers" />
+        </div>
+        <div class="shot-caption">Rating tracked over time, with a rolling average and season markers</div>
       </div>
-      <div class="shot-caption">Rating tracked over time, with a rolling average and season markers</div>
+      <div class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/overlay-live.png" alt="The Live Stats Overlay panel in OBS: rank, Rating, session record, and the grade and result for the last set played" />
+        </div>
+        <div class="shot-caption">An always-on OBS overlay — rank, Rating, and set grade, live (Premium)</div>
+      </div>
     </div>
   </section>
 
@@ -548,22 +543,15 @@
 
   <section class="premium reveal">
     <div class="premium-box">
-      <img class="premium-visual" src="screenshots/overlay-preview.png" alt="Live Stats Overlay panel showing rank, rating, session record, and a set grade" />
-      <div>
-        <div class="eyebrow">Premium</div>
-        <h3>An always-on stream overlay, plus the full grade breakdown</h3>
-        <p>
-          Your rank, Rating, and season record on screen the whole set — then your
-          grade and Rating change the moment it ends. No editing, no manual
-          updates: point OBS at a local file and it just runs. Also unlocks the
-          full per-stat grade breakdown with matchup-specific baselines. The
-          overall grade and core stats stay free for everyone.
-        </p>
-        <div class="premium-actions">
-          <a class="btn secondary tiny" href="https://ko-fi.com/joeydonuts">Ko-fi</a>
-          <a class="btn secondary tiny" href="https://www.patreon.com/joeydonuts">Patreon</a>
-        </div>
-      </div>
+      <div class="eyebrow">Premium</div>
+      <h3>An always-on stream overlay, plus the full grade breakdown</h3>
+      <p>
+        Your rank, Rating, and season record on screen the whole set — then your
+        grade and Rating change the moment it ends. No editing, no manual
+        updates: point OBS at a local file and it just runs. Also unlocks the
+        full per-stat grade breakdown with matchup-specific baselines. The
+        overall grade and core stats stay free for everyone.
+      </p>
     </div>
   </section>
 
