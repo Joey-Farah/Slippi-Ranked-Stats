@@ -6,7 +6,64 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-07-17 (MARKETING LANDING PAGE — content pass done, UI-rework fork still open — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-07-18/19 (MARKETING LANDING PAGE — iteration pass, UI-rework fork still open — READ FIRST)
+
+> **State: LIVE at `https://slippirankedstats.com`, all changes pushed to `main`.** This session
+> was a fast back-and-forth polish pass on top of 2026-07-17's initial content pass (still below,
+> unchanged in substance — hosting/DNS/naming context there still applies). No architecture
+> changes, all `site/index.html` + `site/screenshots/*` edits, one commit per round-trip with Joey.
+>
+> **What changed, in order:**
+> - **macOS download button fixed** — the Apple logo `<path>` was a corrupted/malformed SVG,
+>   silently clipping the left edge of the icon. Replaced with a known-good Apple glyph path.
+> - **Hero copy de-marketed** — headline/subhead rewritten to plainly describe the app (lifted
+>   phrasing from `README.md`'s opening line) instead of the "Your rank says where you stand..."
+>   hook copy from the 07-17 pass. Same treatment applied to the hero HUD's bottom row: replaced
+>   a hand-styled fake grade badge with an actual **cropped screenshot** of a real grade card
+>   (`site/screenshots/hero-grade-card.png`, cropped from `grading-detail.png`) — Joey's read was
+>   that a stylized recreation didn't make it obvious the app *actually* grades your sets; a real
+>   screenshot does. A short heading was added above the whole HUD panel ("Every set you play
+>   gets graded by our stats engine:") to frame the stat counters before you reach the screenshot.
+> - **Nav cleanup** — logo bumped 26px→38px; dropped a redundant second "view on GitHub" text
+>   link that sat right next to the nav's GitHub button (same destination, felt duplicated).
+> - **HUD stat swapped** — "3 categories: Neutral/Punish/Defense" → "15 stats scored across
+>   Neutral, Punish & Defense" (the 15-stat count comes from `docs/grading_methodology.md`; more
+>   impressive and more specific than just naming the 3 categories).
+> - **Showcase layout fixed twice.** First pass (side-by-side pairs) had a real bug: flexbox rows
+>   were stretching to their tallest child's height, leaving dead space under shorter screenshots
+>   — fixed with `align-items: flex-start` + re-pairing images by aspect ratio instead of by
+>   content logic. Final layout: `session-breakdown` + `grading-distribution` (both wide) in one
+>   row; `matchup-stats` + `grading-detail` + `overlay-preview` (all portrait-ish) in a 3-up
+>   `.shot-row.triple` row; `rating-history` standalone full-width. Two new screenshots
+>   (`matchup-stats.png`, `rating-history.png`) landed from a git pull mid-session.
+> - **Premium section removed entirely** (was a standalone box before the footer, with a
+>   screenshot + Ko-fi/Patreon buttons). Joey didn't want it — its two facts (overlay is Premium,
+>   full per-stat breakdown is Premium) now live as parenthetical notes on the matching showcase
+>   captions instead, so the gating info isn't lost, it's just not a dedicated section anymore.
+>   **Note: this also removed the only Ko-fi/Patreon links on the whole page** — nothing was put
+>   back in their place (footer only has GitHub links). Flagged to Joey, not yet resolved either
+>   way — if support links should live somewhere, that's still open.
+> - **OBS overlay screenshot churned twice.** Briefly swapped to a wider horizontal crop
+>   (`overlay-live.png`, from a screenshot pulled mid-session) thinking it'd pair better, but Joey
+>   asked to revert to the original narrow vertical `overlay-preview.png` — that's what's live now,
+>   grouped with the other portrait screenshots in the triple row. `overlay-live.png` was removed
+>   from the repo again.
+> - Confirmed via direct curl + headless Playwright render of the **live production URL** (not a
+>   local file) that the overlay screenshot was in fact deployed and loading (200) when Joey
+>   twice reported not seeing it after a hard browser restart — likely a stale disk cache on his
+>   end (survives restarts, unlike memory cache); flagged Cmd+Shift+R / private window as the fix.
+>   Worth checking this again next session if it recurs — haven't fully ruled out a real bug.
+>
+> **⚠ STILL OPEN — UI REWORK vs LEAVE THE APP AS-IS.** Unchanged from 07-17, still undecided,
+> still worth surfacing before more screenshot work (see full writeup a few lines down — kept
+> verbatim since nothing about the tradeoff changed this session).
+>
+> **Also still open:** the removed Ko-fi/Patreon links (see above); no setup/how-it-works story;
+> no trust-question copy (bannable? needs Slippi Launcher?); general copy polish.
+
+---
+
+## ⚠ SESSION HANDOFF — 2026-07-17 (MARKETING LANDING PAGE — content pass done, UI-rework fork still open)
 
 > **State: LIVE at `https://slippirankedstats.com`, hosted on Vercel.** The site
 > (`site/index.html`) moved off GitHub Pages this session. Deploy mechanism: a root-level
