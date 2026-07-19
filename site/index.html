@@ -260,6 +260,7 @@
   .shot { display: flex; flex-direction: column; align-items: center; }
   .shot-row { display: flex; gap: 24px; justify-content: center; align-items: flex-start; flex-wrap: wrap; width: 100%; }
   .shot-row .shot { flex: 1 1 320px; max-width: 480px; }
+  .shot-row.triple .shot { max-width: 336px; }
   .shot-row .shot-frame { max-width: 100%; }
   .shot-frame {
     background: var(--bg-panel);
@@ -431,7 +432,7 @@
         <div class="shot-caption">Every set you play, graded — see your distribution across S through F</div>
       </div>
     </div>
-    <div class="shot-row">
+    <div class="shot-row triple">
       <div class="shot">
         <div class="shot-frame">
           <img src="screenshots/matchup-stats.png" alt="Win rate against every opponent character, filterable and sortable, plus an opponent spotlight and recent sets" />
@@ -442,22 +443,20 @@
         <div class="shot-frame">
           <img src="screenshots/grading-detail.png" alt="A set's full grade breakdown across Neutral, Punish, and Defense, scored stat by stat against a matchup baseline" />
         </div>
-        <div class="shot-caption">Then zoom into any set — Neutral, Punish, and Defense, broken down stat by stat (full breakdown is Premium)</div>
-      </div>
-    </div>
-    <div class="shot-row">
-      <div class="shot">
-        <div class="shot-frame">
-          <img src="screenshots/rating-history.png" alt="Rating tracked over time with a 20-set rolling average and season markers" />
-        </div>
-        <div class="shot-caption">Rating tracked over time, with a rolling average and season markers</div>
+        <div class="shot-caption">Zoom into any set — Neutral, Punish, and Defense, broken down stat by stat (full breakdown is Premium)</div>
       </div>
       <div class="shot">
         <div class="shot-frame">
-          <img src="screenshots/overlay-live.png" alt="The Live Stats Overlay panel in OBS: rank, Rating, session record, and the grade and result for the last set played" />
+          <img src="screenshots/overlay-preview.png" alt="The Live Stats Overlay panel in OBS: rank, Rating, session record, and the grade and result for the last set played" />
         </div>
         <div class="shot-caption">An always-on OBS overlay — rank, Rating, and set grade, live (Premium)</div>
       </div>
+    </div>
+    <div class="shot">
+      <div class="shot-frame">
+        <img src="screenshots/rating-history.png" alt="Rating tracked over time with a 20-set rolling average and season markers" />
+      </div>
+      <div class="shot-caption">Rating tracked over time, with a rolling average and season markers</div>
     </div>
   </section>
 
