@@ -1,3 +1,11 @@
+## What's New in v1.8.12
+
+### 🎮 Direct-connect games now show up in Unranked & Direct Stats
+
+Direct-connect replays (friendlies played over direct connect, not ranked or unranked queue) were being silently dropped when the app scanned your replay folder, so the "Unranked & Direct Stats" tab only ever showed unranked games despite its name. Direct games are now parsed and included — thanks to community contributor Bruno Albero for the fix.
+
+---
+
 ## What's New in v1.8.11
 
 ### 📊 Grades now measured against a much deeper benchmark
