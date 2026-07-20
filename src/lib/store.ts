@@ -284,6 +284,12 @@ export const unrankedGames = derived(filteredGames, ($games) =>
   $games.filter((g) => g.match_type === "unranked")
 );
 
+// ── Derived: direct games only ─────────────────────────────────────────────
+
+export const directGames = derived(filteredGames, ($games) =>
+  $games.filter((g) => g.match_type === "direct")
+);
+
 // ── Derived: sets (groups of games by match_id, min 2 games) ──────────────
 
 export interface SetResult {

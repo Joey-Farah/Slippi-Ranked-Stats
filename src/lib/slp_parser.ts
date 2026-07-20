@@ -1093,7 +1093,8 @@ export function parseSlpBytes(
   // Parse match type from matchId (e.g. "mode.ranked-...")
   const matchTypeRaw = stream.matchId.split("-")[0]; // "mode.ranked"
   const match_type = matchTypeRaw.replace("mode.", ""); // "ranked", "unranked", etc.
-  if (match_type !== "ranked" && match_type !== "unranked") return [];
+
+  if (match_type !== "ranked" && match_type !== "unranked" && match_type !== "direct" ) return [];
 
   let meta: MetadataResult;
   try {
@@ -1220,7 +1221,7 @@ export function parseSlpBytesMultiCode(
 
   const matchTypeRaw = stream.matchId.split("-")[0];
   const match_type = matchTypeRaw.replace("mode.", "");
-  if (match_type !== "ranked" && match_type !== "unranked") return [];
+  if (match_type !== "ranked" && match_type !== "unranked" && match_type !== "direct" ) return [];
 
   let meta: MetadataResult;
   try { meta = parseMetadata(bytes); } catch { return []; }
