@@ -1,19 +1,22 @@
 <script lang="ts">
-  import { unrankedGames, isPremium } from "../../lib/store";
+  import { unrankedGames, directGames, isPremium } from "../../lib/store";
   import { CHARACTERS, STAGES } from "../../lib/parser";
   import BarChart from "../charts/BarChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
+
+  // Combine unranked + direct for the "Unranked & Direct Stats" tab
+  const allGames = $derived([...$unrankedGames, ...$directGames]);
 
   // ── Character filter ───────────────────────────────────────────────────────
 
   // Your-character filter (tab-level, single-select): null = all characters. When set, the
   // whole tab is scoped to games in which you played that character.
   let playerCharFilter = $state<number | null>(null);
-  let myPlayedCharIds = $derived([...new Set($unrankedGames.map((g) => g.player_char_id))].sort());
+  let myPlayedCharIds = $derived([...new Set(allGames.map((g) => g.player_char_id))].sort());
   let baseGames = $derived(
     playerCharFilter === null
-      ? $unrankedGames
-      : $unrankedGames.filter((g) => g.player_char_id === playerCharFilter)
+      ? allGames
+      : allGames.filter((g) => g.player_char_id === playerCharFilter)
   );
 
   // Opponent-character filter — hidden chars excluded from the matchup chart.
@@ -160,7 +163,7 @@
     featureName="Unranked & Direct Stats"
     description="See your win rates, character usage, and opponent history for unranked and direct games."
   />
-{:else if $unrankedGames.length === 0}
+{:else if allGames.length === 0}
   <p class="muted" style="padding:32px; text-align:center">No unranked or direct games found in your replay folder.</p>
 {:else}
   <!-- Your-character filter (single-select, scopes the whole tab) -->
