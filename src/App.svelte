@@ -9,11 +9,11 @@
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
-  import { getDb, getGames, getSnapshots, getSeasons } from "./lib/db";
+  import { getDb, getGames, getSnapshots, getSeasons, pruneUnproductiveScannedFiles } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
-  import { scanDirectory } from "./lib/parser";
+  import { scanDirectory, PARSER_CAPABILITY_VERSION } from "./lib/parser";
   import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
@@ -38,9 +38,14 @@
   let _lastEnsuredVersion = "";
   $effect(() => {
     // A non-null preview override (set by the Live Stats card's test controls) wins over
-    // the live payload; layout always tracks the real toggle so it updates during preview.
+    // the live payload; layout and per-element visibility always track the real toggles so
+    // they keep working during a preview. The override is a snapshot taken when the test
+    // started — without re-applying these, flipping a "Show on overlay" chip mid-simulation
+    // did nothing until the simulation ended.
     const preview = $statsOverlayPreview;
-    const payload = preview ? { ...preview, layout: $statsOverlayLayout } : $statsOverlayPayload;
+    const payload = preview
+      ? { ...preview, layout: $statsOverlayLayout, show: $statsOverlayVisibility }
+      : $statsOverlayPayload;
     if (!($isPremium && $statsOverlayEnabled)) {
       _statsOverlayReady = false;
       _lastStatsJson = "";
@@ -158,6 +163,21 @@
           // ones. Runs in the background so startup isn't blocked; reloads games when it finds any.
           const dbsByCode: Record<string, Awaited<ReturnType<typeof getDb>>> = {};
           for (const c of codes) dbsByCode[c] = await getDb(c);
+
+          // One-time backfill when the parser learns a new match type. v1.8.12 started
+          // accepting direct-connect replays, but every direct replay already on disk had
+          // been marked scanned back when the parser threw it away, so the fix only ever
+          // caught *new* games. Dropping the marks on files that produced no row lets the
+          // scan below re-parse them. Runs once per capability bump, not every launch.
+          if ($parserCapabilityVersion < PARSER_CAPABILITY_VERSION) {
+            try {
+              await pruneUnproductiveScannedFiles(dbsByCode);
+              parserCapabilityVersion.set(PARSER_CAPABILITY_VERSION);
+            } catch {
+              // Leave the version unbumped so the backfill is retried next launch.
+            }
+          }
+
           scanDirectory(dirs, codes, dbsByCode)
             .then(async (res) => {
               if (res.filesScanned > 0) {

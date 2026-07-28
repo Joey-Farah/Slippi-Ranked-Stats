@@ -97,6 +97,13 @@ export interface ScanResult {
   firstError: string | null;
 }
 
+// Bump whenever the parser starts accepting a match type it previously discarded. Files that
+// parsed to nothing were still marked scanned, so they need a one-time re-scan to be picked
+// up (see pruneUnproductiveScannedFiles in db.ts and the backfill in App.svelte).
+//   1 — ranked + unranked
+//   2 — v1.8.12: direct-connect added
+export const PARSER_CAPABILITY_VERSION = 2;
+
 let _scanCancelled = false;
 export function cancelScan() { _scanCancelled = true; }
 

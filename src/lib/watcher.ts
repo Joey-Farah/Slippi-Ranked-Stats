@@ -1,4 +1,5 @@
-import { watch, type UnwatchFn } from "@tauri-apps/plugin-fs";
+import { watch, readFile, type UnwatchFn } from "@tauri-apps/plugin-fs";
+import { parseSlpHeader, type SlpHeaderInfo } from "./slp_parser";
 import { get } from "svelte/store";
 import type Database from "@tauri-apps/plugin-sql";
 import { parseSlpFile, getRankTier, type ParsedGameRow } from "./parser";
@@ -31,6 +32,8 @@ import {
   displayName,
   lastOverlaySet,
   setResultFromGames,
+  isLiveMode,
+  type LiveMode,
 } from "./store";
 import { CHARACTERS } from "./parser";
 import { gradeSet, featuredCategory, GRADE_VERSION } from "./grading";
@@ -56,6 +59,27 @@ const _knownMatchIds = new Set<string>();
 const _sessionOpponents = new Set<string>();
 // Tracks match_ids that have already triggered a snapshot fetch (prevents duplicates)
 const _completedMatchIds = new Set<string>();
+
+// Unranked/direct connections have no end event — a ranked set clears activeSet the moment
+// someone reaches 2, but an unranked run just stops when the players leave, and nothing in the
+// replay stream says so. Without this the overlay would keep showing the last opponent forever.
+// Each new game in the run resets the timer; going quiet this long clears the opponent line.
+const IDLE_CLEAR_MS = 15 * 60 * 1000;
+let _idleClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+function armIdleClear(matchId: string): void {
+  if (_idleClearTimer) clearTimeout(_idleClearTimer);
+  _idleClearTimer = setTimeout(() => {
+    _idleClearTimer = null;
+    // Only clear if the same run is still showing — a newer match already replaced it otherwise.
+    activeSet.update((s) => (s && s.match_id === matchId ? null : s));
+  }, IDLE_CLEAR_MS);
+}
+
+function cancelIdleClear(): void {
+  if (_idleClearTimer) clearTimeout(_idleClearTimer);
+  _idleClearTimer = null;
+}
 
 // The opponent's "mains" for the overlay: top characters from their Slippi profile as
 // external char ids, most-played first. Always keeps their #1, then any other character
@@ -149,6 +173,11 @@ export async function startWatcher(
       lastOverlaySet.set(null);
     }
     for (const filepath of slpPaths) {
+      // A brand-new file means a game just STARTED. Peek at its Game Start block right away so
+      // the opponent card appears now rather than after the game ends — the normal parse below
+      // can't do this, because it waits for writes to stop and Slippi writes frames at 60fps
+      // for the whole match.
+      if (isCreate) peekHeader(filepath, connectCode, db);
       scheduleFileParse(filepath, connectCode, db);
     }
   };
@@ -169,6 +198,7 @@ export async function stopWatcher(): Promise<void> {
   }
   for (const timer of _pendingParse.values()) clearTimeout(timer);
   _pendingParse.clear();
+  cancelIdleClear();
   _knownMatchIds.clear();
   _sessionOpponents.clear();
   _completedMatchIds.clear();
@@ -196,6 +226,101 @@ function scheduleFileParse(
   _pendingParse.set(filepath, timer);
 }
 
+// ── Game-start peek: show the opponent before the game is over ─────────────
+//
+// Slippi creates the .slp and writes its Game Start block immediately, but the file keeps
+// growing until the match ends, so the debounced parse can't run until then. This reads the
+// header alone and puts the opponent on screen straight away. The full parse still runs at
+// game end and remains the source of truth for everything else.
+//
+// The file may exist before the header is fully flushed, so this retries on a short backoff.
+const HEADER_PEEK_DELAYS_MS = [120, 400, 1200, 3000];
+
+async function peekHeader(
+  filepath: string,
+  connectCode: string,
+  db: Database,
+  attempt = 0
+): Promise<void> {
+  try {
+    // Safe to read whole: a just-created replay is a few KB. We never peek at an existing file.
+    const bytes = await readFile(filepath);
+    const head = parseSlpHeader(bytes, [connectCode]);
+    if (head && isLiveMode(head.match_type)) {
+      await showOpponentEarly(head, db);
+      return;
+    }
+    // A valid file that simply isn't ours / isn't 1v1 — no point retrying.
+    if (head) return;
+  } catch {
+    // File not readable yet; fall through to the retry.
+  }
+  if (attempt + 1 < HEADER_PEEK_DELAYS_MS.length) {
+    setTimeout(
+      () => peekHeader(filepath, connectCode, db, attempt + 1),
+      HEADER_PEEK_DELAYS_MS[attempt + 1]
+    );
+  }
+}
+
+async function showOpponentEarly(head: SlpHeaderInfo, db: Database): Promise<void> {
+  // Already showing this match (e.g. game 2 of a set) — leave it alone, otherwise the running
+  // score would be reset to 0–0 every time a new game file appears.
+  if (get(activeSet)?.match_id === head.match_id) return;
+  // Don't resurrect a ranked set that already finished.
+  if (_completedMatchIds.has(head.match_id)) return;
+
+  const mode = head.match_type as LiveMode;
+  const { allTimeWins, allTimeLosses, unit } = await computeAllTimeRecord(db, head.opponent_code, mode);
+  if (get(activeSet)?.match_id === head.match_id) return; // lost a race with the real parse
+
+  if (mode !== "ranked") armIdleClear(head.match_id);
+
+  activeSet.set({
+    match_id: head.match_id,
+    mode,
+    opponent_code: head.opponent_code,
+    // Character comes from the metadata block at game end; the header's ids are in a different
+    // id space than the rest of the app uses, so it stays unknown until the full parse.
+    opponent_char_id: -1,
+    player_char_id: -1,
+    games_won: 0,
+    games_lost: 0,
+    started_at: new Date().toISOString(),
+    opponent_rating: null,
+    opponent_tier: null,
+    opponent_tier_color: null,
+    opponent_tag: null,
+    opponent_season_wins: null,
+    opponent_season_losses: null,
+    opponent_chars: null,
+    all_time_wins: allTimeWins,
+    all_time_losses: allTimeLosses,
+    all_time_unit: unit,
+    session_already_faced: _sessionOpponents.has(head.opponent_code),
+  });
+
+  fetchRatingSnapshot(head.opponent_code)
+    .then(({ snapshot, displayName: oppTag, characters }) => {
+      const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
+      activeSet.update((s) =>
+        s && s.match_id === head.match_id
+          ? {
+              ...s,
+              opponent_rating: snapshot.rating,
+              opponent_tier: tier.name,
+              opponent_tier_color: tier.color,
+              opponent_tag: oppTag || null,
+              opponent_season_wins: snapshot.wins,
+              opponent_season_losses: snapshot.losses,
+              opponent_chars: topOpponentChars(characters),
+            }
+          : s
+      );
+    })
+    .catch(() => {});
+}
+
 async function processSlpFile(
   filepath: string,
   connectCode: string,
@@ -210,7 +335,7 @@ async function processSlpFile(
 
     for (const g of parsed) {
       await insertGame(db, g);
-      if (g.match_type === "ranked" && g.match_id) {
+      if (isLiveMode(g.match_type) && g.match_id) {
         // Only track live stats for games that started this session
         if (!_preExistingMatchIds.has(g.match_id)) {
           liveGameStats.update((s) => {
@@ -225,6 +350,7 @@ async function processSlpFile(
             }
             return [...s, {
               match_id: g.match_id,
+              match_type: g.match_type as LiveMode,
               result: g.result,
               kills: g.kills,
               deaths: g.deaths,
@@ -257,8 +383,11 @@ async function processSlpFile(
             }];
           });
         }
-        const setDone = await handleRankedGame(g, connectCode, db);
-        // Only fire a snapshot fetch once per set, and never for pre-existing sets
+        const setDone = await handleLiveGame(g, connectCode, db);
+        // Only fire a snapshot fetch once per set, and never for pre-existing sets.
+        // handleLiveGame only ever reports completion for ranked, so unranked/direct games
+        // can't trip a rating refetch — that would write phantom snapshots into the rating
+        // history for modes that don't move your Rating at all.
         if (setDone && !_preExistingMatchIds.has(g.match_id) && !_completedMatchIds.has(g.match_id)) {
           _completedMatchIds.add(g.match_id);
           completedMatchId = g.match_id;
@@ -272,7 +401,7 @@ async function processSlpFile(
     const loaded = await getGames(db);
     games.set(loaded);
 
-    statusMessage.set("Ranked session being monitored");
+    statusMessage.set("Session being monitored");
 
     if (completedMatchId) {
       scheduleSnapshotFetch(connectCode, db, completedMatchId);
@@ -284,17 +413,25 @@ async function processSlpFile(
   }
 }
 
-// ── Handles one new ranked game. Returns true if the set just completed. ──
+// ── Handles one new live game. Returns true if a ranked set just completed. ──
+//
+// Ranked is the only mode with sets, so it's the only mode that can return true — and
+// completion is what drives grading, the set-result flash, the overlay's post-set bridge and
+// the rating refetch. Unranked and direct share a single match_id for the whole connection,
+// so they only ever keep the running tally on activeSet up to date.
 
-async function handleRankedGame(
+async function handleLiveGame(
   g: ParsedGameRow,
   connectCode: string,
   db: Database
 ): Promise<boolean> {
+  const mode = g.match_type as LiveMode;
+  const isRanked = mode === "ranked";
   const isNew = !_knownMatchIds.has(g.match_id);
   _knownMatchIds.add(g.match_id);
 
-  // Get current set state from DB (includes the game we just inserted)
+  // Get current state from DB (includes the game we just inserted). For ranked this is the
+  // set; for unranked/direct it's every game played against them on this connection.
   const setGames = await getGamesByMatchId(db, g.match_id);
   const wins = setGames.filter((sg) => sg.result === "win" || sg.result === "lras_win").length;
   const losses = setGames.length - wins;
@@ -303,56 +440,82 @@ async function handleRankedGame(
   // actually played — a 0-0 instant ragequit has no real gameplay to grade.
   const endedByQuit = setGames.some((sg) => sg.result === "lras_win" || sg.result === "lras_loss");
   const hasFullGame = setGames.some((sg) => sg.result === "win" || sg.result === "loss");
-  const isComplete = Math.max(wins, losses) >= 2 || (endedByQuit && hasFullGame);
+  const isComplete = isRanked && (Math.max(wins, losses) >= 2 || (endedByQuit && hasFullGame));
 
-  if (isNew) {
-    const sessionFaced = _sessionOpponents.has(g.opponent_code);
+  // Unranked/direct runs never "complete", so they need an idle timeout to stop showing a
+  // stale opponent once the players part ways. Re-armed on every game in the run.
+  if (!isRanked) armIdleClear(g.match_id);
+
+  // Rebuild the whole card for a genuinely new match, and also when an unranked/direct run is
+  // no longer the one on screen — the idle timeout clears a quiet run, but the players may just
+  // have been between games, and the same match_id picking back up has to restore the opponent
+  // line. Ranked deliberately doesn't do this: a set that already completed stays completed.
+  const current = get(activeSet);
+  const rebuild = isNew || (!isRanked && current?.match_id !== g.match_id);
+
+  if (rebuild) {
+    // "Rematch this session" means a *separate* earlier match against them. A resumed run is
+    // the same match continuing, so it must not light up the rematch warning.
+    const sessionFaced = isNew && _sessionOpponents.has(g.opponent_code);
     _sessionOpponents.add(g.opponent_code);
 
-    const { allTimeWins, allTimeLosses } = await computeAllTimeRecord(db, g.opponent_code);
+    const { allTimeWins, allTimeLosses, unit } = await computeAllTimeRecord(db, g.opponent_code, mode);
+
+    // The game-start peek usually got here first and already fetched the opponent's profile.
+    // Carry those fields over rather than resetting them to null — otherwise the card would
+    // visibly blank out at the end of game 1 and repopulate a moment later.
+    const prev = get(activeSet);
+    const carry =
+      prev && prev.match_id === g.match_id && prev.opponent_code === g.opponent_code ? prev : null;
 
     activeSet.set({
       match_id: g.match_id,
+      mode,
       opponent_code: g.opponent_code,
       opponent_char_id: g.opponent_char_id,
       player_char_id: g.player_char_id,
       games_won: wins,
       games_lost: losses,
       started_at: g.timestamp,
-      opponent_rating: null,
-      opponent_tier: null,
-      opponent_tier_color: null,
-      opponent_tag: null,
-      opponent_season_wins: null,
-      opponent_season_losses: null,
-      opponent_chars: null,
+      opponent_rating: carry?.opponent_rating ?? null,
+      opponent_tier: carry?.opponent_tier ?? null,
+      opponent_tier_color: carry?.opponent_tier_color ?? null,
+      opponent_tag: carry?.opponent_tag ?? null,
+      opponent_season_wins: carry?.opponent_season_wins ?? null,
+      opponent_season_losses: carry?.opponent_season_losses ?? null,
+      opponent_chars: carry?.opponent_chars ?? null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
-      session_already_faced: sessionFaced,
+      all_time_unit: unit,
+      session_already_faced: carry ? carry.session_already_faced : sessionFaced,
     });
 
-    // Fetch opponent's Slippi profile asynchronously
-    fetchRatingSnapshot(g.opponent_code)
-      .then(({ snapshot, displayName: oppTag, characters }) => {
-        const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
-        activeSet.update((s) =>
-          s && s.match_id === g.match_id
-            ? {
-                ...s,
-                opponent_rating: snapshot.rating,
-                opponent_tier: tier.name,
-                opponent_tier_color: tier.color,
-                opponent_tag: oppTag || null,
-                opponent_season_wins: snapshot.wins,
-                opponent_season_losses: snapshot.losses,
-                opponent_chars: topOpponentChars(characters),
-              }
-            : s
-        );
-      })
-      .catch(() => {});
+    // Skip the profile fetch when the game-start peek already landed one — same data, and a
+    // second call per set is pure waste. Anything else below still runs normally.
+    if (carry?.opponent_rating == null) {
+      // Fetch opponent's Slippi profile asynchronously
+      fetchRatingSnapshot(g.opponent_code)
+        .then(({ snapshot, displayName: oppTag, characters }) => {
+          const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
+          activeSet.update((s) =>
+            s && s.match_id === g.match_id
+              ? {
+                  ...s,
+                  opponent_rating: snapshot.rating,
+                  opponent_tier: tier.name,
+                  opponent_tier_color: tier.color,
+                  opponent_tag: oppTag || null,
+                  opponent_season_wins: snapshot.wins,
+                  opponent_season_losses: snapshot.losses,
+                  opponent_chars: topOpponentChars(characters),
+                }
+              : s
+          );
+        })
+        .catch(() => {});
+    }
   } else {
-    // Update score and latest char for an ongoing set
+    // Update score and latest char for an ongoing set / run
     activeSet.update((s) =>
       s && s.match_id === g.match_id
         ? { ...s, games_won: wins, games_lost: losses, opponent_char_id: g.opponent_char_id }
@@ -361,6 +524,9 @@ async function handleRankedGame(
   }
 
   if (isComplete) {
+    // A ranked set superseding an unranked run: drop the pending idle clear so it can't fire
+    // later and wipe whatever is on screen by then.
+    cancelIdleClear();
     // Forfeit-aware: an opponent quit-out is a set win even at an even game count.
     const setResult = setResultFromGames(setGames);
     // Won only because the opponent quit out — suppresses the set-comeback bonus in grading.
@@ -466,21 +632,36 @@ async function handleRankedGame(
   return isComplete;
 }
 
-// ── Compute all-time set record vs a specific opponent ─────────────────────
+// ── Compute all-time record vs a specific opponent ─────────────────────────
+//
+// Counted in whatever unit the mode actually has. Ranked groups games into completed sets and
+// counts those. Unranked/direct have no sets — a match_id there is one whole connection — so
+// they're counted in games, which is also the number that means something across many nights
+// of friendlies with the same person.
 
 async function computeAllTimeRecord(
   db: Database,
-  opponentCode: string
-): Promise<{ allTimeWins: number; allTimeLosses: number }> {
-  const gamesVsOpp = await getGamesVsOpponent(db, opponentCode);
+  opponentCode: string,
+  mode: LiveMode
+): Promise<{ allTimeWins: number; allTimeLosses: number; unit: "sets" | "games" }> {
+  const gamesVsOpp = await getGamesVsOpponent(db, opponentCode, mode);
+  let allTimeWins = 0;
+  let allTimeLosses = 0;
+
+  if (mode !== "ranked") {
+    for (const g of gamesVsOpp) {
+      if (g.result === "win" || g.result === "lras_win") allTimeWins++;
+      else allTimeLosses++;
+    }
+    return { allTimeWins, allTimeLosses, unit: "games" };
+  }
+
   const byMatch = new Map<string, GameRow[]>();
   for (const g of gamesVsOpp) {
     const arr = byMatch.get(g.match_id) ?? [];
     arr.push(g);
     byMatch.set(g.match_id, arr);
   }
-  let allTimeWins = 0;
-  let allTimeLosses = 0;
   for (const gs of byMatch.values()) {
     if (gs.length < 2) continue;
     const w = gs.filter((g) => g.result === "win" || g.result === "lras_win").length;
@@ -489,7 +670,7 @@ async function computeAllTimeRecord(
     if (w > l) allTimeWins++;
     else allTimeLosses++;
   }
-  return { allTimeWins, allTimeLosses };
+  return { allTimeWins, allTimeLosses, unit: "sets" };
 }
 
 // ── Reconstruct active set from recent DB state on watcher start ───────────
@@ -498,7 +679,8 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
   const oneHourAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const recentGames = await db.select<GameRow[]>(
     `SELECT * FROM games
-     WHERE match_type = 'ranked' AND match_id IS NOT NULL AND timestamp >= $1
+     WHERE match_type IN ('ranked', 'unranked', 'direct')
+       AND match_id IS NOT NULL AND timestamp >= $1
      ORDER BY timestamp ASC`,
     [oneHourAgo]
   );
@@ -512,22 +694,31 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
     _knownMatchIds.add(g.match_id);
   }
 
-  // Find the most recent incomplete set
+  // Find the most recent still-running match
   const sorted = [...byMatch.entries()].sort(
     (a, b) =>
       (b[1].at(-1)?.timestamp ?? "").localeCompare(a[1].at(-1)?.timestamp ?? "")
   );
 
   for (const [matchId, gs] of sorted) {
+    const latest = gs.at(-1)!;
+    const mode = (isLiveMode(latest.match_type) ? latest.match_type : "ranked") as LiveMode;
     const wins = gs.filter((g) => g.result === "win" || g.result === "lras_win").length;
     const losses = gs.length - wins;
-    if (Math.max(wins, losses) >= 2) continue; // already complete
+    // Only ranked can be "already complete" — an unranked/direct run within the recovery
+    // window is still live no matter the score, since nothing ends it but walking away.
+    if (mode === "ranked" && Math.max(wins, losses) >= 2) continue;
+    // An unranked/direct run only counts as live if it's the most recent thing played. Without
+    // this, finishing a ranked set would fall through to an abandoned unranked run from earlier
+    // in the window and put a stale opponent back on screen.
+    if (mode !== "ranked" && matchId !== sorted[0][0]) continue;
 
-    const latest = gs.at(-1)!;
-    const { allTimeWins, allTimeLosses } = await computeAllTimeRecord(db, latest.opponent_code);
+    const { allTimeWins, allTimeLosses, unit } = await computeAllTimeRecord(db, latest.opponent_code, mode);
+    if (mode !== "ranked") armIdleClear(matchId);
 
     activeSet.set({
       match_id: matchId,
+      mode,
       opponent_code: latest.opponent_code,
       opponent_char_id: latest.opponent_char_id,
       player_char_id: latest.player_char_id,
@@ -543,6 +734,7 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
       opponent_chars: null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
+      all_time_unit: unit,
       session_already_faced: false,
     });
 

@@ -3,11 +3,12 @@
     isPremium, watcherActive, activeSet, liveSessionStartRating,
     snapshots, liveGameStats, sets, lastSetGrade,
     statsOverlayEnabled, statsOverlayExpanded, statsOverlayPayload, statsOverlayLayout,
-    statsOverlayPreview, liveSetRecord, setResultFromGames,
+    statsOverlayPreview, liveSetRecord, liveUnrankedRecord, setResultFromGames,
     statsOverlayVisibility, type OverlayVisibility,
   } from "../../lib/store";
   import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
+  import { RANK_MEDAL_SVGS } from "../../lib/rank-medals";
   import { gradeColor } from "../../lib/grading";
   import { ensureStatsOverlayFiles, statsOverlayHtmlPath, statsOverlayPreviewPath, writeStatsOverlayPreviewFile } from "../../lib/stats-overlay";
   import { pingTelemetry } from "../../lib/telemetry";
@@ -85,7 +86,7 @@
 
     const ot = getRankTier(before + 80, p.globalRank != null);
     // Live set: opponent line shows their profile mains as icons (Fox + Falco here).
-    statsOverlayPreview.set({ ...base, opponent: { code, char, charIds: [2, 20], tier: ot.name, tierColor: ot.color, rating: before + 80, tag: "Sample", seasonWins: 412, seasonLosses: 388, gamesWon: 1, gamesLost: 1 }, lastSet: null });
+    statsOverlayPreview.set({ ...base, opponent: { code, mode: "ranked" as const, char, charIds: [2, 20], tier: ot.name, tierColor: ot.color, rating: before + 80, tag: "Sample", seasonWins: 412, seasonLosses: 388, gamesWon: 1, gamesLost: 1 }, lastSet: null });
     // Set ends: grade + result shown; MMR refetch hasn't landed yet (rating still == ratingBefore),
     // so the THIS SET line is intentionally absent here.
     simTimers.push(setTimeout(() => statsOverlayPreview.set({ ...base, opponent: null, sessionWins: 2, lastSet: result }), 6000));
@@ -115,7 +116,9 @@
   $effect(() => { statsOverlayPreviewPath().then((p) => (previewPath = p)).catch(() => {}); });
   $effect(() => {
     if (!$statsOverlayExpanded) return;
-    const payload = { ...previewPayload, layout: $statsOverlayLayout };
+    // layout + visibility are re-applied from the live stores rather than taken from the
+    // (possibly frozen) simulation snapshot — see the matching comment in App.svelte.
+    const payload = { ...previewPayload, layout: $statsOverlayLayout, show: $statsOverlayVisibility };
     (async () => {
       try { await writeStatsOverlayPreviewFile(payload); previewVer++; }
       catch (e) { console.error("overlay preview write failed", e); }
@@ -161,6 +164,10 @@
   }
 
   function isSetComplete(games: typeof $liveGameStats): boolean {
+    // Only ranked has sets to complete. An unranked/direct run shares one match_id for the
+    // whole connection, so the first-to-2 test would declare it "won" after two games and
+    // keep that label for the next fifty.
+    if (games[0]?.match_type !== "ranked") return false;
     const wins = games.filter((g) => g.result === "win" || g.result === "lras_win").length;
     const losses = games.length - wins;
     // Forfeit-aware (mirrors the watcher): a quit-out ends the set once a full game was played.
@@ -388,7 +395,7 @@
 
   {#if !$watcherActive}
     <p class="muted" style="margin-bottom: 16px">
-      Monitoring will begin automatically when a ranked game is detected.
+      Monitoring will begin automatically when a game is detected.
     </p>
   {:else if $liveGameStats.length === 0}
     <!-- Empty state — watcher is running but no games this session yet -->
@@ -402,7 +409,7 @@
       <div>
         <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px">No games tracked yet this session</div>
         <div style="font-size: 12px; color: var(--muted); line-height: 1.5">
-          Head into a ranked match and this page will update automatically — no need to refresh.
+          Head into a ranked, unranked or direct match and this page will update automatically — no need to refresh.
         </div>
       </div>
     </div>
@@ -421,9 +428,10 @@
 
     <!-- NOW PLAYING card -->
     {#if $activeSet}
-      {@const oppTier = $activeSet.opponent_tier
-        ? { name: $activeSet.opponent_tier, color: getRankTier($activeSet.opponent_rating ?? 0).color }
-        : null}
+      <!-- Tier colour comes from the watcher (opponent_tier_color), which computed it with the
+           opponent's leaderboard placement — recomputing it from rating alone here would drop
+           Grandmaster back to a Master colour. -->
+      {@const oppMedal = $activeSet.opponent_tier ? RANK_MEDAL_SVGS[$activeSet.opponent_tier] : ""}
       <div style="
         background: var(--card); border: 1px solid var(--border);
         border-left: 3px solid #2ecc71; border-radius: 8px;
@@ -432,21 +440,42 @@
         <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #2ecc71; margin-bottom: 10px">
           NOW PLAYING
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px">
-          <div>
-            <div style="font-size: 18px; font-weight: 700">{$activeSet.opponent_code}</div>
-            {#if $activeSet.opponent_rating !== null}
-              <div style="font-size: 12px; color: {oppTier?.color ?? 'var(--muted)'}">
-                {oppTier?.name ?? ""} · {$activeSet.opponent_rating.toFixed(0)}
-              </div>
-            {:else}
-              <div style="font-size: 12px; color: var(--muted)">Fetching rating…</div>
-            {/if}
-            {#if $activeSet.opponent_char_id != null}
-              <div style="font-size: 12px; color: var(--muted)">
-                {CHARACTERS[$activeSet.opponent_char_id] ?? `Char ${$activeSet.opponent_char_id}`}
+        <!-- Fixed proportions rather than space-between: the old flex row pushed the three
+             blocks to the far edges of a wide window and left a void in the middle. -->
+        <div style="
+          display: grid; grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1fr);
+          align-items: center; gap: 20px;
+        ">
+          <!-- Opponent identity -->
+          <div style="display: flex; align-items: center; gap: 12px; min-width: 0">
+            {#if oppMedal}
+              <div style="width: 42px; height: 42px; flex-shrink: 0" aria-hidden="true">
+                {@html oppMedal}
               </div>
             {/if}
+            <div style="min-width: 0">
+              <div style="
+                font-size: 17px; font-weight: 700; line-height: 1.2;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+              ">{$activeSet.opponent_tag || $activeSet.opponent_code}</div>
+              {#if $activeSet.opponent_tag}
+                <div style="font-size: 11px; color: var(--muted)">{$activeSet.opponent_code}</div>
+              {/if}
+              {#if $activeSet.opponent_rating !== null}
+                <div style="font-size: 12px; color: {$activeSet.opponent_tier_color ?? 'var(--muted)'}">
+                  {$activeSet.opponent_tier ?? ""} · {$activeSet.opponent_rating.toFixed(0)}
+                </div>
+              {:else}
+                <div style="font-size: 12px; color: var(--muted)">Fetching rank…</div>
+              {/if}
+              <!-- >= 0 rather than != null: the game-start peek leaves this as -1 because the
+                   character only becomes known from the metadata block when the game ends. -->
+              {#if $activeSet.opponent_char_id >= 0}
+                <div style="font-size: 11px; color: var(--muted)">
+                  {CHARACTERS[$activeSet.opponent_char_id] ?? `Char ${$activeSet.opponent_char_id}`}
+                </div>
+              {/if}
+            </div>
           </div>
           <div style="text-align: center">
             <div style="font-size: 30px; font-weight: 700; letter-spacing: 4px; line-height: 1">
@@ -454,14 +483,18 @@
               <span style="color: var(--muted)">–</span>
               <span class="loss-text">{$activeSet.games_lost}</span>
             </div>
-            <div style="font-size: 10px; color: var(--muted); margin-top: 2px">Current Set</div>
+            <div style="font-size: 10px; color: var(--muted); margin-top: 2px">
+              {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
+            </div>
           </div>
           <div style="text-align: right">
             {#if $activeSet.all_time_wins + $activeSet.all_time_losses > 0}
               <div style="font-size: 13px">
                 All-time: <span class="win-text">{$activeSet.all_time_wins}W</span>–<span class="loss-text">{$activeSet.all_time_losses}L</span>
               </div>
-              <div style="font-size: 11px; color: var(--muted)">vs this opponent</div>
+              <div style="font-size: 11px; color: var(--muted)">
+                {$activeSet.all_time_unit === "sets" ? "sets" : "games"} vs this opponent
+              </div>
             {:else}
               <div style="font-size: 13px; color: var(--muted)">First match vs<br/>this opponent</div>
             {/if}
@@ -475,19 +508,31 @@
 
     <!-- Per-game stats for the current/last match -->
     {#if lastMatch}
-      {@const [matchId, games] = lastMatch}
-      {@const complete = isSetComplete(games)}
+      {@const [matchId, allGames] = lastMatch}
+      {@const complete = isSetComplete(allGames)}
+      {@const isRankedMatch = allGames[0]?.match_type === "ranked"}
+      <!-- Unranked/direct runs can reach 50+ games on one connection, which would bury the rest
+           of the tab. Ranked sets are 2–3 games, so they're never truncated. -->
+      {@const games = isRankedMatch ? allGames : allGames.slice(-10)}
+      {@const truncated = allGames.length - games.length}
       <div class="card" style="margin-bottom: 16px">
         <div class="section-title" style="margin-bottom: 10px">
-          {complete ? `Set ${setResult(games) === "win" ? "Won" : "Lost"}` : "Games This Set"}
+          {complete
+            ? `Set ${setResult(allGames) === "win" ? "Won" : "Lost"}`
+            : isRankedMatch ? "Games This Set" : "Games This Session"}
           <span style="font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px">
-            vs {games[0].opponent_code}
+            vs {allGames[0].opponent_code}
           </span>
+          {#if truncated > 0}
+            <span style="font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px">
+              (latest 10 of {allGames.length})
+            </span>
+          {/if}
         </div>
 
         <!-- Column headers -->
         <div style="
-          display: grid; grid-template-columns: 28px 1fr 60px 70px 65px 65px 48px;
+          display: grid; grid-template-columns: 26px minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) minmax(0, 0.7fr);
           gap: 8px; padding: 0 10px 4px;
           font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em;
         ">
@@ -501,16 +546,18 @@
         </div>
 
         <!-- Per-game rows -->
-        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: {complete ? '12px' : '0'}">
+        <!-- Rows stay compact because an unranked run stacks up to 10 of them; at the old
+             8px/6px spacing that block dominated the tab. -->
+        <div style="display: flex; flex-direction: column; gap: 3px; margin-bottom: {complete ? '12px' : '0'}">
           {#each games as g, i}
             {@const isWin = g.result === "win" || g.result === "lras_win"}
             <div style="
-              display: grid; grid-template-columns: 28px 1fr 60px 70px 65px 65px 48px;
+              display: grid; grid-template-columns: 26px minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) minmax(0, 0.7fr);
               align-items: center; gap: 8px;
-              background: var(--bg); border-radius: 6px; padding: 8px 10px;
+              background: var(--bg); border-radius: 6px; padding: 5px 10px;
               border-left: 3px solid {isWin ? '#2ecc71' : '#e74c3c'};
             ">
-              <div style="font-size: 11px; color: var(--muted)">G{i + 1}</div>
+              <div style="font-size: 11px; color: var(--muted)">G{truncated + i + 1}</div>
               <div style="font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
                 {STAGES[g.stage_id] ?? `Stage ${g.stage_id}`}
               </div>
@@ -570,6 +617,17 @@
         <div class="stat-card">
           <div class="label">Current Rating</div>
           <div class="value">{$snapshots.at(-1)!.rating.toFixed(1)}</div>
+        </div>
+      {/if}
+      <!-- Counted in games, not sets — unranked/direct have no sets. Only appears once some
+           have actually been played, so a purely ranked session looks exactly as it did. -->
+      {#if $liveUnrankedRecord.total > 0}
+        <div class="stat-card">
+          <div class="label">Unranked / Direct</div>
+          <div class="value">
+            <span class="win-text">{$liveUnrankedRecord.wins}</span>–<span class="loss-text">{$liveUnrankedRecord.losses}</span>
+          </div>
+          <div class="sub">games this session</div>
         </div>
       {/if}
     </div>

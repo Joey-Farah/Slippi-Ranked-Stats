@@ -316,6 +316,55 @@ export async function clearScannedFiles(): Promise<void> {
   await sdb.execute(`DELETE FROM scanned_files`);
 }
 
+// Drop scanned marks for files that produced no game row, so the next scan retries them.
+//
+// scanDirectory marks a file scanned even when the parse yields nothing (only a *thrown*
+// error skips the mark) — that's deliberate, otherwise every local/CPU/teams replay would
+// be re-parsed on every scan forever. The cost is that widening the set of supported modes
+// can't reach already-scanned files: when direct-connect support landed in v1.8.12, every
+// direct replay in the user's history stayed invisible because it had already been marked
+// scanned back when the parser discarded it.
+//
+// `productive` holds every key that DID yield a row across all known codes — both the
+// basename (games.filename) and the full path (games.filepath), since scanned_files stores
+// full paths for new records and basenames for legacy pre-multi-folder ones. Anything else
+// is unproductive and gets its mark dropped. Over-pruning is harmless: the file is simply
+// re-parsed once and re-marked (insertGame is INSERT OR IGNORE on a UNIQUE filename, so a
+// retry can't duplicate a game).
+export async function pruneUnproductiveScannedFiles(
+  dbsByCode: Record<string, Database>
+): Promise<number> {
+  const sdb = await getScannedDb();
+
+  const productive = new Set<string>();
+  for (const db of Object.values(dbsByCode)) {
+    const rows = await db.select<{ filename: string; filepath: string | null }[]>(
+      `SELECT filename, filepath FROM games`
+    );
+    for (const r of rows) {
+      productive.add(r.filename);
+      if (r.filepath) productive.add(r.filepath);
+    }
+  }
+
+  const scanned = await sdb.select<{ filename: string }[]>(
+    `SELECT DISTINCT filename FROM scanned_files`
+  );
+  const stale = scanned.map((r) => r.filename).filter((f) => !productive.has(f));
+  if (stale.length === 0) return 0;
+
+  const CHUNK = 500;
+  for (let i = 0; i < stale.length; i += CHUNK) {
+    const chunk = stale.slice(i, i + CHUNK);
+    const placeholders = chunk.map((_, j) => `$${j + 1}`).join(", ");
+    await sdb.execute(
+      `DELETE FROM scanned_files WHERE filename IN (${placeholders})`,
+      chunk
+    );
+  }
+  return stale.length;
+}
+
 export async function clearGames(db: Database): Promise<void> {
   await db.execute(`DELETE FROM games`);
 }
@@ -330,13 +379,17 @@ export async function getGamesByMatchId(
   );
 }
 
+// All games vs an opponent in one mode. Modes are kept separate on purpose: a ranked set
+// record and a pile of unranked friendlies against the same person aren't the same statistic
+// and must never be summed into one "all-time vs them" number.
 export async function getGamesVsOpponent(
   db: Database,
-  opponentCode: string
+  opponentCode: string,
+  matchType: string = "ranked"
 ): Promise<GameRow[]> {
   return db.select<GameRow[]>(
-    `SELECT * FROM games WHERE opponent_code = $1 AND match_type = 'ranked' ORDER BY timestamp ASC`,
-    [opponentCode]
+    `SELECT * FROM games WHERE opponent_code = $1 AND match_type = $2 ORDER BY timestamp ASC`,
+    [opponentCode, matchType]
   );
 }
 

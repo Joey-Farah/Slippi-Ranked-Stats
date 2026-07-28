@@ -256,9 +256,12 @@ function overlayDoc(boot: string): string {
         if (o.seasonWins != null && o.seasonLosses != null) {
           parts.push('<span class="w">' + esc(o.seasonWins) + 'W</span>–<span class="l">' + esc(o.seasonLosses) + "L</span>");
         }
-        // Current set score is now its own scoreboard row (below the stats), not tucked at the
-        // end of the stats line — your wins green, the opponent's red, so it's clear mid-set.
-        var scoreEl = '<div class="vs-score"><span class="vs-score-cap">Set Count:</span><span>' + esc(o.gamesWon) + '</span><span class="vs-score-dash">–</span><span>' + esc(o.gamesLost) + "</span></div>";
+        // Scoreboard row (below the stats), not tucked at the end of the stats line — your wins
+        // green, the opponent's red, so it's clear mid-set. In ranked this is the set score; in
+        // unranked/direct there is no set, so it's the running game tally for the whole
+        // connection and the label says so.
+        var scoreCap = o.mode === "ranked" ? "Set Count:" : "Games:";
+        var scoreEl = '<div class="vs-score"><span class="vs-score-cap">' + scoreCap + '</span><span>' + esc(o.gamesWon) + '</span><span class="vs-score-dash">–</span><span>' + esc(o.gamesLost) + "</span></div>";
         return '<div class="vs">' + l1 + '<div class="vs-sub">' + parts.join(" · ") + "</div>" + scoreEl + "</div>";
       }
       return "";

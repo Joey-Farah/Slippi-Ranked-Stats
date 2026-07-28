@@ -6,7 +6,16 @@ import { resolve } from "path";
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
-  plugins: [svelte(), nodePolyfills({ globals: { Buffer: true, global: true, process: true } })],
+  // The node polyfills exist for the browser bundle. Under vitest the tests already run in
+  // Node, where Buffer/global/process are native — and leaving the plugin on there actively
+  // hurts, because it replaces `node:fs` with a browser stub, so tests can't read fixture
+  // files (the .slp header tests read real replays off disk).
+  plugins: [
+    svelte(),
+    ...(process.env.VITEST
+      ? []
+      : [nodePolyfills({ globals: { Buffer: true, global: true, process: true } })]),
+  ],
   optimizeDeps: {
     include: ["buffer", "@slippi/slippi-js"],
     // Tauri plugins use window.__TAURI_INTERNALS__ at module init time —

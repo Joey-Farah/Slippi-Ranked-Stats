@@ -9,8 +9,9 @@ import { BENCHMARKS } from "./grade-benchmarks";
  *  need specific stat values override individual fields. */
 function mockGame(overrides: Partial<LiveGameStats> = {}): LiveGameStats {
   return {
-    match_id: "test-match",
-    result:   "win",
+    match_id:   "test-match",
+    match_type: "ranked",
+    result:     "win",
     kills:    4,
     deaths:   2,
     openings_per_kill:       3.0,

@@ -1062,6 +1062,115 @@ export interface ParsedGameRow {
 const METHOD_GAME = 2;
 const METHOD_NO_CONTEST = 7;
 
+// ── Game Start header peek ─────────────────────────────────────────────────
+//
+// Everything below reads ONLY the Game Start (0x36) block, which Slippi writes the instant a
+// game begins. The normal parse path takes connect codes from the `metadata` block instead —
+// but that block lives at the very END of the file (byte ~3,000,000 of a 3 MB replay) and isn't
+// written until the game finishes, which is why the opponent card used to appear only after
+// game 1. Game Start carries the same codes at a fixed offset, so the opponent can be
+// identified seconds into the match.
+//
+// Offsets are relative to the payload start (the byte after the 0x36 command byte) and were
+// verified against 299 of Joey's real replays — 297 exact matches vs the metadata codes, the
+// other 2 being noise in the verification regex rather than real disagreements.
+const GS_CODE_BASE = 544;   // player 0's connect code field
+const GS_CODE_STRIDE = 10;  // one 10-byte field per port
+const GS_CHAR_BASE = 0x64;  // player 0's external character id
+const GS_CHAR_STRIDE = 0x24;
+
+export interface SlpHeaderInfo {
+  match_id: string;
+  match_type: string;
+  player_port: number;
+  opponent_port: number;
+  opponent_code: string;
+  stage_id: number;
+}
+
+/** Decode one 10-byte Shift-JIS connect-code field. Slippi stores the '#' as a FULL-WIDTH
+ *  '＃' (U+FF03) here — an ASCII '#' search over the header finds nothing, which is what
+ *  makes these codes easy to miss. */
+function decodeConnectCode(field: Uint8Array): string {
+  let end = 0;
+  while (end < field.length && field[end] !== 0) end++;
+  if (end === 0) return "";
+  const text = new TextDecoder("shift-jis").decode(field.subarray(0, end));
+  return text.replace(/＃/g, "#").trim();
+}
+
+/**
+ * Read just the Game Start block and work out who we're playing, without parsing the
+ * (still-growing) frame data. Returns null when the file isn't yet long enough, isn't a
+ * supported mode, or doesn't contain the given connect code.
+ *
+ * `bytes` only needs to cover the header — a few KB is plenty.
+ */
+export function parseSlpHeader(bytes: Uint8Array, codes: string[]): SlpHeaderInfo | null {
+  if (bytes.length < 64) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  const eventsStart = 15;
+  if (bytes[eventsStart] !== 0x35) return null;
+
+  const epSize = bytes[eventsStart + 1];
+  const pairCount = Math.floor((epSize - 1) / 3);
+  let gameStartSize = 0;
+  for (let i = 0; i < pairCount; i++) {
+    const off = eventsStart + 2 + i * 3;
+    if (off + 2 >= bytes.length) return null;
+    if (bytes[off] === 0x36) gameStartSize = view.getUint16(off + 1, false);
+  }
+  if (gameStartSize === 0) return null;
+
+  const pos = eventsStart + 1 + epSize;
+  if (bytes[pos] !== 0x36) return null;
+  const ps = pos + 1;
+  // The block must be fully on disk before any of the fixed offsets can be trusted.
+  if (ps + gameStartSize > bytes.length) return null;
+  if (gameStartSize < GS_CODE_BASE + 4 * GS_CODE_STRIDE) return null;
+
+  const codeAt = (port: number) =>
+    decodeConnectCode(bytes.subarray(ps + GS_CODE_BASE + port * GS_CODE_STRIDE,
+                                     ps + GS_CODE_BASE + port * GS_CODE_STRIDE + GS_CODE_STRIDE));
+
+  const present: number[] = [];
+  const byPort: Record<number, string> = {};
+  for (let port = 0; port < 4; port++) {
+    const c = codeAt(port);
+    if (c) { present.push(port); byPort[port] = c; }
+  }
+  // Only 1v1 netplay is supported, same as the full parse.
+  if (present.length !== 2) return null;
+
+  const wanted = codes.map((c) => c.toUpperCase());
+  const playerPort = present.find((p) => wanted.includes(byPort[p].toUpperCase()));
+  if (playerPort === undefined) return null;
+  const opponentPort = present.find((p) => p !== playerPort)!;
+
+  // match_id: the "mode.<type>-<timestamp>-<n>" string inside the same block.
+  let matchId = "";
+  const limit = Math.min(ps + gameStartSize, bytes.length) - 4;
+  for (let i = ps; i < limit; i++) {
+    if (bytes[i] === 109 && bytes[i+1] === 111 && bytes[i+2] === 100 && bytes[i+3] === 101 && bytes[i+4] === 46) {
+      let end = i;
+      while (end < i + 60 && end < ps + gameStartSize && bytes[end] !== 0) end++;
+      matchId = new TextDecoder().decode(bytes.subarray(i, end));
+      break;
+    }
+  }
+  if (!matchId) return null;
+
+  return {
+    match_id: matchId,
+    match_type: matchId.split("-")[0].replace("mode.", ""),
+    player_port: playerPort,
+    opponent_port: opponentPort,
+    opponent_code: byPort[opponentPort],
+    stage_id: gameStartSize >= 20 ? bytes[ps + 19] : -1,
+  };
+}
+
 /**
  * Parse a raw .slp file's bytes and return the game row for the given
  * connect code. Returns an empty array if the file is not a ranked/unranked

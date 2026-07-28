@@ -38,6 +38,13 @@ export const installId = persisted<string>("srs_installId", randomId());
 // machines so they don't pollute the install / premium / DAU counts (see telemetry.ts).
 export const isOwner = persisted<boolean>("srs_isOwner", false);
 
+// Which parser capability generation this install has already scanned with. When the parser
+// starts accepting a match type it used to discard, previously-scanned files were marked as
+// done and would never be revisited (see pruneUnproductiveScannedFiles in db.ts) — bumping
+// PARSER_CAPABILITY_VERSION triggers a one-time re-scan of files that yielded no game row.
+// Starts at 0 on existing installs so they all run the direct-connect backfill once.
+export const parserCapabilityVersion = persisted<number>("srs_parserCapabilityVersion", 0);
+
 export const connectCode = persisted<string>("srs_connectCode", "");
 
 // The player's Slippi display tag (e.g. "Joey Dadnuts"). Fetched from the API
@@ -142,11 +149,24 @@ export const statusMessage = writable<string>("");
 
 // ── Live session state (populated by watcher) ─────────────────────────────
 
+// Match types the live session tracks. Ranked is the only one with real *sets* (a match_id is
+// one best-of-3, first-to-2) and the only one that moves your Rating. In unranked and direct a
+// match_id spans the entire connection with that opponent — one continuous run that ends only
+// when somebody leaves — so there's no set to complete, no set score, and nothing to grade.
+export type LiveMode = "ranked" | "unranked" | "direct";
+export const LIVE_MODES: LiveMode[] = ["ranked", "unranked", "direct"];
+export function isLiveMode(t: string): t is LiveMode {
+  return (LIVE_MODES as string[]).includes(t);
+}
+
 export interface ActiveSet {
   match_id: string;
+  mode: LiveMode;
   opponent_code: string;
   opponent_char_id: number;
   player_char_id: number;
+  // Ranked: the current set score (first-to-2). Unranked/direct: a running game tally for the
+  // whole connection, which just keeps climbing for as long as you stay with that opponent.
   games_won: number;
   games_lost: number;
   started_at: string;
@@ -160,8 +180,11 @@ export interface ActiveSet {
   // Slippi profile — not the lagging per-game char. null while loading; [] if their profile
   // lists none (season reset / new player), in which case the overlay falls back to the live char.
   opponent_chars: number[] | null;
-  all_time_wins: number;            // set-level record vs this opponent in our DB
+  // All-time record vs this opponent in our DB, counted in the unit that mode actually has:
+  // sets for ranked, individual games for unranked/direct (see all_time_unit).
+  all_time_wins: number;
   all_time_losses: number;
+  all_time_unit: "sets" | "games";
   session_already_faced: boolean;   // did we face them earlier this watcher session?
 }
 
@@ -171,6 +194,7 @@ export const liveSessionStartedAt = writable<string | null>(null); // ISO timest
 
 export interface LiveGameStats {
   match_id: string;
+  match_type: LiveMode;
   result: string;
   kills: number;
   deaths: number;
@@ -458,9 +482,13 @@ function buildSession(sets: SetResult[]): Session {
 // it always reflects the games tracked this run. Shared by the Live Session tab and
 // the stats overlay. "Complete set" = a side reached 2 (best-of-3, first-to-2).
 
+// Ranked only — a "set" is a ranked concept. Unranked/direct games share one match_id for the
+// whole connection (up to 50+ games), so counting them here would read them as one giant
+// "set" and wreck the tally. Their record is tracked in games by liveUnrankedRecord instead.
 export const liveSetRecord = derived(liveGameStats, ($stats) => {
   const byMatch = new Map<string, LiveGameStats[]>();
   for (const g of $stats) {
+    if (g.match_type !== "ranked") continue;
     const arr = byMatch.get(g.match_id) ?? [];
     arr.push(g);
     byMatch.set(g.match_id, arr);
@@ -475,6 +503,18 @@ export const liveSetRecord = derived(liveGameStats, ($stats) => {
   return { wins, losses, total: wins + losses };
 });
 
+// Unranked + direct record for this watcher session, counted in games (the only honest unit —
+// these modes have no sets). Kept separate from liveSetRecord so the two are never summed.
+export const liveUnrankedRecord = derived(liveGameStats, ($stats) => {
+  let wins = 0, losses = 0;
+  for (const g of $stats) {
+    if (g.match_type === "ranked") continue;
+    if (g.result === "win" || g.result === "lras_win") wins++;
+    else losses++;
+  }
+  return { wins, losses, total: wins + losses };
+});
+
 // ── Derived: stream-overlay live-stats payload ─────────────────────────────
 // Everything the always-on "Live Ranked Stats" OBS panel renders. Recomputed when
 // any underlying store changes; the app-level subscription writes it to the overlay
@@ -482,6 +522,7 @@ export const liveSetRecord = derived(liveGameStats, ($stats) => {
 
 export interface StatsOverlayOpponent {
   code: string;
+  mode: LiveMode;              // drives the scoreboard label: a set score only exists in ranked
   char: string;                // live in-game char name (text fallback when no icons resolve)
   charIds: number[];           // external char ids to icon-ify: profile mains, else the live char
   tier: string | null;         // rank tier name, also selects the medal
@@ -490,7 +531,7 @@ export interface StatsOverlayOpponent {
   tag: string | null;          // opponent's Slippi display name, null while loading
   seasonWins: number | null;   // opponent's current-season ranked record, null while loading
   seasonLosses: number | null;
-  gamesWon: number;            // current set score (live)
+  gamesWon: number;            // ranked: set score. unranked/direct: running games this connection
   gamesLost: number;
 }
 
@@ -542,6 +583,7 @@ export const statsOverlayPayload = derived(
     const opponent: StatsOverlayOpponent | null = $active
       ? {
           code: $active.opponent_code,
+          mode: $active.mode,
           char: CHARACTERS[$active.opponent_char_id] ?? "Unknown",
           charIds,
           tier: $active.opponent_tier,
