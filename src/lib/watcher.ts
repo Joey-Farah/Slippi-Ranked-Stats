@@ -16,7 +16,7 @@ import {
   type GameRow,
 } from "./db";
 import { fetchRatingSnapshot, type ProfileCharacter } from "./api";
-import { API_CHAR_TO_EXTERNAL, internalToExternal } from "./char-icons";
+import { API_CHAR_TO_EXTERNAL, internalToExternal, externalToInternal } from "./char-icons";
 import {
   games,
   snapshots,
@@ -276,24 +276,28 @@ async function showOpponentEarly(head: SlpHeaderInfo, db: Database): Promise<voi
 
   if (mode !== "ranked") armIdleClear(head.match_id);
 
+  const oppExternal = head.opponent_char_external;
+
   activeSet.set({
     match_id: head.match_id,
     mode,
     opponent_code: head.opponent_code,
-    // Character comes from the metadata block at game end; the header's ids are in a different
-    // id space than the rest of the app uses, so it stays unknown until the full parse.
-    opponent_char_id: -1,
-    player_char_id: -1,
+    opponent_char_id: externalToInternal(oppExternal) ?? -1,
+    player_char_id: externalToInternal(head.player_char_external) ?? -1,
     games_won: 0,
     games_lost: 0,
     started_at: new Date().toISOString(),
     opponent_rating: null,
     opponent_tier: null,
     opponent_tier_color: null,
-    opponent_tag: null,
+    // Straight out of the replay header — no network needed, so the tag is on screen before
+    // the Slippi profile fetch below has even resolved (and still shows if that call fails).
+    opponent_tag: head.opponent_tag || null,
     opponent_season_wins: null,
     opponent_season_losses: null,
-    opponent_chars: null,
+    // Their in-game character, so the overlay has an icon to show until the profile's
+    // preferred mains arrive.
+    opponent_chars: oppExternal >= 0 ? [oppExternal] : null,
     all_time_wins: allTimeWins,
     all_time_losses: allTimeLosses,
     all_time_unit: unit,
@@ -303,20 +307,22 @@ async function showOpponentEarly(head: SlpHeaderInfo, db: Database): Promise<voi
   fetchRatingSnapshot(head.opponent_code)
     .then(({ snapshot, displayName: oppTag, characters }) => {
       const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
-      activeSet.update((s) =>
-        s && s.match_id === head.match_id
-          ? {
-              ...s,
-              opponent_rating: snapshot.rating,
-              opponent_tier: tier.name,
-              opponent_tier_color: tier.color,
-              opponent_tag: oppTag || null,
-              opponent_season_wins: snapshot.wins,
-              opponent_season_losses: snapshot.losses,
-              opponent_chars: topOpponentChars(characters),
-            }
-          : s
-      );
+      activeSet.update((s) => {
+        if (!s || s.match_id !== head.match_id) return s;
+        const mains = topOpponentChars(characters);
+        return {
+          ...s,
+          opponent_rating: snapshot.rating,
+          opponent_tier: tier.name,
+          opponent_tier_color: tier.color,
+          // Never downgrade the header's tag to null on an empty API response.
+          opponent_tag: oppTag || s.opponent_tag,
+          opponent_season_wins: snapshot.wins,
+          opponent_season_losses: snapshot.losses,
+          // Same for their characters — keep the live in-game one if the profile lists none.
+          opponent_chars: mains.length > 0 ? mains : s.opponent_chars,
+        };
+      });
     })
     .catch(() => {});
 }

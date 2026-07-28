@@ -58,6 +58,20 @@ export function internalToExternal(internalId: number): number | null {
   return name != null && name in NAME_TO_EXTERNAL ? NAME_TO_EXTERNAL[name] : null;
 }
 
+// Reverse of INTERNAL_CHARACTERS by name, mirroring NAME_TO_EXTERNAL above.
+const NAME_TO_INTERNAL: Record<string, number> = Object.fromEntries(
+  Object.entries(INTERNAL_CHARACTERS).map(([id, name]) => [name, Number(id)])
+);
+
+/** Convert an external (CSS-order) character id to the internal id used by parser.ts's
+ *  CHARACTERS table, or null if unknown. The inverse of internalToExternal(), matched the
+ *  same way — by character name — so the two can't drift apart. Needed because the .slp
+ *  Game Start block stores EXTERNAL ids while the rest of the app speaks internal ones. */
+export function externalToInternal(externalId: number): number | null {
+  const name = EXTERNAL_CHARACTERS[externalId];
+  return name != null && name in NAME_TO_INTERNAL ? NAME_TO_INTERNAL[name] : null;
+}
+
 /** External character ID → inlined stock-icon data URI, embedded once into the overlay. */
 export const CHAR_ICONS: Record<number, string> = Object.fromEntries(
   Object.keys(EXTERNAL_CHARACTERS).map((k) => [Number(k), icon(Number(k))])

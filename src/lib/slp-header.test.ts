@@ -51,7 +51,9 @@ maybe("parseSlpHeader — against real replays", () => {
 
   it("agrees with the full parse on who the opponent is", async () => {
     const { parseSlpBytes } = await import("./slp_parser");
+    const { externalToInternal } = await import("./char-icons");
     let compared = 0;
+    let charAgreed = 0;
     for (const f of files.slice(0, 25)) {
       const bytes = readFileSync(f);
       const full = parseSlpBytes(bytes, f, OWN_CODE);
@@ -63,8 +65,37 @@ maybe("parseSlpHeader — against real replays", () => {
       expect(info!.match_id).toBe(full[0].match_id);
       expect(info!.match_type).toBe(full[0].match_type);
       expect(info!.stage_id).toBe(full[0].stage_id);
+      // Characters usually agree, but not always: the full parse takes the character played
+      // for the most frames, so a Zelda who spends the game as Sheik legitimately differs
+      // from what Game Start recorded. Counted rather than asserted per-file.
+      if (externalToInternal(info!.opponent_char_external) === full[0].opponent_char_id) {
+        charAgreed++;
+      }
     }
     expect(compared).toBeGreaterThan(0);
+    expect(charAgreed).toBeGreaterThan(compared * 0.8);
+  });
+
+  it("reads the opponent's tag from the file, with no API call", () => {
+    let withTag = 0;
+    for (const f of files) {
+      const info = parseSlpHeader(readFileSync(f).subarray(0, 4096), [OWN_CODE]);
+      if (!info) continue;
+      if (info.opponent_tag.length > 0) withTag++;
+      // A tag must never be the connect code — that would mean we read the wrong field.
+      expect(info.opponent_tag).not.toBe(info.opponent_code);
+    }
+    expect(withTag).toBeGreaterThan(files.length * 0.8);
+  });
+
+  it("maps external character ids back to the app's internal ids", async () => {
+    const { externalToInternal, internalToExternal } = await import("./char-icons");
+    // Round-trip every character so the two directions can't silently drift apart.
+    for (let ext = 0; ext <= 25; ext++) {
+      const internal = externalToInternal(ext);
+      expect(internal).not.toBeNull();
+      expect(internalToExternal(internal!)).toBe(ext);
+    }
   });
 
   it("returns null for a truncated header instead of guessing", () => {

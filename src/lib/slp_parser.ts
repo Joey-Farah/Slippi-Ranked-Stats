@@ -1076,7 +1076,9 @@ const METHOD_NO_CONTEST = 7;
 // other 2 being noise in the verification regex rather than real disagreements.
 const GS_CODE_BASE = 544;   // player 0's connect code field
 const GS_CODE_STRIDE = 10;  // one 10-byte field per port
-const GS_CHAR_BASE = 0x64;  // player 0's external character id
+const GS_NAME_BASE = 420;   // player 0's netplay display name (their Slippi tag)
+const GS_NAME_STRIDE = 31;
+const GS_CHAR_BASE = 0x64;  // player 0's EXTERNAL character id
 const GS_CHAR_STRIDE = 0x24;
 
 export interface SlpHeaderInfo {
@@ -1085,6 +1087,13 @@ export interface SlpHeaderInfo {
   player_port: number;
   opponent_port: number;
   opponent_code: string;
+  opponent_tag: string;        // netplay display name, straight from the file (no API call)
+  // EXTERNAL character ids, as stored in the file. Deliberately NOT converted here: this
+  // module has no imports, and pulling in char-icons would create a cycle
+  // (slp_parser → char-icons → parser → slp_parser) whose eagerly-built lookup tables
+  // would initialise empty. Callers convert with externalToInternal().
+  player_char_external: number;
+  opponent_char_external: number;
   stage_id: number;
 }
 
@@ -1097,6 +1106,15 @@ function decodeConnectCode(field: Uint8Array): string {
   if (end === 0) return "";
   const text = new TextDecoder("shift-jis").decode(field.subarray(0, end));
   return text.replace(/＃/g, "#").trim();
+}
+
+/** Decode a null-terminated Shift-JIS display-name field. Tags can contain Japanese
+ *  characters, which is why the whole block is Shift-JIS rather than ASCII. */
+function decodeName(field: Uint8Array): string {
+  let end = 0;
+  while (end < field.length && field[end] !== 0) end++;
+  if (end === 0) return "";
+  return new TextDecoder("shift-jis").decode(field.subarray(0, end)).trim();
 }
 
 /**
@@ -1129,6 +1147,11 @@ export function parseSlpHeader(bytes: Uint8Array, codes: string[]): SlpHeaderInf
   // The block must be fully on disk before any of the fixed offsets can be trusted.
   if (ps + gameStartSize > bytes.length) return null;
   if (gameStartSize < GS_CODE_BASE + 4 * GS_CODE_STRIDE) return null;
+
+  const nameAt = (port: number) =>
+    decodeName(bytes.subarray(ps + GS_NAME_BASE + port * GS_NAME_STRIDE,
+                              ps + GS_NAME_BASE + port * GS_NAME_STRIDE + GS_NAME_STRIDE));
+  const charAt = (port: number) => bytes[ps + GS_CHAR_BASE + port * GS_CHAR_STRIDE];
 
   const codeAt = (port: number) =>
     decodeConnectCode(bytes.subarray(ps + GS_CODE_BASE + port * GS_CODE_STRIDE,
@@ -1167,6 +1190,9 @@ export function parseSlpHeader(bytes: Uint8Array, codes: string[]): SlpHeaderInf
     player_port: playerPort,
     opponent_port: opponentPort,
     opponent_code: byPort[opponentPort],
+    opponent_tag: nameAt(opponentPort),
+    player_char_external: charAt(playerPort),
+    opponent_char_external: charAt(opponentPort),
     stage_id: gameStartSize >= 20 ? bytes[ps + 19] : -1,
   };
 }
