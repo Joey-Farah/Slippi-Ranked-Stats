@@ -6,6 +6,117 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-07-28 (v1.8.13 — UNRANKED/DIRECT LIVE SESSIONS + game-start opponent + direct backfill — READ FIRST)
+
+> **State: all code committed; version bumped to v1.8.13. NOT YET TAGGED/PUSHED as a release** —
+> tagging is what triggers CI, so it was left as an explicit decision. Tested live on Windows in a
+> `tauri dev` instance against real games; 43 tests pass, build clean.
+>
+> **What shipped this session:**
+>
+> **1. Live session tracking now covers unranked + direct (the headline feature).** Previously the
+> Live Session tab and the OBS overlay went dead outside ranked. The gate was literally one line in
+> `watcher.ts` (`g.match_type === "ranked"`) plus a SQL filter in `recoverActiveSet`.
+>
+> **The thing to understand before touching this again: `match_id` means something different per
+> mode.** Ranked = one best-of-3 set (2–3 games). Unranked/direct = the ENTIRE connection with that
+> opponent, until someone leaves. Measured against Joey's own data: **53 games** under one unranked
+> `match_id`, **62** under one direct one (2,151 unranked and 340 direct `match_id`s scanned). So
+> "first to 2" is meaningless there, and anything that assumed it had to be gated:
+> - `handleRankedGame` → `handleLiveGame`; `isComplete` is now `isRanked && (…)`, so **only ranked
+>   can complete**. That single fact gates grading, `setResultFlash`, the overlay post-set bridge
+>   and — most importantly — `scheduleSnapshotFetch`. An unranked game tripping a rating refetch
+>   would insert **phantom snapshots into the rating history**, corrupting the Rating chart and
+>   session delta. This is the one thing to re-check if this code is ever refactored.
+> - `liveSetRecord` filters to ranked; new `liveUnrankedRecord` counts unranked/direct in **games**.
+>   The two are deliberately never summed — different units.
+> - `computeAllTimeRecord` / `getGamesVsOpponent` are mode-aware (sets vs games, `all_time_unit`).
+> - **No end event exists** for unranked/direct, so `armIdleClear` (15 min of quiet) clears the
+>   card, and a resumed run with the same `match_id` rebuilds it (`rebuild` flag in `handleLiveGame`).
+>
+> **Design decision — NO mode indicator.** A RANKED/UNRANKED/DIRECT chip was built (overlay + card,
+> with its own visibility toggle) and then **removed at Joey's request**: unranked should look
+> identical to ranked. The only visible difference is the scoreboard caption, `Set Count:` vs
+> `Games:`, which stays because calling a running game tally a "set count" would be false. Don't
+> re-add the chip without asking.
+>
+> **2. Opponent now appears at game START (was: only after game 1 ended).** Root cause was two
+> things stacked: the parser reads connect codes from the `metadata` block, which sits at the END
+> of the file (~byte 3,000,000 of a 3 MB replay) and isn't written until the game finishes; and
+> `scheduleFileParse` debounces 800ms after the last write, which never happens mid-game because
+> Slippi writes frames at 60fps. New `parseSlpHeader()` reads the **Game Start (0x36) block only**:
+> - Connect codes at **payload offset 544 + 10×port** (10-byte fields), char ids at `0x64 + 0x24×port`.
+> - **Codes are Shift-JIS with a FULL-WIDTH `＃` (bytes 0x81 0x94), not ASCII `#`.** This is the
+>   trap — a normal `#` search over the header finds nothing and makes it look like the codes aren't
+>   there. Cost an entire wrong conclusion earlier in the session.
+> - Offsets verified empirically against **299 real replays: 297 exact matches** vs metadata codes
+>   (the 2 "misses" were noise in the verification regex, not real).
+> - `peekHeader()` fires on the fs `create` event with a 120/400/1200/3000ms retry backoff (the file
+>   can exist before the header is flushed) and **fails closed** — returns `null` rather than guessing.
+> - `handleLiveGame` **carries over** the peek's already-fetched profile instead of resetting to
+>   `null`, or the card would visibly blank and repopulate when game 1 ends; it also skips the now
+>   redundant second `fetchRatingSnapshot`.
+> - **Tag and character also come straight from the header** (no API round-trip): netplay display
+>   names are 31-byte Shift-JIS fields at **payload offset 420 + 31×port** (present for every
+>   player across 200 real replays), and external char ids at `0x64 + 0x24×port`. So the tag shows
+>   even if the Slippi API is slow or down. `char-icons.ts` gained `externalToInternal()` — the
+>   mirror of `internalToExternal()`, matched by character NAME so they can't drift; there's a
+>   round-trip test over all 26 characters. ⚠ **The conversion deliberately lives in `watcher.ts`,
+>   not `slp_parser.ts`**: that module has no imports on purpose, and importing char-icons there
+>   would form a cycle (`slp_parser → char-icons → parser → slp_parser`) whose eagerly-built
+>   lookup tables would initialise EMPTY. `parseSlpHeader` therefore returns
+>   `*_char_external` and callers convert.
+> - The profile fetch no longer overwrites the tag/characters with null when the API returns an
+>   empty display name or lists no characters.
+> - ⚠ Minor: header char ≠ full-parse char for a **Zelda who plays the game as Sheik** — the full
+>   parse takes the most-played character, Game Start records the selected one. The test counts
+>   agreement (>80%) rather than asserting per-file.
+>
+> **3. v1.8.12's direct-connect fix could not reach existing replays — fixed.** `scanDirectory`
+> marks a file scanned even when the parse returns `[]` (only a *thrown* error skips the mark).
+> That's deliberate — otherwise every local/CPU/teams replay re-parses on every scan forever — but
+> it means widening the supported mode set can't reach files already on disk. So Bruno's v1.8.12 fix
+> only ever caught direct games played *after* updating. `PARSER_CAPABILITY_VERSION` (`parser.ts`,
+> now **2**) vs persisted `srs_parserCapabilityVersion` triggers a one-time
+> `pruneUnproductiveScannedFiles()` (`db.ts`) that drops scan marks for files that yielded no game
+> row; the normal startup scan then re-parses them. **Bump PARSER_CAPABILITY_VERSION whenever the
+> parser starts accepting a match type it used to discard.** Verified on Joey's machine: 6,450 files
+> re-scanned, **4,878 direct games ingested** (predicted 4,902 from an independent disk scan).
+>
+> **4. Pre-existing overlay bug found + fixed (since v1.8.7).** `simulateSet()` snapshots the payload
+> into `statsOverlayPreview`; `layout` was re-applied from the live store but `show` never was — so
+> **all 12 "Show on overlay" toggles were inert for the 38s a simulation ran**, on the real OBS
+> overlay as well as the in-app preview. Fixed in `App.svelte` and `LiveRankedSession.svelte`.
+>
+> **5. Live Session tab layout pass** (Joey flagged the proportions): opponent **rank medal**
+> (reuses `RANK_MEDAL_SVGS`, same art as the overlay) + **tag** alongside the connect code; the card
+> moved off `justify-content: space-between` (which shoved blocks to the far edges of a wide window)
+> onto a `1.5fr / auto / 1fr` grid; the per-game table's `1fr` stage column was eating ~600px while
+> stats crammed right, now fully proportional; rows compacted (8px→5px padding) since unranked runs
+> stack up to 10. Tier colour now uses `opponent_tier_color` — it was recomputed via
+> `getRankTier(rating)` without the placement flag, showing Grandmaster in a Master colour.
+>
+> **6. `vite.config.ts`: node polyfills disabled under vitest** (`process.env.VITEST`). They stub
+> `node:fs`, which blocked tests from reading real `.slp` files off disk. Node provides
+> Buffer/global/process natively, so nothing is lost; the production bundle still gets them.
+>
+> **Tests added:** `live-record.test.ts` (ranked-sets vs unranked-games split, incl. a regression
+> test that a 12-game unranked run does NOT register as a set), `stats-overlay.test.ts` (scoreboard
+> unit per mode + opponent identity present in all modes), `slp-header.test.ts` (parses the newest
+> 60 real replays from `C:/Slippi Replays/Recent`, first 4 KB only, and cross-checks opponent code /
+> match_id / match_type / stage_id against the full parser). **Note: `slp-header.test.ts` self-skips
+> when that replay directory doesn't exist**, so it is effectively Windows-machine-only — it will
+> silently skip on the Mac.
+>
+> **NEXT UP:**
+> 1. **Tag + push `v1.8.13`** (the only remaining release step; CI does the rest).
+> 2. The header peek is the newest code on the watcher's hot path (runs on every new `.slp`). It
+>    fails closed, but deserves more real-play soak time before it's considered settled.
+> 3. Still open from 07-18/19: the removed Ko-fi/Patreon links on the landing page, and the
+>    UI-rework-vs-leave-as-is fork.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-07-18/19 (MARKETING LANDING PAGE — iteration pass, UI-rework fork still open — READ FIRST)
 
 > **State: LIVE at `https://slippirankedstats.com`, all changes pushed to `main`.** This session

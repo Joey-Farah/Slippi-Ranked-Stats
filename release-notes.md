@@ -1,3 +1,33 @@
+## What's New in v1.8.13
+
+### 🎮 Live session tracking now works in unranked and direct connect
+
+The Live Session tab and the OBS overlay used to go blank the moment you left ranked. Now they follow your unranked and direct-connect games too — you'll see who you're playing, their tag, connect code, rank, Rating and season record, exactly as you do in ranked.
+
+The one thing that works differently is the score. Ranked has real sets (first to 2), but in unranked and direct you just keep playing the same person until someone leaves — so instead of a set score, you get a running game count that climbs for as long as you stay with them. Play someone for two hours and it'll read 14–9. You also get your all-time record against that player, counted in games.
+
+Your Rating is never touched by any of this. Grades, set results and Rating changes still come only from real ranked sets, so friendlies can't move numbers they have no business moving.
+
+### ⚡ Your opponent now appears as soon as the game starts
+
+Previously the opponent's tag and rank only showed up once the game had *finished*, which made them useless during game 1. The app now reads who you're playing the moment the match begins, so their info is on screen within a couple of seconds — on the Live Session tab and on your stream overlay.
+
+Their tag and character are read straight out of the replay file, so those show up instantly and stay visible even if Slippi's servers are slow or unreachable; their rank and Rating follow a moment later once their profile loads.
+
+### 🔧 Direct-connect games from before v1.8.12 are now picked up
+
+v1.8.12 started reading direct-connect replays, but only ones played *after* you updated — every direct game already in your replay folder stayed invisible, because the app had previously marked those files as "already checked" back when it was discarding them.
+
+This release re-checks them once, automatically, in the background the first time you launch. If you play a lot of direct connect, expect the Unranked & Direct Stats tab to fill in with a large chunk of history that was there all along (in testing, nearly 5,000 games).
+
+### 🐛 Fixes
+
+- The overlay's "Show on overlay" toggles did nothing while a test/simulated set was playing. All of them now apply immediately, during a simulation or a real set.
+- An opponent at Grandmaster could show the wrong rank colour on the Live Session tab.
+- The opponent's rank medal now appears on the Live Session tab instead of just the rank name, and their tag is shown alongside their connect code.
+
+---
+
 ## What's New in v1.8.12
 
 ### 🎮 Direct-connect games now show up in Unranked & Direct Stats
