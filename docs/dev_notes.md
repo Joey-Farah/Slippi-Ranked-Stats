@@ -108,8 +108,30 @@ hand-off mechanism between work sessions and across machines.
 > when that replay directory doesn't exist**, so it is effectively Windows-machine-only — it will
 > silently skip on the Mac.
 >
+> **⚠ `main` IS AHEAD OF THE `v1.8.13` TAG — two BANKED fixes are pushed but deliberately
+> unreleased** (Joey's call: too minor to justify an update prompt on their own). **Fold them into
+> whatever ships next; they need no further work, just a version bump.**
+> - `d97e64d` **stage id table was wrong for every non-legal stage.** Only the six legal ones
+>   (2/3/8/28/31/32) were right; id 24 read "Mushroom Kingdom II" when it's Big Blue, id 7 read
+>   "Hyrule Temple" when it's Corneria, ~12 wrong and ~13 missing entirely. Invisible for years
+>   because ranked/unranked only produce the six legal stages — **ingesting direct replays in
+>   v1.8.12/v1.8.13 is what made the broken half reachable.** Table now mirrors slippi-js's `Stage`
+>   enum, pinned by `parser.test.ts` so it can't drift. Display-only; `stage_id` is what's stored.
+> - `1291921` **non-legal stages are now excluded from all statistics + grading.** Filtered in
+>   `filteredGames` (every statistic derives from it) and separately in both grading paths
+>   (`watcher.ts` live, `GradeHistory.svelte` regrade) since the benchmarks are entirely
+>   legal-stage ranked play. `LEGAL_STAGES` / `isLegalStage()` live in `parser.ts`. **Games are
+>   still parsed and stored — aggregates only, so it's reversible.** Real impact locally: 8 games
+>   of 18,534 (0.04%), 7 of them one **unranked April Fools session** (Corneria, Mute City,
+>   Rainbow Cruise, Jungle Japes, Green Greens, Poké Floats, Kongo Jungle N64) — so this was
+>   already skewing unranked stats before direct games existed.
+> - ⚠ Deliberately NOT filtered: the NOW PLAYING running scoreboard still counts non-legal games
+>   (it reads the DB by `match_id`, not `filteredGames`). It's a scoreboard of what you played,
+>   not a statistic. Revisit if that feels wrong.
+>
 > **NEXT UP:**
-> 1. **Tag + push `v1.8.13`** (the only remaining release step; CI does the rest).
+> 1. ✅ `v1.8.13` tagged, built and published (both platforms, `latest.json` has all 4 platform
+>    keys signed). Release verified live.
 > 2. The header peek is the newest code on the watcher's hot path (runs on every new `.slp`). It
 >    fails closed, but deserves more real-play soak time before it's considered settled.
 > 3. Still open from 07-18/19: the removed Ko-fi/Patreon links on the landing page, and the
