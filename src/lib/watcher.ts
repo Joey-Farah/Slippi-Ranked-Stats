@@ -2,7 +2,7 @@ import { watch, readFile, type UnwatchFn } from "@tauri-apps/plugin-fs";
 import { parseSlpHeader, type SlpHeaderInfo } from "./slp_parser";
 import { get } from "svelte/store";
 import type Database from "@tauri-apps/plugin-sql";
-import { parseSlpFile, getRankTier, type ParsedGameRow } from "./parser";
+import { parseSlpFile, getRankTier, isLegalStage, type ParsedGameRow } from "./parser";
 import {
   insertGame,
   getGames,
@@ -545,7 +545,9 @@ async function handleLiveGame(
     });
 
     const allSetStats   = get(liveGameStats).filter((s) => s.match_id === g.match_id);
-    const setStats      = allSetStats.filter((s) => s.avg_stock_duration !== null);
+    // Also drop non-legal stages: the benchmarks are built entirely from legal-stage ranked
+    // play, so scoring a Big Blue game against them measures the stage, not the player.
+    const setStats      = allSetStats.filter((s) => s.avg_stock_duration !== null && isLegalStage(s.stage_id));
     const playerChar   = CHARACTERS[g.player_char_id]   ?? "Unknown";
     const opponentChar = CHARACTERS[g.opponent_char_id] ?? "Unknown";
     // Game 1 result (earliest by timestamp) drives the set-level comeback modifier.

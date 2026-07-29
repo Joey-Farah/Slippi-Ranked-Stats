@@ -40,6 +40,28 @@ export const STAGES: Record<number, string> = {
   30: "Kongo Jungle N64",   31: "Battlefield",        32: "Final Destination",
 };
 
+// The six tournament-legal stages — the only ones Slippi's ranked queue ever picks, and the
+// only ones the grading benchmarks were built from.
+//
+// Direct connect lets players choose anything, and Slippi's April Fools events have put
+// non-legal stages in front of everyone. Those games are real, but their stats aren't
+// comparable: Big Blue or Hyrule Temple wreck damage-per-opening, stage control, kill percent
+// and openings-per-kill in ways that say nothing about how you play. They're kept in the
+// database (nothing is discarded at parse time) and excluded from aggregate statistics and
+// from grading.
+export const LEGAL_STAGES = new Set([
+  2,  // Fountain of Dreams
+  3,  // Pokémon Stadium
+  8,  // Yoshi's Story
+  28, // Dream Land N64
+  31, // Battlefield
+  32, // Final Destination
+]);
+
+export function isLegalStage(stageId: number): boolean {
+  return LEGAL_STAGES.has(stageId);
+}
+
 // ── Rank tiers ─────────────────────────────────────────────────────────────
 
 // Rating thresholds match Slippi Launcher's calculate_rank.ts (the source of truth for

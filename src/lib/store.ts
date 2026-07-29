@@ -1,7 +1,7 @@
 import { writable, derived } from "svelte/store";
 import type { GameRow, SnapshotRow, SeasonRow } from "./db";
 import type { SetGrade } from "./grading";
-import { getRankTier, CHARACTERS } from "./parser";
+import { getRankTier, CHARACTERS, isLegalStage } from "./parser";
 import { internalToExternal } from "./char-icons";
 
 // ── Persistent settings (auto-saved to localStorage) ───────────────────────
@@ -288,12 +288,16 @@ export const gradeHistoryProgress = writable<{ current: number; total: number }>
 
 // ── Derived: filtered games by date range ─────────────────────────────────
 
+// Non-legal stages are dropped here rather than at parse time, so the games stay in the
+// database and this stays reversible. Every statistic in the app derives from this store, so
+// one filter covers all of them. See LEGAL_STAGES for why they're excluded at all.
 export const filteredGames = derived([games, dateRange], ([$games, $range]) => {
-  if ($range === "all") return $games;
+  const legal = $games.filter((g) => isLegalStage(g.stage_id));
+  if ($range === "all") return legal;
   const now = new Date();
   const days = $range === "30d" ? 30 : 90;
   const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  return $games.filter((g) => new Date(g.timestamp) >= cutoff);
+  return legal.filter((g) => new Date(g.timestamp) >= cutoff);
 });
 
 // ── Derived: ranked games only ─────────────────────────────────────────────

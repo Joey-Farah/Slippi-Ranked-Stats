@@ -62,6 +62,27 @@ describe("STAGES", () => {
     expect(STAGES[Stage.FINAL_DESTINATION]).toBe("Final Destination");
   });
 
+  it("treats exactly the six tournament-legal stages as legal", async () => {
+    const { LEGAL_STAGES, isLegalStage } = await import("./parser");
+    expect([...LEGAL_STAGES].sort((a, b) => a - b)).toEqual([2, 3, 8, 28, 31, 32]);
+
+    // These are the only stages Slippi's ranked queue picks.
+    for (const s of [
+      Stage.FOUNTAIN_OF_DREAMS, Stage.POKEMON_STADIUM, Stage.YOSHIS_STORY,
+      Stage.DREAMLAND, Stage.BATTLEFIELD, Stage.FINAL_DESTINATION,
+    ]) {
+      expect(isLegalStage(s as unknown as number)).toBe(true);
+    }
+
+    // Reachable via direct connect and April Fools events; excluded from stats and grading.
+    for (const s of [
+      Stage.POKE_FLOATS, Stage.BIG_BLUE, Stage.HYRULE_TEMPLE, Stage.CORNERIA,
+      Stage.PEACHS_CASTLE, Stage.BRINSTAR_DEPTHS, Stage.FLAT_ZONE, Stage.ICICLE_MOUNTAIN,
+    ]) {
+      expect(isLegalStage(s as unknown as number)).toBe(false);
+    }
+  });
+
   it("has no entries slippi-js doesn't know about", () => {
     const known = new Set(
       Object.values(Stage).filter((v): v is number => typeof v === "number")

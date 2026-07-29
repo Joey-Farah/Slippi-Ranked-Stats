@@ -8,7 +8,7 @@
   import { startDiscordAuth, verifyPatronRole } from "../../lib/discord";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { invoke } from "@tauri-apps/api/core";
-  import { CHARACTERS, parseSlpFile } from "../../lib/parser";
+  import { CHARACTERS, parseSlpFile, isLegalStage } from "../../lib/parser";
   import { gradeSet, scoreToGrade, formatStatValue, gradeColor, CATEGORY_DEFS, GRADE_VERSION, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, type SetGradeRow } from "../../lib/db";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
@@ -315,7 +315,11 @@
         // Filter out games with no frame data (e.g. opponent quit before any frames
         // were written). avg_stock_duration is null iff playerFrames.length === 0 in
         // the parser — the only code path that produces all-null stats.
-        const gradableGames = liveGames.filter((g) => g.avg_stock_duration !== null);
+        // Non-legal stages go too: the benchmarks are all legal-stage ranked play, so a
+        // Hyrule Temple game graded against them scores the stage rather than the player.
+        const gradableGames = liveGames.filter(
+          (g) => g.avg_stock_duration !== null && isLegalStage(g.stage_id)
+        );
 
         if (gradableGames.length > 0) {
           // Game 1 result (earliest by timestamp) drives the set-level comeback
