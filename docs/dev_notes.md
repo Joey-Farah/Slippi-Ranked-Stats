@@ -152,6 +152,8 @@ hand-off mechanism between work sessions and across machines.
 >   markup reads them. The row grid moved from repeated inline styles to `.game-grid` /
 >   `.game-row` classes so the header and rows can't drift apart. Ranked sets are 2–3 games and
 >   never reach the cap. Caption is now "(N games)" on unranked/direct only.
+>   **Explicitly NOT worth a release on its own (Joey, 2026-07-31)** — like the two stage fixes
+>   above, it rides along with whatever ships next.
 >
 > **NEXT UP:**
 > 1. ✅ `v1.8.13` tagged, built and published (both platforms, `latest.json` has all 4 platform
