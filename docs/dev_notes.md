@@ -108,7 +108,18 @@ hand-off mechanism between work sessions and across machines.
 > when that replay directory doesn't exist**, so it is effectively Windows-machine-only — it will
 > silently skip on the Mac.
 >
-> **⚠ `main` IS AHEAD OF THE `v1.8.13` TAG — two BANKED fixes are pushed but deliberately
+> **⚠ Update 2026-07-31 — that test went red on a purely data-dependent change and was fixed.**
+> Two of its assertions ("≥80% of the newest 60 replays parse") failed at 44/60. Nothing was wrong
+> with `parseSlpHeader`: 16 of those 60 files were games **Joey isn't in** — Slippi writes
+> SPECTATED replays into the same folder (a 2026-07-30 batch, e.g. `POIR#851` vs `FUN#941`), and
+> returning `null` there is the correct behaviour. `recentReplays()` now pre-filters the sample to
+> files whose header contains the own connect code, found by raw byte search (Shift-JIS, full-width
+> `＃` = `0x81 0x94`) so the filter never leans on the parser it's testing. Result: 44/44 of Joey's
+> own replays parse. **If this test ever fails again, check the sample before suspecting the
+> parser** — and note that the two `files[0]` tests at the bottom were passing vacuously whenever
+> the newest replay happened to be a spectated one.
+>
+> **⚠ `main` IS AHEAD OF THE `v1.8.13` TAG — three BANKED changes are pushed but deliberately
 > unreleased** (Joey's call: too minor to justify an update prompt on their own). **Fold them into
 > whatever ships next; they need no further work, just a version bump.**
 > - `d97e64d` **stage id table was wrong for every non-legal stage.** Only the six legal ones
@@ -128,6 +139,19 @@ hand-off mechanism between work sessions and across machines.
 > - ⚠ Deliberately NOT filtered: the NOW PLAYING running scoreboard still counts non-legal games
 >   (it reads the DB by `match_id`, not `filteredGames`). It's a scoreboard of what you played,
 >   not a statistic. Revisit if that feels wrong.
+> - **The Live Session per-game list is no longer truncated to the latest 10** (2026-07-31,
+>   Joey's request). An unranked/direct run shares one `match_id` for the whole connection, so
+>   v1.8.13 capped the list at `allGames.slice(-10)` and labelled it "(latest 10 of N)". It now
+>   renders every game inside a `.game-list` scroll container capped at `clamp(140px, 48vh,
+>   620px)`: a tall window stretches to show more rows, a short one gets a scrollbar. Column
+>   headers are `position: sticky` **inside** that container — deliberately, so they shrink with
+>   the rows when the scrollbar appears instead of drifting out of alignment (a header outside
+>   the scroll box would). The list **follows the newest game** (it's at the bottom) via a small
+>   `$effect`, unless the user has scrolled up more than 24px, and re-pins when the opponent
+>   changes; `followLatest`/`followedMatch` are plain `let`s, not `$state`, since nothing in the
+>   markup reads them. The row grid moved from repeated inline styles to `.game-grid` /
+>   `.game-row` classes so the header and rows can't drift apart. Ranked sets are 2–3 games and
+>   never reach the cap. Caption is now "(N games)" on unranked/direct only.
 >
 > **NEXT UP:**
 > 1. ✅ `v1.8.13` tagged, built and published (both platforms, `latest.json` has all 4 platform

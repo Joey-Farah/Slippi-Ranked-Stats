@@ -148,6 +148,32 @@
   // Most recent match
   let lastMatch = $derived(statsByMatch.at(-1));
 
+  // The per-game list shows every game of the match and scrolls (an unranked/direct run shares
+  // one match_id for the whole connection and can reach 50+ games). Newest game is at the
+  // bottom, so the view follows it as games land — unless the user has scrolled up to read
+  // older ones, in which case it stays put until they scroll back down.
+  let gamesEl: HTMLDivElement | null = $state(null);
+  // Plain lets, not $state: only ever read inside the effect/handler below, never in markup.
+  let followLatest = true;
+  let followedMatch = "";
+
+  function onGamesScroll() {
+    const el = gamesEl;
+    if (!el) return;
+    followLatest = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+  }
+
+  $effect(() => {
+    const matchId = lastMatch?.[0] ?? "";
+    const count = lastMatch?.[1].length ?? 0;
+    // A new opponent starts pinned to the latest game again.
+    if (matchId !== followedMatch) {
+      followedMatch = matchId;
+      followLatest = true;
+    }
+    if (gamesEl && followLatest && count > 0) gamesEl.scrollTop = gamesEl.scrollHeight;
+  });
+
   // Session set W/L (today's record) comes from the shared `liveSetRecord` store so
   // the tab and the stats overlay always agree.
 
@@ -511,10 +537,6 @@
       {@const [matchId, allGames] = lastMatch}
       {@const complete = isSetComplete(allGames)}
       {@const isRankedMatch = allGames[0]?.match_type === "ranked"}
-      <!-- Unranked/direct runs can reach 50+ games on one connection, which would bury the rest
-           of the tab. Ranked sets are 2–3 games, so they're never truncated. -->
-      {@const games = isRankedMatch ? allGames : allGames.slice(-10)}
-      {@const truncated = allGames.length - games.length}
       <div class="card" style="margin-bottom: 16px">
         <div class="section-title" style="margin-bottom: 10px">
           {complete
@@ -523,55 +545,57 @@
           <span style="font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px">
             vs {allGames[0].opponent_code}
           </span>
-          {#if truncated > 0}
+          {#if !isRankedMatch && allGames.length > 1}
             <span style="font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px">
-              (latest 10 of {allGames.length})
+              ({allGames.length} games)
             </span>
           {/if}
         </div>
 
-        <!-- Column headers -->
-        <div style="
-          display: grid; grid-template-columns: 26px minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) minmax(0, 0.7fr);
-          gap: 8px; padding: 0 10px 4px;
-          font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em;
-        ">
-          <div></div>
-          <div>Stage</div>
-          <div>K / D</div>
-          <div>Opn/Kill</div>
-          <div>Neutral</div>
-          <div>Dmg/Opn</div>
-          <div style="text-align:right">Time</div>
-        </div>
+        <!-- Every game of the match, scrollable. An unranked/direct run can reach 50+ games on
+             one connection, so the list is capped at a share of the window height: a tall window
+             stretches to show more rows, a short one gets a scrollbar. Ranked sets are 2–3 games
+             and never reach the cap. -->
+        <div
+          class="game-list"
+          bind:this={gamesEl}
+          onscroll={onGamesScroll}
+          style="margin-bottom: {complete ? '12px' : '0'}"
+        >
+          <!-- Column headers — sticky so they survive scrolling a long run -->
+          <div class="game-grid game-head">
+            <div></div>
+            <div>Stage</div>
+            <div>K / D</div>
+            <div>Opn/Kill</div>
+            <div>Neutral</div>
+            <div>Dmg/Opn</div>
+            <div style="text-align:right">Time</div>
+          </div>
 
-        <!-- Per-game rows -->
-        <!-- Rows stay compact because an unranked run stacks up to 10 of them; at the old
-             8px/6px spacing that block dominated the tab. -->
-        <div style="display: flex; flex-direction: column; gap: 3px; margin-bottom: {complete ? '12px' : '0'}">
-          {#each games as g, i}
-            {@const isWin = g.result === "win" || g.result === "lras_win"}
-            <div style="
-              display: grid; grid-template-columns: 26px minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) minmax(0, 0.7fr);
-              align-items: center; gap: 8px;
-              background: var(--bg); border-radius: 6px; padding: 5px 10px;
-              border-left: 3px solid {isWin ? '#2ecc71' : '#e74c3c'};
-            ">
-              <div style="font-size: 11px; color: var(--muted)">G{truncated + i + 1}</div>
-              <div style="font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
-                {STAGES[g.stage_id] ?? `Stage ${g.stage_id}`}
+          <!-- Per-game rows -->
+          <!-- Rows stay compact because an unranked run stacks dozens of them; at the old
+               8px/6px spacing that block dominated the tab. -->
+          <div class="game-rows">
+            {#each allGames as g, i}
+              {@const isWin = g.result === "win" || g.result === "lras_win"}
+              <div class="game-grid game-row" style="border-left-color: {isWin ? '#2ecc71' : '#e74c3c'}">
+                <div style="font-size: 11px; color: var(--muted)">G{i + 1}</div>
+                <div style="font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+                  {STAGES[g.stage_id] ?? `Stage ${g.stage_id}`}
+                </div>
+                <div style="font-size: 12px">
+                  <span class="win-text">{g.kills}</span><span style="color:var(--muted)">/</span><span class="loss-text">{g.deaths}</span>
+                </div>
+                <div style="font-size: 11px">{fmtRatio(g.openings_per_kill)}</div>
+                <div style="font-size: 11px">{fmtPct(g.neutral_win_ratio)}</div>
+                <div style="font-size: 11px">{fmtRatio(g.damage_per_opening)}</div>
+                <div style="font-size: 11px; color: var(--muted); text-align: right">
+                  {fmtDuration(g.duration_frames)}
+                </div>
               </div>
-              <div style="font-size: 12px">
-                <span class="win-text">{g.kills}</span><span style="color:var(--muted)">/</span><span class="loss-text">{g.deaths}</span>
-              </div>
-              <div style="font-size: 11px">{fmtRatio(g.openings_per_kill)}</div>
-              <div style="font-size: 11px">{fmtPct(g.neutral_win_ratio)}</div>
-              <div style="font-size: 11px">{fmtRatio(g.damage_per_opening)}</div>
-              <div style="font-size: 11px; color: var(--muted); text-align: right">
-                {fmtDuration(g.duration_frames)}
-              </div>
-            </div>
-          {/each}
+            {/each}
+          </div>
         </div>
 
       </div>
@@ -580,7 +604,7 @@
       {#if complete && $lastSetGrade}
         {@render gradeRevealCard(
           $lastSetGrade.letter,
-          `vs ${games[0].opponent_code} · ${$lastSetGrade.setResult === "win" ? "Win" : "Loss"} ${$lastSetGrade.wins}–${$lastSetGrade.losses}`
+          `vs ${allGames[0].opponent_code} · ${$lastSetGrade.setResult === "win" ? "Win" : "Loss"} ${$lastSetGrade.wins}–${$lastSetGrade.losses}`
         )}
       {/if}
     {/if}
@@ -652,6 +676,47 @@
 {/if}
 
 <style>
+  /* Per-game list for the current match. The cap is viewport-relative so the list stretches
+     on a tall window and scrolls on a short one, instead of being truncated to a fixed count. */
+  .game-list {
+    max-height: clamp(140px, 48vh, 620px);
+    overflow-y: auto;
+  }
+
+  .game-grid {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) minmax(0, 0.7fr);
+    gap: 8px;
+  }
+
+  /* Sticky inside the scroll container, so it shrinks with the rows when the scrollbar
+     appears and stays aligned with them (a header outside the container would not). */
+  .game-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--card);
+    padding: 0 10px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .game-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .game-row {
+    align-items: center;
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 5px 10px;
+    border-left: 3px solid transparent;
+  }
+
   .grade-reveal {
     background: var(--card);
     border: 1px solid var(--border);
