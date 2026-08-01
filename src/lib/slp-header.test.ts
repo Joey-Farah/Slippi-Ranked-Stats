@@ -9,6 +9,22 @@ import { parseSlpHeader } from "./slp_parser";
 const REPLAY_DIR = "C:/Slippi Replays/Recent";
 const OWN_CODE = "JOEY#870";
 
+// Shift-JIS bytes of the own connect code as it appears in the header: a FULL-WIDTH ＃
+// (0x81 0x94), not ASCII. Found by raw byte search so this pre-filter never leans on the
+// parser it's used to test.
+const OWN_CODE_BYTES = (() => {
+  const [name, num] = OWN_CODE.split("#");
+  return [...[...name].map((c) => c.charCodeAt(0)), 0x81, 0x94, ...[...num].map((c) => c.charCodeAt(0))];
+})();
+
+function containsOwnCode(head: Uint8Array): boolean {
+  outer: for (let i = 0; i + OWN_CODE_BYTES.length <= head.length; i++) {
+    for (let j = 0; j < OWN_CODE_BYTES.length; j++) if (head[i + j] !== OWN_CODE_BYTES[j]) continue outer;
+    return true;
+  }
+  return false;
+}
+
 function recentReplays(limit: number): string[] {
   if (!existsSync(REPLAY_DIR)) return [];
   const out: string[] = [];
@@ -21,11 +37,20 @@ function recentReplays(limit: number): string[] {
     }
   };
   walk(REPLAY_DIR, 0);
-  return out
+  const newestFirst = out
     .map((p) => ({ p, m: statSync(p).mtimeMs }))
     .sort((a, b) => b.m - a.m)
-    .slice(0, limit)
     .map((x) => x.p);
+
+  // Slippi drops SPECTATED games into the same folder. Returning null for a game the player
+  // isn't in is correct behaviour, not a parse failure, so those files would fail the
+  // "effectively everything parses" assertions below for the wrong reason — skip them.
+  const picked: string[] = [];
+  for (const p of newestFirst) {
+    if (picked.length >= limit) break;
+    if (containsOwnCode(readFileSync(p).subarray(0, 4096))) picked.push(p);
+  }
+  return picked;
 }
 
 const files = recentReplays(60);
