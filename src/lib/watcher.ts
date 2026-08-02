@@ -125,7 +125,7 @@ function opponentPrevSeason(history: SeasonData[]): PrevSeasonInfo | null {
   // the top 300, so it doubles as the Grandmaster flag. Confirmed to hold for past seasons —
   // every historical placement observed across a sample of real profiles was <= 300, and
   // everyone outside it came back with none at all.
-  const tier = getRankTier(prev.rating, prev.global_rank > 0);
+  const tier = getRankTier(prev.rating, prev.global_rank > 0, prev.wins + prev.losses);
   return {
     name: prev.season_name,
     rating: prev.rating,
@@ -145,7 +145,7 @@ function opponentPrevSeason(history: SeasonData[]): PrevSeasonInfo | null {
 function applyOpponentProfile(matchId: string, opponentCode: string): void {
   fetchRatingSnapshot(opponentCode)
     .then(({ snapshot, seasons: history, displayName: oppTag, characters }) => {
-      const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
+      const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0, snapshot.wins + snapshot.losses);
       const mains = topOpponentChars(characters);
       const prevSeason = opponentPrevSeason(history);
       activeSet.update((s) => {

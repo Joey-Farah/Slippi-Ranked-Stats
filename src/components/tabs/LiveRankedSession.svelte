@@ -495,8 +495,14 @@
                 <div style="font-size: 11px; color: var(--muted)">{$activeSet.opponent_code}</div>
               {/if}
               {#if $activeSet.opponent_rating !== null}
+                <!-- An unranked player's rating is Slippi's 1100 placeholder (or a provisional
+                     mid-placement number), so printing it would present a non-number as fact. -->
                 <div style="font-size: 12px; color: {$activeSet.opponent_tier_color ?? 'var(--muted)'}">
-                  {$activeSet.opponent_tier ?? ""} · {$activeSet.opponent_rating.toFixed(0)}
+                  {#if $activeSet.opponent_tier === "Unranked"}
+                    Unranked
+                  {:else}
+                    {$activeSet.opponent_tier ?? ""} · {$activeSet.opponent_rating.toFixed(0)}
+                  {/if}
                 </div>
               {:else}
                 <div style="font-size: 12px; color: var(--muted)">Fetching rank…</div>
@@ -575,7 +581,9 @@
               </div>
             {/if}
             <span style="color: {ps.tier_color}; font-weight: 600">{ps.tier}</span>
-            <span style="color: var(--muted)">· {ps.rating.toFixed(0)}</span>
+            {#if ps.tier !== "Unranked"}
+              <span style="color: var(--muted)">· {ps.rating.toFixed(0)}</span>
+            {/if}
             <span>
               <span class="win-text">{ps.wins}W</span>–<span class="loss-text">{ps.losses}L</span>
               <span style="color: var(--muted)">({winRate(ps.wins, ps.losses)})</span>

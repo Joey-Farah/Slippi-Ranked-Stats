@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { previousSeason, type SeasonData } from "./api";
-import { getRankTier } from "./parser";
+import { getRankTier, PLACEMENT_SETS_REQUIRED } from "./parser";
 
 // Shapes below mirror real `rankedNetplayProfileHistory` responses captured from
 // internal.slippi.gg while building this feature — same field names, same ordering
@@ -86,5 +86,34 @@ describe("past-season rank", () => {
     // Real capture: a player who finished Season 4 at 1804.8 with no placement.
     const mid = season("Season 4", S4.season_end, 1804.8, 98, 98, 0);
     expect(getRankTier(mid.rating, mid.global_rank > 0).name).toBe("Platinum I");
+  });
+});
+
+describe("placement rule", () => {
+  // Slippi starts everyone at 1100, which sits inside Silver I — so before this rule a player
+  // who had never queued that season was displayed as a genuine Silver I player. Confirmed
+  // against 18 real zero-set profiles, every one of them sitting at exactly 1100.
+  it("reports a player with no sets as Unranked, not Silver I", () => {
+    expect(getRankTier(1100, false, 0).name).toBe("Unranked");
+    expect(getRankTier(1100, false).name).toBe("Silver I"); // unchanged when the count is unknown
+  });
+
+  it("keeps a player Unranked until placements are done", () => {
+    for (let n = 0; n < PLACEMENT_SETS_REQUIRED; n++) {
+      expect(getRankTier(1850, false, n).name).toBe("Unranked");
+    }
+    expect(getRankTier(1850, false, PLACEMENT_SETS_REQUIRED).name).toBe("Platinum II");
+  });
+
+  // The placement rule outranks the Grandmaster check: a placement-run rating is provisional,
+  // so a high one must not mint a Grandmaster before the player has actually placed.
+  it("does not award Grandmaster during placements", () => {
+    expect(getRankTier(2600, true, 2).name).toBe("Unranked");
+    expect(getRankTier(2600, true, 10).name).toBe("Grandmaster");
+  });
+
+  it("still ranks established players normally", () => {
+    expect(getRankTier(2462, true, 93).name).toBe("Grandmaster");
+    expect(getRankTier(1804.8, false, 196).name).toBe("Platinum I");
   });
 });

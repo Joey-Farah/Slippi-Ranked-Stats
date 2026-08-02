@@ -310,7 +310,7 @@
       </span>
     {:else}
       {@const snap = $snapshots.at(-1)!}
-      {@const tier = getRankTier(snap.rating, snap.global_rank > 0)}
+      {@const tier = getRankTier(snap.rating, snap.global_rank > 0, snap.wins + snap.losses)}
       <div style="background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; text-align:center;">
         <div style="font-size:18px; font-weight:700">{snap.rating.toFixed(1)}</div>
         <div style="font-size:11px; font-weight:600; color:{tier.color}">{tier.name}</div>

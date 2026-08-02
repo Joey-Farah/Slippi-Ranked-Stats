@@ -90,12 +90,39 @@ const RANK_TIERS = [
 
 const MASTER_1_MIN = 2191.75;
 
+// Sets a player must complete in a season before Slippi gives them a rank. Until then they're
+// Unranked no matter what their rating says.
+//
+// ⚠ The Slippi API does NOT expose a rank or a "placed" flag — slippi.gg derives the tier
+// client-side just like we do (GraphQL introspection is disabled and there is no `rank`,
+// `isPlaced` or `placementsRequired` field on NetplayProfile), so this threshold is our own
+// reimplementation of Slippi's documented 5-placement-set requirement rather than something
+// read back from them. If it ever needs adjusting, this constant is the only place to change.
+export const PLACEMENT_SETS_REQUIRED = 5;
+
 // Grandmaster = Master 1+ rating AND a global leaderboard placement, exactly as Slippi
 // determines it (a Master-range rating without a placement stays Master 1/2/3). Pass
 // `hasPlacement` (the player holds a daily global placement) to enable it.
-export function getRankTier(rating: number, hasPlacement = false): { name: string; color: string } {
+//
+// `setsPlayed` is that player's season W+L (equivalently the API's `ratingUpdateCount` — the two
+// were confirmed identical on a real profile: 77+16 == 93). Pass it wherever it's known so an
+// unplaced player isn't labelled with whatever tier their placeholder rating happens to land in:
+// Slippi starts everyone at **1100**, which sits inside Silver I, so a player who has never
+// queued this season used to be displayed as a genuine Silver I. Verified against 18 real
+// zero-set profiles, every one of them sitting at exactly 1100.
+//
+// Leave it null when the count isn't available (e.g. a stored snapshot from before this
+// mattered) — the rule is then skipped rather than guessed at.
+export function getRankTier(
+  rating: number,
+  hasPlacement = false,
+  setsPlayed: number | null = null
+): { name: string; color: string } {
+  if (setsPlayed !== null && setsPlayed < PLACEMENT_SETS_REQUIRED) {
+    return { name: "Unranked", color: "#9aa0a6" };
+  }
   if (hasPlacement && rating >= MASTER_1_MIN) return { name: "Grandmaster", color: "#ff4444" };
-  return RANK_TIERS.find((t) => rating >= t.min) ?? { name: "Unranked", color: "#666" };
+  return RANK_TIERS.find((t) => rating >= t.min) ?? { name: "Unranked", color: "#9aa0a6" };
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────

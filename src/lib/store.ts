@@ -497,6 +497,68 @@ function buildSession(sets: SetResult[]): Session {
   };
 }
 
+// ── Net Rating change over a past session ──────────────────────────────────
+
+export interface SessionRating {
+  delta: number;
+  from: number;
+  to: number;
+}
+
+// The watcher fetches a fresh rating ~10s after a set completes (with a 30s retry), and a
+// session's `end` is its last set's *first* game, so the closing snapshot lands a few minutes
+// after `end`. This window is generous enough for that but far short of the 1-hour gap that
+// separates two sessions, so it can never reach into the next one.
+const SESSION_SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
+
+// Net Rating gained or lost across a completed session, or null when it can't be established
+// exactly.
+//
+// Snapshots are sparse: they only started being recorded partway through this app's life, and
+// most historical sessions predate them entirely (on a real 137-session database only 19 had
+// any snapshot coverage at all). So "no data" is the normal case, not an error, and the caller
+// simply shows nothing.
+//
+// The delta is the rating from the last snapshot before the session's first set to the last
+// snapshot after its final set. That bracket is only trustworthy if nothing ELSE happened
+// inside it — a baseline left over from days ago would silently absorb another session's
+// results. Slippi's snapshots carry season W/L, so we can verify: the number of sets the two
+// snapshots are apart must equal the number of sets in this session. When it doesn't, the
+// bracket is measuring something other than exactly this session and we return null rather
+// than show a number that looks authoritative and isn't. On the same real database that check
+// held for 16 of the 19 sessions with coverage; the 3 it rejected were each off by a set.
+export function sessionRatingDelta(
+  session: Session,
+  snaps: SnapshotRow[]
+): SessionRating | null {
+  if (session.sets.length === 0 || snaps.length === 0) return null;
+
+  const startMs = new Date(session.start).getTime();
+  const endMs = new Date(session.end).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+
+  const ordered = [...snaps].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  let before: SnapshotRow | null = null;
+  let after: SnapshotRow | null = null;
+  for (const s of ordered) {
+    const t = new Date(s.timestamp).getTime();
+    if (!Number.isFinite(t)) continue;
+    if (t <= startMs) before = s;
+    if (t <= endMs + SESSION_SNAPSHOT_GRACE_MS) after = s;
+  }
+  if (!before || !after) return null;
+  if (new Date(after.timestamp).getTime() <= new Date(before.timestamp).getTime()) return null;
+
+  // Season W/L are set counts, so this is how many ranked sets Slippi saw between the two.
+  const setsBetween = after.wins + after.losses - (before.wins + before.losses);
+  if (setsBetween !== session.sets.length) return null;
+
+  return { delta: after.rating - before.rating, from: before.rating, to: after.rating };
+}
+
 // ── Derived: live session set record (today's W/L) ─────────────────────────
 // Set W/L for the current watcher session, derived straight from liveGameStats so
 // it always reflects the games tracked this run. Shared by the Live Session tab and
@@ -589,7 +651,9 @@ export const statsOverlayPayload = derived(
   ([$tag, $code, $snaps, $startRating, $record, $active, $lastSet, $layout, $show]): StatsOverlayPayload => {
     const snap = $snaps.at(-1);
     const rating = snap?.rating ?? null;
-    const tier = rating !== null ? getRankTier(rating, (snap?.global_rank ?? 0) > 0) : { name: "Unranked", color: "#9aa0a6" };
+    const tier = rating !== null
+      ? getRankTier(rating, (snap?.global_rank ?? 0) > 0, (snap?.wins ?? 0) + (snap?.losses ?? 0))
+      : { name: "Unranked", color: "#9aa0a6" };
     const sessionDelta =
       rating !== null && $startRating !== null ? rating - $startRating : null;
 
