@@ -8,9 +8,11 @@ hand-off mechanism between work sessions and across machines.
 
 ## ⚠ SESSION HANDOFF — 2026-08-01 (v1.8.14 — opponent season history + the REAL opponent-delay fix — READ FIRST)
 
-> **State: all code committed, version bumped to v1.8.14. NOT YET TAGGED/PUSHED as a release** —
-> tagging is what triggers CI, left as an explicit decision. `tsc --noEmit` clean, `vite build`
-> clean, **58/58 tests** (9 new). **Not yet eyeballed in a live game** — see VERIFY below.
+> **State: ✅ RELEASED. `v1.8.14` tagged and pushed 2026-08-02; both CI jobs green (Windows +
+> macOS), release live and not a draft, `latest.json` carries all 4 platform keys, all signed —
+> so auto-update is live on both platforms.** `tsc --noEmit` clean, `vite build` clean,
+> **70/70 tests** (21 new). **Still NOT eyeballed in a live game** — Joey is testing against the
+> shipped build; see VERIFY below for the two things to watch.
 >
 > **1. Opponent's season W/L + last-season rank on the Live Session tab** (Joey's request).
 > Both come from the `fetchRatingSnapshot(opponentCode)` call the live card **already makes** —
