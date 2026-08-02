@@ -159,6 +159,19 @@ export function isLiveMode(t: string): t is LiveMode {
   return (LIVE_MODES as string[]).includes(t);
 }
 
+// How a player finished a past ranked season: their final rank, rating and record. Comes free
+// with the profile fetch the live card already makes — the season history was being returned
+// and discarded. `name` is shown because the API skips seasons a player sat out, so this isn't
+// always the season immediately before the current one (see previousSeason() in api.ts).
+export interface PrevSeasonInfo {
+  name: string;         // e.g. "Season 4"
+  rating: number;
+  tier: string;         // rank tier name, also selects the medal
+  tier_color: string;
+  wins: number;
+  losses: number;
+}
+
 export interface ActiveSet {
   match_id: string;
   mode: LiveMode;
@@ -176,6 +189,9 @@ export interface ActiveSet {
   opponent_tag: string | null;          // opponent's Slippi display name, null while loading
   opponent_season_wins: number | null;  // opponent's current-season ranked W, null while loading
   opponent_season_losses: number | null;
+  // How the opponent finished their last completed ranked season. null while loading, and also
+  // null for anyone with no season history at all (a genuinely new account).
+  opponent_prev_season: PrevSeasonInfo | null;
   // Opponent's top characters this season (external char ids, most-played first), from their
   // Slippi profile — not the lagging per-game char. null while loading; [] if their profile
   // lists none (season reset / new player), in which case the overlay falls back to the live char.

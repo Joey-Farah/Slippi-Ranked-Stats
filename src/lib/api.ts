@@ -27,6 +27,11 @@ export interface SeasonData {
   rating: number;
   wins: number;
   losses: number;
+  // Final global leaderboard placement for that season, 0 when they didn't hold one. Slippi
+  // only reports a placement for roughly the top 300, so — exactly as for the current season —
+  // this doubles as the Grandmaster flag when passed to getRankTier(). Not persisted by
+  // insertSeason(); it's only used to render a past season's rank.
+  global_rank: number;
 }
 
 // A character the player has used this ranked season, with their game count. `character`
@@ -109,7 +114,30 @@ export async function fetchRatingSnapshot(
     rating: entry.ratingOrdinal ?? 0,
     wins: entry.wins ?? 0,
     losses: entry.losses ?? 0,
+    global_rank: entry.dailyGlobalPlacement ?? 0,
   }));
 
   return { snapshot, seasons, displayName, characters };
+}
+
+// The most recently COMPLETED season in a profile's history.
+//
+// `rankedNetplayProfileHistory` covers past seasons only — the season in progress lives on
+// `rankedNetplayProfile` — but it also **omits seasons the player didn't play**, so this is
+// "their last season", which is not necessarily the one immediately before the current one.
+// (Verified live: a lapsed player's newest history entry was Season 2 while Season 4 was the
+// most recent season overall.) That's why callers display `season_name` rather than just
+// labelling it "last season".
+//
+// The finished-only filter is belt-and-braces: it costs nothing and means an in-progress
+// season would still be skipped if the API ever started including one.
+export function previousSeason(seasons: SeasonData[]): SeasonData | null {
+  const now = Date.now();
+  const finished = seasons.filter((s) => {
+    const end = Date.parse(s.season_end);
+    return Number.isFinite(end) && end <= now;
+  });
+  if (finished.length === 0) return null;
+  // The API returns history newest-first, but sort rather than depend on that.
+  return finished.sort((a, b) => Date.parse(b.season_end) - Date.parse(a.season_end))[0];
 }

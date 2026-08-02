@@ -15,7 +15,7 @@ import {
   getGamesVsOpponent,
   type GameRow,
 } from "./db";
-import { fetchRatingSnapshot, type ProfileCharacter } from "./api";
+import { fetchRatingSnapshot, previousSeason, type ProfileCharacter, type SeasonData } from "./api";
 import { API_CHAR_TO_EXTERNAL, internalToExternal, externalToInternal } from "./char-icons";
 import {
   games,
@@ -34,6 +34,7 @@ import {
   setResultFromGames,
   isLiveMode,
   type LiveMode,
+  type PrevSeasonInfo,
 } from "./store";
 import { CHARACTERS } from "./parser";
 import { gradeSet, featuredCategory, GRADE_VERSION } from "./grading";
@@ -52,6 +53,20 @@ const _preExistingMatchIds = new Set<string>();
 // A file is "done" when it stops being modified for FILE_SETTLE_MS.
 const _pendingParse = new Map<string, ReturnType<typeof setTimeout>>();
 const FILE_SETTLE_MS = 800; // ms of write-inactivity before we parse (the file is already complete once writes stop)
+
+// How long the OS watcher batches filesystem events before handing them to us.
+//
+// ⚠ This is deliberately set, not defaulted. `watch()` from @tauri-apps/plugin-fs passes
+// `delayMs: 2000` when the option is omitted, and the Rust side feeds that straight into
+// notify-debouncer-full with `tick_rate: None` (= timeout/4). That debouncer holds EVERY event
+// for the full timeout before releasing it, so the default put a hard 2.0–2.5s floor on the
+// `create` event — the one that triggers the game-start peek that puts the opponent on screen.
+// The peek was doing its job; it just wasn't being told a game had started until two seconds in.
+//
+// A short delay still coalesces Slippi's 60fps write storm during a match (the debouncer
+// collapses same-kind events per path, so this caps us at ~10 modify events/sec/file instead of
+// one per frame), it just stops charging that latency to the event we actually care about.
+const WATCH_DEBOUNCE_MS = 100;
 
 // Tracks match_ids seen during this watcher session to detect new vs ongoing sets
 const _knownMatchIds = new Set<string>();
@@ -97,6 +112,58 @@ function topOpponentChars(chars: ProfileCharacter[]): number[] {
     .filter((c, i) => i === 0 || c.n >= threshold)
     .slice(0, 3)
     .map((c) => c.id);
+}
+
+// How the opponent finished their last completed ranked season, for the live card's
+// "last season" line. The profile fetch already returns this history — it was simply being
+// discarded, so this costs no extra API call.
+function opponentPrevSeason(history: SeasonData[]): PrevSeasonInfo | null {
+  const prev = previousSeason(history);
+  // A rating of 0 means the API gave us an entry with nothing in it — no rank to show.
+  if (!prev || prev.rating <= 0) return null;
+  // Same placement rule as the live rank: Slippi only reports a global placement for roughly
+  // the top 300, so it doubles as the Grandmaster flag. Confirmed to hold for past seasons —
+  // every historical placement observed across a sample of real profiles was <= 300, and
+  // everyone outside it came back with none at all.
+  const tier = getRankTier(prev.rating, prev.global_rank > 0);
+  return {
+    name: prev.season_name,
+    rating: prev.rating,
+    tier: tier.name,
+    tier_color: tier.color,
+    wins: prev.wins,
+    losses: prev.losses,
+  };
+}
+
+// Fills in everything about the opponent that comes from their Slippi profile: rank, rating,
+// season record, last season and their mains. Shared by all three entry points (the game-start
+// peek, the game-end parse and watcher-start recovery) so they can't drift apart.
+//
+// Fields already populated from the replay header are never downgraded to null/empty by a thin
+// API response — the header's tag beats no tag, and the live in-game character beats no icon.
+function applyOpponentProfile(matchId: string, opponentCode: string): void {
+  fetchRatingSnapshot(opponentCode)
+    .then(({ snapshot, seasons: history, displayName: oppTag, characters }) => {
+      const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
+      const mains = topOpponentChars(characters);
+      const prevSeason = opponentPrevSeason(history);
+      activeSet.update((s) => {
+        if (!s || s.match_id !== matchId) return s;
+        return {
+          ...s,
+          opponent_rating: snapshot.rating,
+          opponent_tier: tier.name,
+          opponent_tier_color: tier.color,
+          opponent_tag: oppTag || s.opponent_tag,
+          opponent_season_wins: snapshot.wins,
+          opponent_season_losses: snapshot.losses,
+          opponent_chars: mains.length > 0 ? mains : s.opponent_chars,
+          opponent_prev_season: prevSeason,
+        };
+      });
+    })
+    .catch(() => {});
 }
 
 export async function startWatcher(
@@ -183,7 +250,7 @@ export async function startWatcher(
   };
 
   _unwatchers = await Promise.all(
-    watchDirs.map((dir) => watch(dir, handler, { recursive: true }))
+    watchDirs.map((dir) => watch(dir, handler, { recursive: true, delayMs: WATCH_DEBOUNCE_MS }))
   );
 
   watcherActive.set(true);
@@ -234,7 +301,13 @@ function scheduleFileParse(
 // game end and remains the source of truth for everything else.
 //
 // The file may exist before the header is fully flushed, so this retries on a short backoff.
-const HEADER_PEEK_DELAYS_MS = [120, 400, 1200, 3000];
+//
+// Each entry is the wait *before* the next attempt; the first read happens immediately on the
+// create event. Now that WATCH_DEBOUNCE_MS is 100ms rather than 2000ms we frequently beat
+// Slippi to the Game Start block, so the ladder starts tight and only then backs off — landing
+// the opponent within ~50-150ms in the common case instead of inheriting a 400ms first retry.
+// It spans ~6s in total, after which the game-end parse remains the fallback.
+const HEADER_PEEK_DELAYS_MS = [50, 100, 200, 400, 800, 1500, 3000];
 
 async function peekHeader(
   filepath: string,
@@ -255,10 +328,12 @@ async function peekHeader(
   } catch {
     // File not readable yet; fall through to the retry.
   }
-  if (attempt + 1 < HEADER_PEEK_DELAYS_MS.length) {
+  // Index by `attempt`, not `attempt + 1` — the latter silently skipped the first (shortest)
+  // delay in the ladder and made the first retry the slow one.
+  if (attempt < HEADER_PEEK_DELAYS_MS.length) {
     setTimeout(
       () => peekHeader(filepath, connectCode, db, attempt + 1),
-      HEADER_PEEK_DELAYS_MS[attempt + 1]
+      HEADER_PEEK_DELAYS_MS[attempt]
     );
   }
 }
@@ -295,6 +370,7 @@ async function showOpponentEarly(head: SlpHeaderInfo, db: Database): Promise<voi
     opponent_tag: head.opponent_tag || null,
     opponent_season_wins: null,
     opponent_season_losses: null,
+    opponent_prev_season: null,
     // Their in-game character, so the overlay has an icon to show until the profile's
     // preferred mains arrive.
     opponent_chars: oppExternal >= 0 ? [oppExternal] : null,
@@ -304,27 +380,7 @@ async function showOpponentEarly(head: SlpHeaderInfo, db: Database): Promise<voi
     session_already_faced: _sessionOpponents.has(head.opponent_code),
   });
 
-  fetchRatingSnapshot(head.opponent_code)
-    .then(({ snapshot, displayName: oppTag, characters }) => {
-      const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
-      activeSet.update((s) => {
-        if (!s || s.match_id !== head.match_id) return s;
-        const mains = topOpponentChars(characters);
-        return {
-          ...s,
-          opponent_rating: snapshot.rating,
-          opponent_tier: tier.name,
-          opponent_tier_color: tier.color,
-          // Never downgrade the header's tag to null on an empty API response.
-          opponent_tag: oppTag || s.opponent_tag,
-          opponent_season_wins: snapshot.wins,
-          opponent_season_losses: snapshot.losses,
-          // Same for their characters — keep the live in-game one if the profile lists none.
-          opponent_chars: mains.length > 0 ? mains : s.opponent_chars,
-        };
-      });
-    })
-    .catch(() => {});
+  applyOpponentProfile(head.match_id, head.opponent_code);
 }
 
 async function processSlpFile(
@@ -489,6 +545,7 @@ async function handleLiveGame(
       opponent_tag: carry?.opponent_tag ?? null,
       opponent_season_wins: carry?.opponent_season_wins ?? null,
       opponent_season_losses: carry?.opponent_season_losses ?? null,
+      opponent_prev_season: carry?.opponent_prev_season ?? null,
       opponent_chars: carry?.opponent_chars ?? null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
@@ -499,26 +556,7 @@ async function handleLiveGame(
     // Skip the profile fetch when the game-start peek already landed one — same data, and a
     // second call per set is pure waste. Anything else below still runs normally.
     if (carry?.opponent_rating == null) {
-      // Fetch opponent's Slippi profile asynchronously
-      fetchRatingSnapshot(g.opponent_code)
-        .then(({ snapshot, displayName: oppTag, characters }) => {
-          const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
-          activeSet.update((s) =>
-            s && s.match_id === g.match_id
-              ? {
-                  ...s,
-                  opponent_rating: snapshot.rating,
-                  opponent_tier: tier.name,
-                  opponent_tier_color: tier.color,
-                  opponent_tag: oppTag || null,
-                  opponent_season_wins: snapshot.wins,
-                  opponent_season_losses: snapshot.losses,
-                  opponent_chars: topOpponentChars(characters),
-                }
-              : s
-          );
-        })
-        .catch(() => {});
+      applyOpponentProfile(g.match_id, g.opponent_code);
     }
   } else {
     // Update score and latest char for an ongoing set / run
@@ -739,6 +777,7 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
       opponent_tag: null,
       opponent_season_wins: null,
       opponent_season_losses: null,
+      opponent_prev_season: null,
       opponent_chars: null,
       all_time_wins: allTimeWins,
       all_time_losses: allTimeLosses,
@@ -746,25 +785,7 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
       session_already_faced: false,
     });
 
-    fetchRatingSnapshot(latest.opponent_code)
-      .then(({ snapshot, displayName: oppTag, characters }) => {
-        const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0);
-        activeSet.update((s) =>
-          s && s.match_id === matchId
-            ? {
-                ...s,
-                opponent_rating: snapshot.rating,
-                opponent_tier: tier.name,
-                opponent_tier_color: tier.color,
-                opponent_tag: oppTag || null,
-                opponent_season_wins: snapshot.wins,
-                opponent_season_losses: snapshot.losses,
-                opponent_chars: topOpponentChars(characters),
-              }
-            : s
-        );
-      })
-      .catch(() => {});
+    applyOpponentProfile(matchId, latest.opponent_code);
 
     break;
   }

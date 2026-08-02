@@ -225,6 +225,13 @@
   function fmtPct(v: number | null): string {
     return v !== null ? (v * 100).toFixed(0) + "%" : "—";
   }
+
+  // Win rate of a W–L record, for the opponent's season lines. Slippi shows ranked records as
+  // raw W–L; the percentage is the part you'd otherwise work out in your head mid-set.
+  function winRate(wins: number, losses: number): string {
+    const played = wins + losses;
+    return played > 0 ? Math.round((wins / played) * 100) + "%" : "—";
+  }
 </script>
 
 {#snippet gradeRevealCard(letter: string, subtitle?: string)}
@@ -494,6 +501,23 @@
               {:else}
                 <div style="font-size: 12px; color: var(--muted)">Fetching rank…</div>
               {/if}
+              <!-- Their ranked record this season, straight off their Slippi profile. Someone
+                   who hasn't played yet gets a plain note instead of "0W–0L (—)", which reads
+                   like a missing value rather than a fact about them. -->
+              {#if $activeSet.opponent_season_wins !== null && $activeSet.opponent_season_losses !== null}
+                {@const sw = $activeSet.opponent_season_wins}
+                {@const sl = $activeSet.opponent_season_losses}
+                {#if sw + sl > 0}
+                  <div style="font-size: 12px; margin-top: 1px">
+                    <span class="win-text">{sw}W</span>–<span class="loss-text">{sl}L</span>
+                    <span style="color: var(--muted)">({winRate(sw, sl)}) this season</span>
+                  </div>
+                {:else}
+                  <div style="font-size: 12px; margin-top: 1px; color: var(--muted)">
+                    No ranked games this season
+                  </div>
+                {/if}
+              {/if}
               <!-- >= 0 rather than != null: the game-start peek leaves this as -1 because the
                    character only becomes known from the metadata block when the game ends. -->
               {#if $activeSet.opponent_char_id >= 0}
@@ -529,6 +553,35 @@
             {/if}
           </div>
         </div>
+
+        <!-- Where they finished last season. A full-width footer rather than another line in the
+             identity column: that column is already the tallest of the three, and the season name
+             needs the room. The name is spelled out because Slippi's profile history skips seasons
+             a player sat out — for a returning player this may be several seasons back. -->
+        {#if $activeSet.opponent_prev_season}
+          {@const ps = $activeSet.opponent_prev_season}
+          {@const psMedal = RANK_MEDAL_SVGS[ps.tier] ?? ""}
+          <div style="
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+            font-size: 12px;
+          ">
+            <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted)">
+              {ps.name.toUpperCase()}
+            </span>
+            {#if psMedal}
+              <div style="width: 20px; height: 20px; flex-shrink: 0" aria-hidden="true">
+                {@html psMedal}
+              </div>
+            {/if}
+            <span style="color: {ps.tier_color}; font-weight: 600">{ps.tier}</span>
+            <span style="color: var(--muted)">· {ps.rating.toFixed(0)}</span>
+            <span>
+              <span class="win-text">{ps.wins}W</span>–<span class="loss-text">{ps.losses}L</span>
+              <span style="color: var(--muted)">({winRate(ps.wins, ps.losses)})</span>
+            </span>
+          </div>
+        {/if}
       </div>
     {/if}
 
