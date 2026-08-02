@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Session } from "../lib/store";
+  import { snapshots, sessionRatingDelta, type Session } from "../lib/store";
   import { CHARACTERS, STAGES } from "../lib/parser";
   import LineChart from "./charts/LineChart.svelte";
   import BarChart from "./charts/BarChart.svelte";
@@ -7,6 +7,11 @@
   let { session }: { session: Session } = $props();
 
   let sessionGames = $derived(session.sets.flatMap((s) => s.games));
+
+  // Net Rating across the session. null whenever it can't be pinned down exactly — most
+  // older sessions predate rating snapshots entirely — in which case the card is dropped
+  // rather than showing a placeholder.
+  let rating = $derived(sessionRatingDelta(session, $snapshots));
 
   let stageStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
@@ -70,8 +75,17 @@
   }
 </script>
 
-<!-- Session summary cards -->
-<div style="display:grid; grid-template-columns: repeat(8, 1fr); gap:10px; margin-bottom:16px">
+<!-- Session summary cards. The Rating card only exists when the change could be established
+     exactly (see sessionRatingDelta), so the grid widens to 9 columns to make room for it. -->
+<div style="display:grid; grid-template-columns: repeat({rating ? 9 : 8}, 1fr); gap:10px; margin-bottom:16px">
+  {#if rating}
+    <div class="stat-card" title="Rating {rating.from.toFixed(1)} → {rating.to.toFixed(1)}">
+      <div class="label">Net Rating</div>
+      <div class="value" class:win-text={rating.delta > 0} class:loss-text={rating.delta < 0}>
+        {rating.delta >= 0 ? "+" : ""}{rating.delta.toFixed(1)}
+      </div>
+    </div>
+  {/if}
   <div class="stat-card">
     <div class="label">Duration</div>
     <div class="value">{fmt(session.durationMin)}</div>

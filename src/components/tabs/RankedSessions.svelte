@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { sessions, type Session } from "../../lib/store";
+  import { sessions, snapshots, sessionRatingDelta, type Session } from "../../lib/store";
   import SessionView from "../SessionView.svelte";
 
   let selectedSession = $state<Session | null>($sessions.at(-1) ?? null);
@@ -35,6 +35,7 @@
       {#each reversedSessions as s, i}
         {@const winPct = s.sets.length > 0 ? (s.setWins / s.sets.length) * 100 : 0}
         {@const isSelected = s === selectedSession}
+        {@const rating = sessionRatingDelta(s, $snapshots)}
         <button
           onclick={() => selectedSession = s}
           style="
@@ -59,7 +60,16 @@
             <span>{s.sets.length} set{s.sets.length !== 1 ? "s" : ""}</span>
             <span class={winPct >= 50 ? "win-text" : "loss-text"}>{winPct.toFixed(0)}%</span>
           </div>
-          <div style="font-size: 10px; color: var(--muted); margin-top: 2px">{fmt(s.durationMin)}</div>
+          <div style="font-size: 10px; color: var(--muted); margin-top: 2px">
+            {fmt(s.durationMin)}
+            <!-- Only present for sessions with exact snapshot coverage, which is a minority
+                 of older ones — the row just reads as it always did without it. -->
+            {#if rating}
+              <span class={rating.delta >= 0 ? "win-text" : "loss-text"} style="margin-left: 6px; font-weight: 600">
+                {rating.delta >= 0 ? "+" : ""}{rating.delta.toFixed(1)}
+              </span>
+            {/if}
+          </div>
         </button>
       {/each}
     </div>
