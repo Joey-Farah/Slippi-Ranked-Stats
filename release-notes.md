@@ -20,6 +20,18 @@ v1.8.13 made the opponent appear at the *start* of a game rather than the end, b
 
 That batching window is now 100ms, and the app retries much faster while Slippi is still writing the file. Your opponent's tag, character and connect code should now appear within a fraction of a second of the game starting, with their rank and Rating following as soon as their profile loads.
 
+### 📈 Net Rating for past sessions
+
+The Ranked Sessions tab now shows the **net Rating you gained or lost** across a session — as a card in the session summary, and next to each session in the list so you can scan down and see how your nights actually went.
+
+This only appears for sessions the app can account for exactly: it needs a Rating reading from before your first set and after your last, with nothing else in between. Sessions from before the app started recording your Rating won't show it, and neither will ones where the numbers don't line up precisely — rather than show you a figure that's approximately right, it shows nothing.
+
+### 🎖️ Unranked players are no longer shown with a rank
+
+Slippi starts everyone at a 1100 Rating, which happens to fall inside Silver I — so a player who hadn't yet completed their placement sets was being displayed as a genuine Silver I player, rank medal and all. They're now correctly shown as **Unranked** until they've placed, with the placeholder Rating hidden rather than presented as a real number.
+
+This applies wherever a rank is shown: your opponent on the Live Session tab, their last-season line, your own rank in the sidebar and header, and the OBS overlay.
+
 ### 🗺️ Correct stage names, and stage-aware statistics
 
 *(These were finished a little while ago and have been waiting for a release to ride along with.)*

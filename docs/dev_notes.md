@@ -72,9 +72,14 @@ hand-off mechanism between work sessions and across machines.
 > exclusion from stats/grading, scrollable Live Session game list) — they needed nothing but a
 > version bump and are covered in the v1.8.14 release notes.
 >
-> **Tests added:** `season-history.test.ts` (9) — `previousSeason` ordering/independence from API
-> order, in-progress and malformed-date rejection, the lapsed-player gap case, and the
-> past-season Grandmaster-vs-Master placement rule. Fixtures mirror real captured API responses.
+> **Tests added (21, suite now 70):** `season-history.test.ts` — `previousSeason` ordering/
+> independence from API order, in-progress and malformed-date rejection, the lapsed-player gap
+> case, the past-season Grandmaster-vs-Master placement rule, and the placement/Unranked rule
+> (incl. that placements outrank the Grandmaster check, and that an omitted set count leaves
+> behaviour unchanged). `session-rating.test.ts` — the bracketed happy path plus every reason it
+> returns null: no baseline, no closing snapshot, no coverage at all, a stale multi-session
+> bracket, an off-by-one bracket, and a snapshot past the grace window. Fixtures mirror real
+> captured API responses and real rows from the app's own database.
 >
 > **VERIFY NEXT SESSION (needs a live game — could not be done from this machine):**
 > 1. **The latency fix in a real match.** Everything above is derived from the plugin's JS
@@ -87,16 +92,53 @@ hand-off mechanism between work sessions and across machines.
 > 3. **The last-season strip against a real opponent**, ideally someone who didn't play last
 >    season, to confirm the season name reads sensibly.
 >
-> **KNOWN, PRE-EXISTING, NOT FIXED HERE — the 1100-rating "Silver I" mislabel.** A player who
-> hasn't placed this season has rating **1100**, and `getRankTier(1100)` returns **Silver I**
-> (Silver I's floor is 1054.87), so an unplaced opponent is shown with a real-looking rank.
-> slippi.gg treats those players as unranked/in placements (5 placement games required). This
-> predates this session and is app-wide — it's on the overlay, the sidebar and the rating
-> history, not just here — so fixing it means changing `getRankTier` semantics with real blast
-> radius, which is not something to slip into a release unasked. **The new season line makes it
-> more visible** (you now see "No ranked games this season" next to a confident "Silver I ·
-> 1100"), so it's worth raising with Joey as its own change. The profile carries `wins`/`losses`,
-> so the rule is available: `wins + losses < 5` → in placements.
+> **4. The 1100-rating "Silver I" mislabel — RAISED AND FIXED THIS SESSION** (Joey: "if they
+> haven't received a rank, doing the slippi default is fine"). Slippi starts everyone at **1100**,
+> which sits inside Silver I (floor 1054.87), so a player who had never queued that season was
+> displayed as a genuine Silver I with a medal. `getRankTier` gained an optional third arg
+> `setsPlayed` (season W+L); below `PLACEMENT_SETS_REQUIRED` it returns Unranked. **Left `null`
+> by default so the rule is skipped, not guessed, when the count isn't known** — that keeps every
+> historical/stored-snapshot path working unchanged.
+> - Wired in everywhere the count IS available: `applyOpponentProfile` + `opponentPrevSeason`
+>   (watcher), the overlay payload (`store.ts`), `Header.svelte`, `Sidebar.svelte`. The live card
+>   also **hides the rating number** when Unranked — 1100 is a placeholder, and a mid-placement
+>   rating is provisional, so printing it presents a non-number as fact.
+> - ⚠ **`PLACEMENT_SETS_REQUIRED = 5` is our own reimplementation, not something read back from
+>   Slippi.** Verified this session: GraphQL **introspection is disabled** on internal.slippi.gg,
+>   and `NetplayProfile` has no `rank`, `isPlaced` or `placementsRequired` field — slippi.gg
+>   derives the tier client-side exactly as we do. So the threshold can't be confirmed against
+>   the API; it's Slippi's documented 5-placement-set rule. It's a single named constant if it
+>   ever needs changing.
+> - What the data DID confirm: **18/18 sampled zero-set profiles sit at exactly 1100**, but a
+>   player with 3 sets was at **1095.6** — so Slippi *does* publish a moving rating during
+>   placements. That means "rating == 1100" is NOT a usable placed/unplaced test; the set count
+>   is. Don't switch it back to a rating check.
+> - `ratingUpdateCount` exists on the API and equals season W+L (93 == 77+16 on a real profile),
+>   so W+L is used instead — it needs no new field and works for already-stored snapshots.
+>
+> **5. Net Rating per session on the Ranked Sessions tab** (Joey's request, mid-session). New
+> `sessionRatingDelta(session, snaps)` in `store.ts` → a stat card in `SessionView.svelte` (the
+> summary grid widens 8→9 columns when present) and a small coloured delta in the
+> `RankedSessions.svelte` list rail.
+> - **Sparse by nature — "no data" is the normal case.** Snapshots only start 2026-03-20 while
+>   ranked games go back to 2024-04, so on Joey's real DB only **19 of 137 sessions** have any
+>   coverage at all. The UI drops the card entirely rather than showing a placeholder.
+> - The delta brackets the session: last snapshot at/before the first set → last snapshot within
+>   15 min of the last set. **The bracket is then validated against the snapshots' season W/L**:
+>   the number of sets between the two snapshots must equal the session's set count. Without
+>   that, a baseline left over from days earlier would silently absorb another session's results.
+>   On the real DB the check passes for **16 of the 19**; the 3 it rejects are each off by one
+>   set. Deliberate call: a rating delta reads as authoritative, so showing nothing beats showing
+>   approximately-right.
+> - The TS was cross-checked against a Python analysis of the real database — both produce the
+>   same 16 sessions.
+> - ⚠ `{@const}` in Svelte 5 must be an **immediate** child of a block (`{#each}`/`{#if}`/…), not
+>   nested inside an element within it. Caught at build time here; the fix is to hoist it.
+>
+> **Dead code noted, not touched:** `src/components/tabs/LiveSession.svelte` is **not imported by
+> `App.svelte`** (only `LiveRankedSession.svelte` is routed). It still has the old
+> `getRankTier(rating)`-for-colour bug that was fixed in the live tab. Unreachable, so left alone
+> — but don't resurrect it without fixing that line.
 
 ---
 
