@@ -6,6 +6,100 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-08-01 (v1.8.14 — opponent season history + the REAL opponent-delay fix — READ FIRST)
+
+> **State: all code committed, version bumped to v1.8.14. NOT YET TAGGED/PUSHED as a release** —
+> tagging is what triggers CI, left as an explicit decision. `tsc --noEmit` clean, `vite build`
+> clean, **58/58 tests** (9 new). **Not yet eyeballed in a live game** — see VERIFY below.
+>
+> **1. Opponent's season W/L + last-season rank on the Live Session tab** (Joey's request).
+> Both come from the `fetchRatingSnapshot(opponentCode)` call the live card **already makes** —
+> `rankedNetplayProfileHistory` was being returned and thrown away, exactly like the characters
+> were before v1.8.8. **Zero extra API calls.**
+> - `SeasonData` gained `global_rank` (from `dailyGlobalPlacement`); new **`previousSeason()`**
+>   in `api.ts` returns the most recently *completed* season.
+> - ⚠ **The API omits seasons a player didn't play.** So this is "their last season", NOT
+>   necessarily the one immediately before the current one. Verified live against real
+>   profiles: 3 of 15 sampled opponents pointed at Season 2 or Season 3 while Season 4 was the
+>   most recent season overall. **That's why the UI prints the season NAME** instead of a
+>   "Last season" label — the label would be a lie for a returning player. Don't "simplify" it.
+> - ⚠ **`dailyGlobalPlacement` IS populated for past seasons**, and still only for roughly the
+>   top 300 (every historical value observed across the sample was ≤ 288; everyone outside it
+>   returned none at all). So it doubles as the Grandmaster flag for a past season exactly as
+>   it does for the current one — `getRankTier(rating, global_rank > 0)`. This was checked
+>   before relying on it, because if the API had returned a placement for *everyone* it would
+>   have promoted every past Master to Grandmaster.
+> - New `PrevSeasonInfo` type + `opponent_prev_season` on `ActiveSet` (`store.ts`). Rendered as
+>   a **full-width footer strip** under the NOW PLAYING grid (with a 20px rank medal), not as
+>   another line in the identity column — that column is already the tallest of the three and
+>   the season name needs the horizontal room.
+> - The season W/L line special-cases a 0–0 record as "No ranked games this season" — the raw
+>   `0W–0L (—)` reads like a failed fetch rather than a fact about the player.
+> - **The three duplicated opponent-profile `.then()` blocks in `watcher.ts` are now one
+>   `applyOpponentProfile()`** (peek / game-end parse / watcher-start recovery). They had
+>   already drifted: only the peek's copy avoided downgrading a header-derived tag to null.
+> - **Deliberately NOT on the OBS overlay.** Joey asked for the Live Session tab; putting it on
+>   the overlay means another `OverlayVisibility` toggle and layout work in `stats-overlay.ts`.
+>   Easy to add later — `opponent_prev_season` is already on `ActiveSet`.
+> - **Why this is worth having (real capture):** an opponent reading `Gold I · 1536, 4W–1L this
+>   season` who finished last season at `Grandmaster · 2323`. That's smurf/placement detection
+>   you can see *before* the set instead of working it out afterwards.
+>
+> **2. The remaining opponent-detection delay was the FS WATCHER, not the parser.** v1.8.13
+> moved opponent detection to game start via `parseSlpHeader`, but a stubborn ~2s remained.
+> Root cause: **`watch()` from `@tauri-apps/plugin-fs` passes `delayMs: 2000` when you omit the
+> option** — it is not "no debounce". The Rust side (`tauri-plugin-fs` 2.4.5, verified in the
+> crate source) feeds that straight into `notify-debouncer-full` with `tick_rate: None`
+> (= timeout/4), and **that debouncer holds every event for the full timeout before releasing
+> it**. So the `create` event that fires the game-start peek arrived **2.0–2.5s late**. The peek
+> was working perfectly; it just wasn't being told a game had started.
+> - Now `watch(dir, handler, { recursive: true, delayMs: WATCH_DEBOUNCE_MS })` with
+>   `WATCH_DEBOUNCE_MS = 100` → create delivered in ~100–125ms.
+> - **A short delay is still much better than `watchImmediate`**: the debouncer collapses
+>   same-kind events per path, so 100ms caps us at ~10 modify events/sec/file during a match
+>   instead of one IPC message per frame at 60fps. `watchImmediate` would have removed the
+>   debouncer entirely and flooded the webview for the whole game.
+> - ⚠ **Never omit `delayMs` on `watch()` in this codebase.** Same trap for anything else that
+>   ever starts watching files.
+> - `HEADER_PEEK_DELAYS_MS` retuned `[120,400,1200,3000]` → `[50,100,200,400,800,1500,3000]`:
+>   with a 100ms debounce we now frequently beat Slippi to the Game Start block, so the ladder
+>   has to start tight. Also **fixed an off-by-one** — it indexed `HEADER_PEEK_DELAYS_MS[attempt
+>   + 1]`, silently skipping the shortest delay and making the first retry the slow one.
+> - `FILE_SETTLE_MS` (800ms) deliberately unchanged. Net effect: the game-end full parse also
+>   lands ~2s sooner, since it no longer waits out the 2s debounce first.
+>
+> **3. Folds in the three banked post-v1.8.13 changes** (stage-id table, non-legal-stage
+> exclusion from stats/grading, scrollable Live Session game list) — they needed nothing but a
+> version bump and are covered in the v1.8.14 release notes.
+>
+> **Tests added:** `season-history.test.ts` (9) — `previousSeason` ordering/independence from API
+> order, in-progress and malformed-date rejection, the lapsed-player gap case, and the
+> past-season Grandmaster-vs-Master placement rule. Fixtures mirror real captured API responses.
+>
+> **VERIFY NEXT SESSION (needs a live game — could not be done from this machine):**
+> 1. **The latency fix in a real match.** Everything above is derived from the plugin's JS
+>    default plus the debouncer's documented behaviour and its crate source, and it's solid —
+>    but it has not been watched happen. Start a ranked game and confirm the opponent appears
+>    essentially immediately rather than after a beat.
+> 2. **Watch for a modify-event flood.** 100ms should be comfortable, but if the app feels busy
+>    during a long match, raise `WATCH_DEBOUNCE_MS` (250ms would still be ~8× better than the
+>    2000ms default) rather than reverting it.
+> 3. **The last-season strip against a real opponent**, ideally someone who didn't play last
+>    season, to confirm the season name reads sensibly.
+>
+> **KNOWN, PRE-EXISTING, NOT FIXED HERE — the 1100-rating "Silver I" mislabel.** A player who
+> hasn't placed this season has rating **1100**, and `getRankTier(1100)` returns **Silver I**
+> (Silver I's floor is 1054.87), so an unplaced opponent is shown with a real-looking rank.
+> slippi.gg treats those players as unranked/in placements (5 placement games required). This
+> predates this session and is app-wide — it's on the overlay, the sidebar and the rating
+> history, not just here — so fixing it means changing `getRankTier` semantics with real blast
+> radius, which is not something to slip into a release unasked. **The new season line makes it
+> more visible** (you now see "No ranked games this season" next to a confident "Silver I ·
+> 1100"), so it's worth raising with Joey as its own change. The profile carries `wins`/`losses`,
+> so the rule is available: `wins + losses < 5` → in placements.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-07-28 (v1.8.13 — UNRANKED/DIRECT LIVE SESSIONS + game-start opponent + direct backfill — READ FIRST)
 
 > **State: all code committed; version bumped to v1.8.13. NOT YET TAGGED/PUSHED as a release** —
@@ -119,9 +213,13 @@ hand-off mechanism between work sessions and across machines.
 > parser** — and note that the two `files[0]` tests at the bottom were passing vacuously whenever
 > the newest replay happened to be a spectated one.
 >
-> **⚠ `main` IS AHEAD OF THE `v1.8.13` TAG — three BANKED changes are pushed but deliberately
-> unreleased** (Joey's call: too minor to justify an update prompt on their own). **Fold them into
-> whatever ships next; they need no further work, just a version bump.**
+> **⚠ ~~`main` IS AHEAD OF THE `v1.8.13` TAG — three BANKED changes are pushed but deliberately
+> unreleased~~ — RESOLVED 2026-08-01: all three shipped in v1.8.14** (see the newest handoff at
+> the top). Kept below for the context on *why* each change was made.
+>
+> ~~three BANKED changes are pushed but deliberately unreleased~~ (Joey's call: too minor to
+> justify an update prompt on their own). **Fold them into whatever ships next; they need no
+> further work, just a version bump.**
 > - `d97e64d` **stage id table was wrong for every non-legal stage.** Only the six legal ones
 >   (2/3/8/28/31/32) were right; id 24 read "Mushroom Kingdom II" when it's Big Blue, id 7 read
 >   "Hyrule Temple" when it's Corneria, ~12 wrong and ~13 missing entirely. Invisible for years

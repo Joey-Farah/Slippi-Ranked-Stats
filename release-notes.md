@@ -1,3 +1,38 @@
+## What's New in v1.8.14
+
+### 🎮 See who you're really up against
+
+The NOW PLAYING card on the Live Session tab now shows your opponent's **ranked record this season** — wins, losses and win rate — right under their rank and Rating.
+
+Underneath it, you'll also see **how they finished their last season**: the rank they ended on, their final Rating, and their record for that season.
+
+Together these give you a much better read on someone than a single Rating number can. Someone sitting at Gold with a 4–1 record who finished last season at Grandmaster is a very different opponent from a Gold player who has been there all year — and now you can see that before the set starts, not after it.
+
+A couple of details worth knowing:
+- The season shown is the last season that player actually competed in, which is why it's labelled with the season's name. For someone coming back after time away, that might be a few seasons back.
+- Players who haven't played ranked yet this season are shown as such, rather than as an empty 0–0 record.
+
+None of this costs an extra lookup — the app was already fetching this information to show their rank, and was throwing the rest away.
+
+### ⚡ Your opponent shows up almost instantly now
+
+v1.8.13 made the opponent appear at the *start* of a game rather than the end, but there was still a stubborn couple of seconds before they turned up. That turned out to be the app's replay-folder watcher, which was batching up filesystem changes for two full seconds before passing them on — so the app simply wasn't being told a game had started until two seconds in.
+
+That batching window is now 100ms, and the app retries much faster while Slippi is still writing the file. Your opponent's tag, character and connect code should now appear within a fraction of a second of the game starting, with their rank and Rating following as soon as their profile loads.
+
+### 🗺️ Correct stage names, and stage-aware statistics
+
+*(These were finished a little while ago and have been waiting for a release to ride along with.)*
+
+- **Stage names were wrong for every stage outside the tournament-legal six.** Big Blue was labelled "Mushroom Kingdom II", Corneria was labelled "Hyrule Temple", and around a dozen more were wrong or missing entirely. This was invisible until the app started reading direct-connect replays, since ranked and unranked only ever produce the six legal stages. All 30-odd stages are now named correctly.
+- **Games on non-legal stages no longer count toward your statistics or your grades.** Set grading compares you against a benchmark built entirely from legal-stage ranked play, so scoring a Big Blue game against it measures the stage, not you. Those games are still recorded and still show up in your NOW PLAYING game list — they're just kept out of the aggregate numbers.
+
+### 📜 The Live Session game list scrolls through the whole match
+
+An unranked or direct-connect session shares a single match with your opponent for as long as you keep playing, so the list used to cut off at the latest 10 games. It now shows **every** game, in a scrolling list that grows to fit your window and follows the newest game as it lands — unless you've scrolled up to read older ones, in which case it stays where you put it.
+
+---
+
 ## What's New in v1.8.13
 
 ### 🎮 Live session tracking now works in unranked and direct connect
