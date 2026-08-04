@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     isPremium, watcherActive, activeSet, liveSessionStartRating,
-    snapshots, liveGameStats, sets, lastSetGrade,
+    snapshots, liveGameStats, lastSetGrade,
     statsOverlayEnabled, statsOverlayExpanded, statsOverlayPayload, statsOverlayLayout,
     statsOverlayPreview, liveSetRecord, liveUnrankedRecord, setResultFromGames,
     statsOverlayVisibility, type OverlayVisibility,
@@ -13,9 +13,9 @@
   import { ensureStatsOverlayFiles, statsOverlayHtmlPath, statsOverlayPreviewPath, writeStatsOverlayPreviewFile } from "../../lib/stats-overlay";
   import { pingTelemetry } from "../../lib/telemetry";
   import { convertFileSrc } from "@tauri-apps/api/core";
-  import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
   import OpponentNotes from "../OpponentNotes.svelte";
+  import NoteLookup from "../NoteLookup.svelte";
 
   // ── Live Stats overlay (OBS) ───────────────────────────────────────────────
   const LAYOUT_OPTS: { id: "stacked" | "sidebyside"; label: string }[] = [
@@ -206,18 +206,6 @@
   function setResult(games: typeof $liveGameStats): "win" | "loss" {
     return setResultFromGames(games);
   }
-
-  // Rolling 20-set win rate (all-time sets, not just live)
-  let rolling = $derived((() => {
-    const WINDOW = 20;
-    const completedSets = $sets.filter((s) => Math.max(s.wins, s.losses) >= 2);
-    if (completedSets.length < WINDOW) return [];
-    return completedSets.slice(WINDOW - 1).map((_, i) => {
-      const w = completedSets.slice(i, i + WINDOW);
-      const wins = w.filter((s) => s.result === "win").length;
-      return { x: String(i + WINDOW), y: (wins / WINDOW) * 100 };
-    });
-  })());
 
   function fmtRatio(v: number | null, decimals = 1): string {
     return v !== null ? v.toFixed(decimals) : "—";
@@ -427,6 +415,54 @@
     {/if}
   </div>
 
+  <!-- Session numbers as one compact strip rather than a grid of cards at the bottom of the page.
+       These are the "how's tonight going" figures you want in view the whole time, and as
+       full-height cards below everything else they were both the least glanceable thing here and
+       a chunk of what forced the scrolling. Always rendered, so an empty session shows the same
+       shape with zeroes instead of needing a separate placeholder grid. -->
+  <div class="session-strip">
+    <div class="s-item">
+      <span class="s-label">Sets</span>
+      <span class="s-value"><span class="win-text">{$liveSetRecord.wins}</span>–<span class="loss-text">{$liveSetRecord.losses}</span></span>
+    </div>
+    <div class="s-item">
+      <span class="s-label">Win rate</span>
+      <span class="s-value">{$liveSetRecord.total > 0 ? (($liveSetRecord.wins / $liveSetRecord.total) * 100).toFixed(0) + "%" : "—"}</span>
+    </div>
+    {#if sessionDelta !== null}
+      <div class="s-item">
+        <span class="s-label">Rating</span>
+        <span class="s-value" class:win-text={sessionDelta > 0} class:loss-text={sessionDelta < 0}>{fmtDelta(sessionDelta)}</span>
+      </div>
+    {/if}
+    {#if $snapshots.at(-1)}
+      <div class="s-item">
+        <span class="s-label">Now</span>
+        <span class="s-value">{$snapshots.at(-1)!.rating.toFixed(0)}</span>
+      </div>
+    {/if}
+    {#if $liveSessionStartRating !== null}
+      <div class="s-item">
+        <span class="s-label">Started</span>
+        <span class="s-value">{$liveSessionStartRating.toFixed(0)}</span>
+      </div>
+    {/if}
+    <!-- Counted in games, not sets — unranked/direct have none. Only appears once some have
+         actually been played, so a purely ranked session reads exactly as it did. -->
+    {#if $liveUnrankedRecord.total > 0}
+      <div class="s-item">
+        <span class="s-label">Unranked/direct</span>
+        <span class="s-value"><span class="win-text">{$liveUnrankedRecord.wins}</span>–<span class="loss-text">{$liveUnrankedRecord.losses}</span></span>
+      </div>
+    {/if}
+  </div>
+
+  <!-- Two columns on a wide window, one when narrow: the live match on the left, your notes on
+       the right. Everything was previously full-width and stacked, which left a lot of dead
+       horizontal space while still needing a scroll to reach the bottom. -->
+  <div class="live-grid">
+  <div class="live-col">
+
   <!-- NOW PLAYING card. Hoisted above the state branches below along with the notes panel:
        when the app launches into a set already in progress the watcher recovers the opponent
        from the DB, but those games are pre-existing so liveGameStats stays empty — this used to
@@ -564,18 +600,6 @@
     </div>
   {/if}
 
-  <!-- Anything you've previously written about this player or this matchup, plus the box to
-       write more. Deliberately hoisted ABOVE the state branches below, not nested in one:
-         - It must outlive `activeSet`, which a ranked set clears the instant someone reaches 2 —
-           right after a set is exactly when you want to jot the note down. It falls back to the
-           last opponent of the session and only changes when a NEW set starts.
-         - It must also survive the "no games tracked yet" branch, which is what you get when the
-           app launches into a set already in progress: the watcher recovers the opponent from
-           the DB, but those games are pre-existing so liveGameStats is empty and the whole rest
-           of the tab renders its empty state. The opponent is known; the notes should be up.
-       The panel resolves its own subject and renders nothing at all when there isn't one. -->
-  <OpponentNotes />
-
   {#if !$watcherActive}
     <p class="muted" style="margin-bottom: 16px">
       Monitoring will begin automatically when a game is detected.
@@ -597,15 +621,8 @@
       </div>
     </div>
 
-    <!-- Session overview with zeroed-out cards so the layout isn't empty -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; opacity: 0.4">
-      <div class="stat-card"><div class="label">Session Sets</div><div class="value">0–0</div></div>
-      <div class="stat-card"><div class="label">Win Rate</div><div class="value">—</div></div>
-      <div class="stat-card"><div class="label">Rating Change</div><div class="value">—</div></div>
-      {#if $liveSessionStartRating !== null}
-        <div class="stat-card"><div class="label">Session Start</div><div class="value">{$liveSessionStartRating.toFixed(1)}</div></div>
-      {/if}
-    </div>
+    <!-- No placeholder stat grid here any more: the session strip above is always rendered and
+         already shows the zeroed figures, so duplicating them was pure height. -->
 
   {:else}
 
@@ -686,73 +703,71 @@
       {/if}
     {/if}
 
-    <!-- Session overview -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px">
-      <div class="stat-card">
-        <div class="label">Session Sets</div>
-        <div class="value">
-          <span class="win-text">{$liveSetRecord.wins}</span>–<span class="loss-text">{$liveSetRecord.losses}</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Win Rate</div>
-        <div class="value">
-          {$liveSetRecord.total > 0 ? (($liveSetRecord.wins / $liveSetRecord.total) * 100).toFixed(1) + "%" : "—"}
-        </div>
-      </div>
-      {#if sessionDelta !== null}
-        <div class="stat-card">
-          <div class="label">Rating Change</div>
-          <div class="value" class:win-text={sessionDelta > 0} class:loss-text={sessionDelta < 0}>
-            {fmtDelta(sessionDelta)}
-          </div>
-        </div>
-      {/if}
-      {#if $liveSessionStartRating !== null}
-        <div class="stat-card">
-          <div class="label">Session Start</div>
-          <div class="value">{$liveSessionStartRating.toFixed(1)}</div>
-        </div>
-      {/if}
-      {#if $snapshots.at(-1)}
-        <div class="stat-card">
-          <div class="label">Current Rating</div>
-          <div class="value">{$snapshots.at(-1)!.rating.toFixed(1)}</div>
-        </div>
-      {/if}
-      <!-- Counted in games, not sets — unranked/direct have no sets. Only appears once some
-           have actually been played, so a purely ranked session looks exactly as it did. -->
-      {#if $liveUnrankedRecord.total > 0}
-        <div class="stat-card">
-          <div class="label">Unranked / Direct</div>
-          <div class="value">
-            <span class="win-text">{$liveUnrankedRecord.wins}</span>–<span class="loss-text">{$liveUnrankedRecord.losses}</span>
-          </div>
-          <div class="sub">games this session</div>
-        </div>
-      {/if}
-    </div>
-
-  <!-- Rolling 20-set win rate -->
-  {#if rolling.length > 0}
-    <div class="card" style="margin-top:16px">
-      <div class="section-title">Rolling 20-Set Win Rate</div>
-      <div style="font-size:11px; color:var(--muted); margin-bottom:8px">Set win % across your last 20 completed sets.</div>
-      <LineChart
-        xData={rolling.map((d) => d.x)}
-        yData={rolling.map((d) => d.y)}
-        label="Win %"
-        color="#7c3aed"
-        fill={true}
-        height={200}
-      />
-    </div>
   {/if}
+  </div><!-- /.live-col -->
 
-  {/if}
+  <div class="live-col">
+    <!-- Look a player up by the tag on your striking screen, and everything you've written about
+         whoever is in front of you. Both resolve their own subject and render nothing when there
+         isn't one, so this column simply collapses when there's nobody to show. -->
+    <NoteLookup />
+    <OpponentNotes />
+  </div>
+  </div><!-- /.live-grid -->
 {/if}
 
 <style>
+  /* Session figures: one horizontal strip of label/value pairs. Wraps rather than scrolls, so a
+     narrow window stacks them instead of clipping. */
+  .session-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 22px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    margin-bottom: 16px;
+  }
+
+  .s-item {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .s-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .s-value {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Two columns when there's room for both to be useful, one when there isn't. auto-fit with a
+     min track means the breakpoint follows the actual available width — including after a
+     Ctrl +/− zoom, which now re-runs layout rather than just scaling the pixels. */
+  .live-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 0 16px;
+    align-items: start;
+  }
+
+  /* Each column owns its own vertical rhythm; the cards inside already carry bottom margins. */
+  .live-col {
+    min-width: 0;
+  }
+
   /* Per-game list for the current match. The cap is viewport-relative so the list stretches
      on a tall window and scrolls on a short one, instead of being truncated to a fixed count. */
   .game-list {

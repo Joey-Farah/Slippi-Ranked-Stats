@@ -1,7 +1,7 @@
 {
   "name": "slippi-ranked-stats",
   "private": true,
-  "version": "1.8.14",
+  "version": "1.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

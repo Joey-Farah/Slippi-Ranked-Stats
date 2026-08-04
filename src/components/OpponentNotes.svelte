@@ -76,12 +76,10 @@
 
     <div class="lists">
       <section>
+        <!-- Code first: it's the immutable identity and the only thing notes are keyed on.
+             The display name trails it as a convenience, never as the identifier. -->
         <div class="subject">
-          {#if ctx.tag}
-            {ctx.tag}<span class="sub-code">{ctx.opponentCode}</span>
-          {:else}
-            {ctx.opponentCode}
-          {/if}
+          {ctx.opponentCode}{#if ctx.tag}<span class="sub-code">{ctx.tag}</span>{/if}
         </div>
         <NoteList notes={oppNotes} emptyText="Nothing written about them yet." />
       </section>

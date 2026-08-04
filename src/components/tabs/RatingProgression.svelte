@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { snapshots, seasons, sets, connectCode, linkedCodes } from "../../lib/store";
+  import { snapshots, seasons, sets, connectCode, linkedCodes, showRatingAvg } from "../../lib/store";
   import LineChart from "../charts/LineChart.svelte";
 
   // Convert an ISO timestamp string to a local-time display string "YYYY-MM-DD HH:MM"
@@ -73,6 +73,20 @@
     });
   })());
 
+  // Rolling 20-set win rate. Lives here rather than on the Live Session tab: it's an all-time
+  // trend over every completed set, not a live-session number, and it belongs next to the rating
+  // line it explains — a rating that's drifting and a win rate that's drifting are one story.
+  const SET_WINDOW = 20;
+  let rolling = $derived((() => {
+    const completedSets = $sets.filter((s) => Math.max(s.wins, s.losses) >= 2);
+    if (completedSets.length < SET_WINDOW) return [];
+    return completedSets.slice(SET_WINDOW - 1).map((_, i) => {
+      const w = completedSets.slice(i, i + SET_WINDOW);
+      const wins = w.filter((s) => s.result === "win").length;
+      return { x: String(i + SET_WINDOW), y: (wins / SET_WINDOW) * 100 };
+    });
+  })());
+
   // Auto-scale y-axis (ignore nulls)
   let chartBounds = $derived((() => {
     const vals = ratingData.map((d) => d.y).filter((v): v is number => v !== null);
@@ -118,6 +132,21 @@
     <div class="card" style="margin-bottom:16px">
       <div class="section-title" style="display:flex; align-items:center; justify-content:space-between">
         <span>Rating Over Time</span>
+        <div style="display:flex; gap:10px; align-items:center">
+        <!-- Series toggle. A real chip in the card's control row, not a clickable legend entry:
+             a legend that toggles looks identical to a legend that doesn't, so nobody finds it.
+             Same ✓-prefixed on/off chip the overlay's "Show on overlay" row uses. -->
+        {#if rollingRatingAvg.length > 1}
+          <button
+            onclick={() => showRatingAvg.set(!$showRatingAvg)}
+            aria-pressed={$showRatingAvg}
+            title={$showRatingAvg ? "Hide the 20-snapshot average" : "Show the 20-snapshot average"}
+            style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; cursor:pointer; font-family:inherit;
+              border:1px solid {$showRatingAvg ? '#f39c1255' : 'var(--border)'};
+              background:{$showRatingAvg ? '#f39c1222' : 'transparent'};
+              color:{$showRatingAvg ? '#f39c12' : 'var(--muted)'};"
+          >{$showRatingAvg ? "✓ " : ""}20-snap avg</button>
+        {/if}
         <div style="display:flex; gap:4px">
           <button
             onclick={() => seasonFilter = "current"}
@@ -132,13 +161,16 @@
               color:{seasonFilter === 'all' ? '#fff' : 'var(--muted)'};"
           >All Time</button>
         </div>
+        </div>
       </div>
       <div style="display:flex; gap:16px; align-items:center; margin-bottom:8px; font-size:11px; color:var(--muted)">
         <span style="display:flex; align-items:center; gap:5px">
           <span style="display:inline-block; width:20px; height:2px; background:#2ecc71; border-radius:1px"></span>
           Rating
         </span>
-        {#if rollingRatingAvg.length > 1}
+        <!-- Legend only — it describes what's drawn, so it disappears with the series. The
+             control that brings it back is the chip in the card header. -->
+        {#if $showRatingAvg && rollingRatingAvg.length > 1}
           <span style="display:flex; align-items:center; gap:5px">
             <span style="display:inline-block; width:20px; height:0; border-top:2px dashed #f39c12"></span>
             20-snap avg
@@ -160,13 +192,30 @@
         height={280}
         yMin={chartBounds.min}
         yMax={chartBounds.max}
-        y2Data={rollingRatingAvg.length > 1 ? rollingRatingAvg : undefined}
+        y2Data={$showRatingAvg && rollingRatingAvg.length > 1 ? rollingRatingAvg : undefined}
         label2="20-snap avg"
         color2="#f39c12"
       />
     </div>
   {:else}
     <p class="muted" style="margin-bottom:16px">Fetch a rating snapshot to see progression.</p>
+  {/if}
+
+  <!-- Rolling 20-set win rate. Sits under the rating chart so the two trends read together;
+       unlike the rating line it comes from replays, so it works even with no snapshots. -->
+  {#if rolling.length > 0}
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Rolling 20-Set Win Rate</div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:8px">Set win % across your last 20 completed sets.</div>
+      <LineChart
+        xData={rolling.map((d) => d.x)}
+        yData={rolling.map((d) => d.y)}
+        label="Win %"
+        color="#7c3aed"
+        fill={true}
+        height={200}
+      />
+    </div>
   {/if}
 
   <!-- Per-set progression table -->

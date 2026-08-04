@@ -10,7 +10,7 @@
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import Notes from "./components/tabs/Notes.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
   import { getDb, getGames, getSnapshots, getSeasons, pruneUnproductiveScannedFiles } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
@@ -223,26 +223,26 @@
     }
   }
 
-  // Zoom support: Ctrl+/Ctrl-/Ctrl+0
-  let zoom = $state(1.0);
+  // Zoom support: Ctrl+/Ctrl-/Ctrl+0.
+  //
+  // Uses Chromium's `zoom` property (the webview is Chromium) rather than `transform: scale()`.
+  // The difference matters: `transform` scales the *rendered output* without reflowing, so text
+  // went soft at fractional scales, the layout never adapted — zooming out gave you a shrunken
+  // copy of the same page instead of more content — and it needed a `100/zoom vw/vh` counter-hack
+  // to stop the scaled box overflowing the window. `zoom` re-runs layout, so text stays crisp,
+  // the responsive grids actually re-flow at their breakpoints, and no size compensation is
+  // needed. It also makes ResizeObserver fire, which is what lets charts re-fit on zoom (with
+  // `transform` they were measured at their untransformed size and never resized at all).
   function setZoom(z: number) {
-    zoom = z;
-    const app = document.getElementById("app")!;
-    if (zoom === 1.0) {
-      app.style.transform = "";
-      app.style.transformOrigin = "";
-      app.style.width = "";
-      app.style.height = "";
-    } else {
-      app.style.transform = `scale(${zoom})`;
-      app.style.transformOrigin = "top left";
-      app.style.width = `${100 / zoom}vw`;
-      app.style.height = `${100 / zoom}vh`;
-    }
+    uiZoom.set(Math.min(2.0, Math.max(0.5, Math.round(z * 10) / 10)));
   }
   function applyZoom(delta: number) {
-    setZoom(Math.min(2.0, Math.max(0.5, Math.round((zoom + delta) * 10) / 10)));
+    setZoom(get(uiZoom) + delta);
   }
+  $effect(() => {
+    const app = document.getElementById("app");
+    if (app) app.style.zoom = String($uiZoom);
+  });
   function handleKeydown(e: KeyboardEvent) {
     if (!e.ctrlKey) return;
     if (e.key === "=" || e.key === "+") { e.preventDefault(); applyZoom(+0.1); }

@@ -180,21 +180,44 @@ describe("groupNotes", () => {
     expect(groups).toHaveLength(3);
     const oppGroup = groups.find((g) => g.kind === "opponent")!;
     expect(oppGroup.notes.map((n) => n.id).sort()).toEqual([1, 2]);
-    expect(oppGroup.subtitle).toBe("FOX#123");
+    expect(oppGroup.title).toBe("FOX#123");
     expect(groups.filter((g) => g.kind === "matchup").map((g) => g.title).sort()).toEqual([
       "Fox vs Marth",
       "Marth vs Fox",
     ]);
   });
 
-  it("titles a player by their newest known tag, falling back to the code", () => {
+  // Display names are mutable and non-unique; connect codes are neither. The code is always the
+  // headline, and the name is a secondary label that may simply be absent.
+  it("titles a player by their connect code, with the newest known name as a subtitle", () => {
     const groups = N.groupNotes([
       opp("FOX#123", { id: 1, opponent_tag: "OldName", updated_at: "2026-01-01T00:00:00.000Z" }),
       opp("FOX#123", { id: 2, opponent_tag: "NewName", updated_at: "2026-08-01T00:00:00.000Z" }),
       opp("BAR#7", { id: 3 }),
     ]);
-    expect(groups.find((g) => g.subtitle === "FOX#123")!.title).toBe("NewName");
-    expect(groups.find((g) => g.subtitle === "BAR#7")!.title).toBe("BAR#7");
+    expect(groups.find((g) => g.title === "FOX#123")!.subtitle).toBe("NewName");
+    expect(groups.find((g) => g.title === "BAR#7")!.subtitle).toBe("");
+  });
+
+  // The scenario Joey raised: someone renames themselves between sessions. A rename must
+  // relabel the existing notes, never split them into a second person.
+  it("keeps a renamed player as ONE group, since identity is the code alone", () => {
+    const groups = N.groupNotes([
+      opp("FOX#123", { id: 1, opponent_tag: "OldName", updated_at: "2026-01-01T00:00:00.000Z" }),
+      opp("FOX#123", { id: 2, opponent_tag: "NewName", updated_at: "2026-08-01T00:00:00.000Z" }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].notes).toHaveLength(2);
+  });
+
+  // And the converse: two different people sharing a display name stay separate.
+  it("keeps two players who share a display name apart", () => {
+    const groups = N.groupNotes([
+      opp("FOX#123", { id: 1, opponent_tag: "Joey" }),
+      opp("BAR#7", { id: 2, opponent_tag: "Joey" }),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.title).sort()).toEqual(["BAR#7", "FOX#123"]);
   });
 
   it("orders groups by their most recent note", () => {
@@ -202,7 +225,7 @@ describe("groupNotes", () => {
       opp("STALE#1", { id: 1, updated_at: "2026-01-01T00:00:00.000Z" }),
       opp("FRESH#1", { id: 2, updated_at: "2026-08-01T00:00:00.000Z" }),
     ]);
-    expect(groups.map((g) => g.subtitle)).toEqual(["FRESH#1", "STALE#1"]);
+    expect(groups.map((g) => g.title)).toEqual(["FRESH#1", "STALE#1"]);
   });
 
   it("labels a wildcard matchup group by the opposing character alone", () => {

@@ -154,9 +154,20 @@
   onMount(() => {
     chart = echarts.init(container, "dark");
     chart.setOption(buildOption());
-    const ro = new ResizeObserver(() => chart?.resize());
+    // One resize per frame — see the matching note in LineChart.svelte.
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        chart?.resize();
+      });
+    });
     ro.observe(container);
-    return () => ro.disconnect();
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
   });
 
   $effect(() => {

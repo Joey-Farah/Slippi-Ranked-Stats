@@ -1,3 +1,49 @@
+## What's New in v1.9.0
+
+### 🗒️ Notes on your opponents and your matchups
+
+You can now keep short notes for yourself about the people you play and the matchups you struggle with — and they come up on their own when you run into that person again.
+
+There are two kinds. **Player notes** are about a specific person, tied to their connect code ("always techs in place off the top platform"). **Matchup notes** are about a character pairing and run in one direction, because your Fox against a Marth is a different problem from your Marth against a Fox. A matchup note can also be set to "any character", for things that are true about the opposing character no matter who you pick.
+
+During a match, both show up on the **Live Session** tab right under the NOW PLAYING card, alongside a box to jot a new one down. Since the app already identifies your opponent at the moment a game starts, your notes on them are on screen before the match is. They stay up after the set ends too — right after playing someone is usually when you actually think of something worth writing.
+
+There's also a new **Notes** tab for reading back through everything, searching it, and writing notes ahead of time for someone you haven't queued into yet.
+
+Notes are never shown on the stream overlay. They're a scouting report on the person you're playing, and putting that on stream would hand it straight to them.
+
+**One thing worth knowing:** Slippi doesn't reveal who you've matched with until the game actually starts, so notes can't appear during stage striking on their own. Their tag is on your screen at that point though, so the Live Session tab has a **Look up a player** box — type a couple of characters of their code or name and your notes on them come straight up.
+
+### 📊 A fairer Lead Maintenance score
+
+Lead Maintenance was broken, and badly. It scored you on the size of the lead you'd *had* rather than on how much of it you gave back — so the more dominant your win, the worse you did. Winning a game without dropping a single stock scored **58 out of 100**, and that was the highest the stat could go. Nobody had ever scored above it.
+
+It now measures what it's supposed to: the most of a lead you ever handed back. Never surrender any of it and that's full marks, however large the lead was. Give some back and you're scored on how far you slipped, with bigger collapses penalised harder.
+
+Taking your opponent's last stock also no longer counts as "taking the lead" — winning a game you trailed the whole way is a comeback, not a lead you maintained, and the stat now stays out of it.
+
+**Comeback Rate had the same problem in reverse.** It was giving you credit for how deep a hole you'd been in even when you hadn't climbed out of any of it — so getting four-stocked scored *better* than losing a close one. It now measures how much of the deficit you actually erased: recover none of it and that's zero, claw your way back and win from three stocks down and that's full marks.
+
+**Your existing set grades will recalculate automatically** when you open the app.
+
+### 🖥️ A tidier Live Session tab
+
+The Live Session tab had grown to the point where it was mostly empty space that you still had to scroll through. Session figures — sets, win rate, Rating — are now a single compact strip across the top instead of a row of tall cards at the bottom, and the live match and your notes sit side by side rather than stacked.
+
+The **Rolling 20-Set Win Rate** chart has moved to the **Rating History** tab, where it sits under your Rating line. It's an all-time trend across every set you've played rather than a live-session number, and the two read much better together.
+
+### 🔍 Zooming and resizing feel right now
+
+Ctrl + and Ctrl − used to scale the app like an image — text went soft, the layout never adapted, and charts didn't re-fit. It now properly re-lays out the page, so text stays sharp and the app genuinely uses the space at any zoom level. Your zoom setting is also remembered between launches.
+
+Dragging the window to resize is smoother too — charts were redrawing far more often than they needed to.
+
+### 📈 The 20-snapshot average is now optional
+
+The dashed average line on the Rating History chart can be switched off with the **20-snap avg** button, if you'd rather see your Rating line on its own. The setting sticks.
+
+---
+
 ## What's New in v1.8.14
 
 ### 🎮 See who you're really up against

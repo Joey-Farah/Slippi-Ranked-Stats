@@ -120,8 +120,13 @@ export function matchupTitle(playerChar: string, opponentChar: string): string {
 export interface NoteGroup {
   key: string;
   kind: NoteKind;
-  title: string;     // "Sample" / "Fox vs Marth"
-  subtitle: string;  // "FOX#123" / "your character → theirs"
+  // The connect code leads for player groups, with the display name as a secondary label.
+  // Codes are immutable and are the ONLY thing note identity is keyed on; display names can be
+  // changed at will and two people can share one, so a name must never be what you read a note's
+  // owner off. The name is kept because it's what's on screen during stage striking — it makes
+  // notes findable, it just doesn't get to identify anyone.
+  title: string;     // "FOX#123" / "Fox vs Marth"
+  subtitle: string;  // "Sample" (may be empty) / "" for matchups
   notes: NoteRow[];  // already sorted
   updated_at: string; // newest note in the group, for ordering groups
 }
@@ -151,9 +156,9 @@ export function groupNotes(all: NoteRow[]): NoteGroup[] {
       kind,
       title:
         kind === "opponent"
-          ? tag || normalizeCode(rows[0].opponent_code)
+          ? normalizeCode(rows[0].opponent_code)
           : matchupTitle(rows[0].player_char, rows[0].opponent_char),
-      subtitle: kind === "opponent" ? normalizeCode(rows[0].opponent_code) : "",
+      subtitle: kind === "opponent" ? tag : "",
       notes: sorted,
       updated_at: sorted.reduce((max, n) => (n.updated_at > max ? n.updated_at : max), ""),
     });

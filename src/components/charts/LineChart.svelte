@@ -133,9 +133,23 @@
   onMount(() => {
     chart = echarts.init(container, "dark");
     chart.setOption(buildOption());
-    const ro = new ResizeObserver(() => chart?.resize());
+    // Coalesce to one resize per frame. ResizeObserver fires continuously while a window is
+    // being dragged, and echarts.resize() is a full re-layout and redraw — running it per
+    // callback rather than per frame is what made dragging the window feel like it was
+    // stuttering on any tab with charts on it.
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        chart?.resize();
+      });
+    });
     ro.observe(container);
-    return () => ro.disconnect();
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
   });
 
   $effect(() => {

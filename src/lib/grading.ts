@@ -174,7 +174,7 @@ const SET_BLOWN_LEAD_PENALTY = -4;
  *  version). Folded into GRADE_VERSION so a logic-only change — which doesn't
  *  move BENCHMARKS_VERSION — still forces a regrade. Bump on any change to
  *  weights, curves, bonuses, or stat math. */
-export const GRADING_LOGIC_VERSION = "6"; // 6: Ice Climbers/Nana — follower frames folded into openings, damage, edgeguard & recovery (both parsers)
+export const GRADING_LOGIC_VERSION = "7"; // 7: lead_maintenance_rate — nudge scales by lead GIVEN BACK, not peak lead; surrendering none = 1.0 (was capped at 0.58 for every player)
 
 /** The version token stored with each grade and compared to detect stale grades.
  *  Combines the benchmark-data version with the scoring-logic version so EITHER
@@ -196,7 +196,7 @@ export const STAT_DESCRIPTIONS: Partial<Record<string, string>> = {
   neutral_win_ratio:       "Fraction of neutral exchanges you won. A neutral win is counted when you started a conversion while the opponent wasn't already converting on you.",
   opening_conversion_rate: "Of your conversions (landing the opponent in hitstun or a grab), how often you landed at least one follow-up hit before they regained control.",
   stage_control_ratio:     "How often your position was closer to center stage than your opponent's, measured only while both players were on stage.",
-  lead_maintenance_rate:   "How much of your lead you held: scored on the lowest stock-margin you fell to after first going ahead — staying ahead scores high, giving the lead back to even is middling, falling behind scores low. A bigger lead given back is penalized more, and the score is reduced if you lost the game. Absolute scale, not benchmarked. Null if you never led in stocks.",
+  lead_maintenance_rate:   "How much of your lead you held: never giving any of it back scores 100, however big the lead was. Otherwise it's scored on the lowest stock-margin you fell to after first going ahead — still ahead scores high, giving the lead back to even is middling, falling behind scores low — and handing back a bigger lead is penalized more. The score is reduced if you lost the game. Absolute scale, not benchmarked. Null if you never led in stocks.",
   comeback_rate:           "How much of a deficit you erased: scored on the highest stock-margin you climbed to after first falling behind — retaking the lead scores high, clawing back to even is middling, still trailing scores low. A deeper deficit overcome scores higher, and the score is reduced if you lost the game. Absolute scale, not benchmarked. Null if you were never behind in stocks.",
   damage_per_opening:      "Average damage dealt per conversion, where a conversion ends when the opponent regains control for 45+ consecutive frames.",
   openings_per_kill:       "Average number of conversions required to take a stock. Lower is better.",

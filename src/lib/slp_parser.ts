@@ -457,6 +457,79 @@ function countFollowerTrips(
   return { sit, success };
 }
 
+// ── Comeback / lead-maintenance degree ─────────────────────────────────────
+//
+// Both emit a 0–1 per-game degree that grading.ts maps straight to 0–100 with no benchmark
+// lookup (they're in ABSOLUTE_STATS). Exported so the formulas can be unit-tested directly —
+// they're pure arithmetic over four numbers, and reaching them through a synthesised frame
+// stream would test the parser rather than the maths.
+
+/** Multiplies the degree when the game was lost. */
+const CB_LOSS_MULT = 0.75;
+/** ≈ 1/3 of a grade-notch per extra stock of swing size. */
+const LEAD_CB_NUDGE = 0.04;
+
+/** Maps an end margin (yourStocks − oppStocks) to a 0–1 base. Shared by both directions. */
+function leadCbPos(m: number): number {
+  return m >= 2 ? 1.0 : m === 1 ? 0.70 : m === 0 ? 0.45 : m === -1 ? 0.30 : m === -2 ? 0.13 : 0.0;
+}
+
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
+
+/**
+ * How much of a lead you kept, once you had one.
+ *
+ * Measured as the worst DRAWDOWN from your running peak lead — the most of a lead you ever
+ * handed back — and where that drawdown bottomed out. Hand back nothing and it's a perfect 1.0
+ * however big the lead was; otherwise it's graded on the margin you sank to (still ahead > even
+ * > behind), docked further for each extra stock surrendered.
+ *
+ * @param givenBack  peak lead minus the low that followed it, in stocks. 0 = never shrank.
+ * @param low        the margin at that low point (yourStocks − oppStocks).
+ *
+ * ⚠ Neither input may be derived from the *entry* point of the lead. Stocks are lost one at a
+ * time, so the moment you first go ahead the margin is exactly +1 — meaning a running minimum
+ * taken from that moment is pinned at 1 and a peak-minus-that-minimum measures how much the lead
+ * GREW, not how much it shrank. Both mistakes were live at once before 2026-08-03
+ * (GRADING_LOGIC_VERSION 6→7): the old formula docked you by the peak lead alone, so a flawless
+ * game — which by definition drives the peak to 4 — took the maximum penalty and scored
+ * 0.70 − 0.04×3 = 0.58. That was the stat's ceiling for every player, and it graded as a B.
+ */
+export function leadMaintenanceDegree(givenBack: number, low: number, won: boolean): number {
+  const base = givenBack <= 0
+    ? 1
+    : clamp01(leadCbPos(low) - LEAD_CB_NUDGE * (givenBack - 1));
+  return base * (won ? 1 : CB_LOSS_MULT);
+}
+
+/**
+ * The exact mirror of lead maintenance: how much of a deficit you erased.
+ *
+ * Measured as the best RUN-UP from your running worst deficit — the most of a hole you ever
+ * climbed out of — and the margin you reached doing it. Claw back nothing and it's 0, however
+ * deep the hole was; otherwise it's graded on the margin you reached (ahead > even > still
+ * behind), lifted for each extra stock recovered.
+ *
+ * @param clawedBack  the low point subtracted from the high that followed it, in stocks.
+ *                    0 = you never recovered any of it.
+ * @param high        the margin at that high point (yourStocks − oppStocks).
+ *
+ * ⚠ Fixed 2026-08-03 alongside lead maintenance (GRADING_LOGIC_VERSION 6→7), same root cause.
+ * The old version graded `highAfterDown`, a running maximum seeded at the −1 entry point, so the
+ * base could never drop below `leadCbPos(-1) = 0.30` — the floor was unreachable exactly as the
+ * lead's ceiling was — and the depth nudge then ADDED credit for how deep the hole was even when
+ * none of it had been climbed out of. Net effect: being 4-stocked scored 31.5 while going down
+ * one and never recovering scored 22.5, so a blowout beat a close loss.
+ */
+export function comebackDegree(clawedBack: number, high: number, won: boolean): number {
+  const base = clawedBack <= 0
+    ? 0
+    : clamp01(leadCbPos(high) + LEAD_CB_NUDGE * (clawedBack - 1));
+  return base * (won ? 1 : CB_LOSS_MULT);
+}
+
 /** Compute position- and timing-based stats. */
 function computeAdvancedStats(
   playerPort: number,
@@ -502,25 +575,16 @@ function computeAdvancedStats(
   const WD_DODGE_F     =   4;
   const WD_LAND_F      =   4;
 
-  // Comeback / lead-maintenance degree (continuous, absolute — see ADR 0001), redesigned
-  // 2026-05-27 to grade END POSITION rather than raw swing size. Both emit a 0–1 per-game
-  // degree; grading.ts maps degree → 0–100 with no benchmark lookup.
-  //   LEAD     = how much of your lead you kept — scored on the LOWEST margin you fell to
-  //              after first going ahead (troughAfterUp): staying ahead scores high, giving
-  //              the lead back to even is middling, falling behind is low.
-  //   COMEBACK = how much of a deficit you erased — the mirror — scored on the HIGHEST margin
-  //              you climbed to after first falling behind (highAfterDown): retaking the lead
-  //              is high, clawing back to even is middling, still trailing is low.
-  //   Size nudge: holding the end fixed, a BIGGER lead blown (higher marginMax) docks the lead
-  //   score and a DEEPER deficit overcome (lower marginMin) lifts the comeback score.
-  // leadCbPos maps an end margin (yourStocks − oppStocks) to a 0–1 base; it's the shared,
-  // mirrored curve. NUDGE ≈ 1/3 of a grade-notch per extra stock of swing size. CB_LOSS_MULT
-  // multiplies the degree when the game was lost.
-  const CB_LOSS_MULT  = 0.75;
-  const LEAD_CB_NUDGE = 0.04;
-  const leadCbPos = (m: number): number =>
-    m >= 2 ? 1.0 : m === 1 ? 0.70 : m === 0 ? 0.45 : m === -1 ? 0.30 : m === -2 ? 0.13 : 0.0;
-  const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
+  // Comeback / lead-maintenance degree (continuous, absolute — see ADR 0001). Both emit a 0–1
+  // per-game degree; grading.ts maps degree → 0–100 with no benchmark lookup. The formulas
+  // themselves live at module scope — see leadMaintenanceDegree / comebackDegree, which carry
+  // the full rationale — and this loop's only job is to feed them honest inputs:
+  //   LEAD     = the worst DRAWDOWN from your running peak lead (maxGivenBack) and the margin it
+  //              bottomed out at (lowAtGiveBack).
+  //   COMEBACK = the best RUN-UP from your running worst deficit (maxClawedBack) and the margin
+  //              you reached doing it (highAtClawBack).
+  // Formulas live at module scope (see leadMaintenanceDegree / comebackDegree) so they can be
+  // unit-tested without synthesising a whole frame stream.
 
   let centerFrames  = 0;
   let onStageFrames = 0;
@@ -564,16 +628,24 @@ function computeAdvancedStats(
   let prevOppStocksR = -1;
   let prevOppStateR  = -1;
 
-  // Stock-margin (yourStocks − oppStocks) tracking for comeback / lead degree.
-  // marginMax/Min = highest lead / deepest deficit reached (the swing size);
-  // troughAfterUp = lowest margin once you'd gone ahead (lead end position);
-  // highAfterDown = highest margin once you'd gone behind (comeback end position).
+  // Stock-margin (yourStocks − oppStocks) tracking for comeback / lead degree. The two are exact
+  // mirrors: lead measures the worst DRAWDOWN from a running peak, comeback the best RUN-UP from
+  // a running trough. Both are only meaningful while the game is still contested.
   let wasEverDown   = false;
   let wasEverUp     = false;
-  let marginMin     = 0;
-  let marginMax     = 0;
-  let troughAfterUp =  Infinity;
-  let highAfterDown = -Infinity;
+  // Lead drawdown: the running peak lead, the worst fall from it, and where that fall bottomed
+  // out. Only tracked once you're actually ahead — a deficit before your first lead belongs to
+  // comeback, not to lead maintenance. leadPeak starts at -Infinity so the first ahead-frame
+  // seeds it with the true margin rather than an assumed 0.
+  let leadPeak      = -Infinity;
+  let maxGivenBack  = 0;
+  let lowAtGiveBack = 0;
+  // Comeback run-up: the mirror. Running worst deficit, the best climb out of it, and the margin
+  // reached doing so. Only tracked once you're actually behind — a lead held before you first
+  // fell behind belongs to lead maintenance.
+  let deficitTrough  = Infinity;
+  let maxClawedBack  = 0;
+  let highAtClawBack = 0;
 
   let wdAttempts = 0; let wdSuccesses = 0;
   let jumpFrame  = -1; let dodgeFrame  = -1;
@@ -600,12 +672,27 @@ function computeAdvancedStats(
       // Track the margin extremes (swing size) plus the end positions: lowest margin
       // once ahead (lead) and highest once behind (comeback). Degree formulas below.
       const margin = snap.stocks - opp.stocks;
-      if (margin < 0) wasEverDown = true;
-      if (margin > 0) wasEverUp   = true;
-      if (margin < marginMin) marginMin = margin;
-      if (margin > marginMax) marginMax = margin;
-      if (wasEverUp)   troughAfterUp = Math.min(troughAfterUp, margin);
-      if (wasEverDown) highAfterDown = Math.max(highAfterDown, margin);
+      // ⚠ A margin only counts as a lead (or a deficit) while the other side still has stocks
+      // to fight with. Taking an opponent's LAST stock is winning, not going ahead — and every
+      // won game ends that way, so without this gate a game you trailed the whole way and then
+      // closed out registered as "went ahead and never gave any of it back": a free 100 on lead
+      // maintenance for a lead that never existed. Same in mirror for being taken to zero.
+      const oppAlive    = opp.stocks  > 0;
+      const playerAlive = snap.stocks > 0;
+      if (margin < 0 && playerAlive) wasEverDown = true;
+      if (margin > 0 && oppAlive)    wasEverUp   = true;
+      if (wasEverDown && playerAlive) {
+        if (margin < deficitTrough) deficitTrough = margin;
+        const runUp = margin - deficitTrough;
+        if (runUp > maxClawedBack) { maxClawedBack = runUp; highAtClawBack = margin; }
+      }
+      // Drawdown is likewise only meaningful while the game is still contested — the winning
+      // stock would otherwise inflate the peak it's measured against.
+      if (wasEverUp && oppAlive) {
+        if (margin > leadPeak) leadPeak = margin;
+        const drawdown = leadPeak - margin;
+        if (drawdown > maxGivenBack) { maxGivenBack = drawdown; lowAtGiveBack = margin; }
+      }
 
       // ── Hit advantage rate: did player attack within 30f of each hit? ────
       const oppVuln = isVulnerable(opp.state);
@@ -743,10 +830,10 @@ function computeAdvancedStats(
     // End-position model (mirrored): comeback graded on how high you climbed back to,
     // lead on how low you fell to — each nudged by the swing size (deficit depth / peak height).
     comeback_rate:          wasEverDown
-      ? clamp01(leadCbPos(highAfterDown) + LEAD_CB_NUDGE * (-marginMin - 1)) * (result === "win" ? 1 : CB_LOSS_MULT)
+      ? comebackDegree(maxClawedBack, highAtClawBack, result === "win")
       : null,
     lead_maintenance_rate:  wasEverUp
-      ? clamp01(leadCbPos(troughAfterUp) - LEAD_CB_NUDGE * (marginMax - 1)) * (result === "win" ? 1 : CB_LOSS_MULT)
+      ? leadMaintenanceDegree(maxGivenBack, lowAtGiveBack, result === "win")
       : null,
     wavedash_miss_rate:     wdAttempts    > 0 ? (wdAttempts - wdSuccesses) / wdAttempts : null,
   };

@@ -79,6 +79,15 @@ export const effectiveCodes = derived(
 // Alias used by App.svelte (always the primary connect code)
 export const primaryCode = derived(connectCode, ($code) => $code);
 export const dateRange = persisted<"30d" | "90d" | "all">("srs_dateRange", "all");
+
+// UI zoom (Ctrl +/−/0). Persisted — someone who scales the app down to fit more on screen
+// means it, and having to redo it every launch is worse than not having the control.
+export const uiZoom = persisted<number>("srs_uiZoom", 1);
+
+// Rating History: draw the 20-snapshot rolling average over the rating line. On by default
+// (the pre-toggle behaviour), but it runs right through the rating line and sometimes you just
+// want to read the rating itself — so it's persisted rather than reset every launch.
+export const showRatingAvg = persisted<boolean>("srs_showRatingAvg", true);
 export const isPremium = persisted<boolean>("srs_isPremium", false);
 
 // Live Ranked Stats overlay (premium): the unified always-on OBS Browser Source showing

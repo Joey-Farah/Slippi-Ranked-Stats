@@ -6,13 +6,73 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-08-03 (OPPONENT + MATCHUP NOTES — BUILT, NOT RELEASED — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-08-03 (v1.9.0 — NOTES + LEAD-MAINTENANCE FIX + LIVE TAB REWORK — READ FIRST)
 
-> **State: ✅ built, `tsc --noEmit` clean, `vite build` clean, **93/93 tests** (23 new in
-> `notes.test.ts`). Version NOT bumped, release notes NOT written — Joey asked for this to be
-> built overnight and reviewed in the morning before a release is set up.** The DDL and every
-> statement in the CRUD layer were additionally executed against real SQLite (`node:sqlite`)
-> before shipping them, including the index-usage query plans.
+> **State: PREPARED AND PUSHED TO `main`, DELIBERATELY NOT TAGGED.** Version bumped to 1.9.0 in
+> all three places, `release-notes.md` written. `tsc --noEmit` clean, `vite build` clean,
+> **124/124 tests**. Joey approved the release, then decided to hold it — **"save the release for
+> another day, I'll ask you to do the release tomorrow" (2026-08-03).** Everything is committed;
+> the only remaining step is tagging `v1.9.0` and pushing the tag, which is what triggers CI and
+> publishes to users. **Do not tag without asking.**
+>
+> **⚠ ONE OPEN DECISION BEFORE TAGGING:** the **Notes tab ships UNGATED**. The live-session notes
+> panel inherits Live Session's `$isPremium` gate for free, but the standalone tab is currently
+> free for everyone. Joey was asked twice and hasn't answered; CLAUDE.md forbids guessing at
+> gating. One `PremiumGate` wrapper in `Notes.svelte` if it should be Premium — decide this before
+> the tag, since it changes what users get.
+>
+> **⚠ LEAD MAINTENANCE WAS BADLY BROKEN — FIXED HERE (`GRADING_LOGIC_VERSION` 6→7).** Joey
+> reported winning a set without dropping a stock and getting a B. Confirmed against his real
+> database (`raw=0.58`), then derived: **0.58 was the stat's mathematical ceiling for every
+> player.** Two compounding defects:
+> - The size nudge docked by the PEAK lead (`marginMax`), not by what was given back — so
+>   dominating was punished.
+> - `troughAfterUp` is structurally pinned at **+1**: stocks are lost one at a time, so the moment
+>   you first go ahead the margin is exactly +1 and the running minimum records it. `leadCbPos`'s
+>   `m >= 2 → 1.0` branch was therefore **dead code** for lead maintenance.
+> - They compound: not dipping requires never losing a stock, which forces `marginMax` to 4, which
+>   triggers the maximum penalty. `0.70 − 0.04×3 = 0.58`.
+>
+> Now measured as the worst **drawdown from the running peak** (`maxGivenBack` / `lowAtGiveBack`).
+> Surrender nothing → 1.0, whatever the lead's size.
+>
+> ⚠ **My FIRST attempt at this fix was also wrong, and Joey caught the second one in the app.**
+> Both failures were the same mistake as the original bug — feeding the formula a quantity that
+> didn't mean what its name suggested:
+> - Attempt 1 used `marginMax − troughAfterUp` as "given back". That measures how much the lead
+>   **grew**, since the trough is pinned at the entry point. Caught by a unit test.
+> - Attempt 2 forgot that **every won game ends with you ahead**. A game trailed the whole way and
+>   then closed out registered as "went ahead and never gave any back" → a free 100. Joey found a
+>   real 1–2 **SET LOSS** vs `PZPR#0` scoring **100** on lead maintenance, because its two losses
+>   were null and the one win was this trivial case, so the average was exactly 1.0.
+> - Fix: **a margin only counts as a lead while `opp.stocks > 0`.** Taking someone's last stock is
+>   winning, not going ahead. Mirrored as `playerAlive` for comeback.
+>
+> **`leadMaintenanceDegree` / `comebackDegree` are now exported from `slp_parser.ts`** and unit
+> tested in `lead-comeback.test.ts` — deliberately over **stock-count paths** (`[[4,4],[4,3],…]`)
+> rather than margins, because the `oppAlive` rule cannot be expressed in margins at all. Don't
+> "simplify" those fixtures back to margins.
+>
+> **No rescan needed:** `lead_maintenance_rate` is in `ABSOLUTE_STATS` (never benchmarked), and
+> `parse_hf_replays.py` only stores a crude win/loss binary for it, so the Python side is
+> irrelevant to scoring. This is a TypeScript-only change.
+>
+> **Also in this release:** the Live Session tab was reworked (session figures → a compact strip at
+> the top; two-column grid, live match left / notes right; the Rolling 20-Set Win Rate chart moved
+> to Rating History). Ctrl +/− now uses Chromium's **`zoom`** instead of `transform: scale()` —
+> `transform` scaled rendered output without reflowing, which is why text went soft, why it needed
+> a `100/zoom vw/vh` counter-hack, and why charts never re-fitted (ResizeObserver saw the
+> untransformed size). Chart resizes are coalesced to one per animation frame (they were running a
+> full ECharts re-layout on every observer callback during a window drag). Zoom persists as
+> `srs_uiZoom`; the 20-snap average toggle persists as `srs_showRatingAvg`.
+>
+> ⚠ The 20-snap toggle was **first built as a clickable legend entry** and Joey couldn't find it —
+> it rendered identically to the static label it replaced. Controls belong in the control row;
+> legends describe. Don't move it back.
+>
+> **The notes feature itself** (built earlier this session) is described in full below. The DDL and
+> every CRUD statement were executed against real SQLite (`node:sqlite`) including index-usage
+> query plans, and `notes.db` was confirmed created by the real app with the right schema.
 >
 > **What it is (Joey's ask):** when you run into an opponent, the app pulls up any notes you've
 > previously left for yourself about that person — quick bullets, on screen before the match
@@ -91,7 +151,21 @@ hand-off mechanism between work sessions and across machines.
 > year. Guarded twice — no-ops unless they actually have notes and the name actually changed —
 > so it isn't a write per set.
 >
-> **DECISIONS FOR JOEY (both deliberately left as-is, both one-line changes):**
+> **✅ COMEBACK HAD THE EXACT MIRROR BUG — ALSO FIXED HERE.** Found while answering "does the
+> grading cover every outcome". `highAfterDown` was a running MAXIMUM seeded at the −1 entry point,
+> so the comeback base could never fall below `leadCbPos(-1) = 0.30` — the floor unreachable
+> exactly as the lead's ceiling was — and the depth nudge then *added* credit for how deep the hole
+> was even when none of it had been climbed out of. Measured: **being 4-stocked scored 31.5 while
+> going down one and never recovering scored 22.5** — a blowout beat a close loss.
+> - Now the mirror of the lead measure: best **run-up from the running trough**
+>   (`maxClawedBack` / `highAtClawBack`), gated on `playerAlive` so being taken to zero doesn't
+>   count as falling further behind. Recovering nothing = 0.
+> - Folded into the **same** `GRADING_LOGIC_VERSION` 7 bump, so it cost no extra regrade. Doing it
+>   after the release would have needed a v8 and a second full regrade.
+> - ⚠ **Getting four-stocked is the only path that recovers nothing** — taking any of their stocks
+>   is a recovery — so a "shallow no-recovery" test case cannot be constructed. Don't try.
+>
+> **DECISION FOR JOEY (deliberately left as-is, one-line change):**
 > 1. **Premium gating.** The live panel inherits the Live Session tab's existing `$isPremium`
 >    gate for free. **The new Notes tab is currently ungated.** CLAUDE.md says to discuss gating
 >    before building it in, so it wasn't guessed at. If it should be Premium it's a `PremiumGate`

@@ -95,25 +95,27 @@
     match starts. Notes are never shown on the stream overlay.
   </div>
 
-  <!-- New note -->
+  <!-- New note: what it's about on one row, then the box to write it in. The pickers size to
+       their content instead of stretching — a connect code is eight characters and a character
+       name is one word, so a full-width field just makes the card look like a form to fill in. -->
   <div class="new">
-    <div class="row">
+    <div class="pickers">
       <div class="seg" role="group" aria-label="Note kind">
         <button
           type="button"
           class:on={newKind === "opponent"}
           onclick={() => (newKind = "opponent")}
-        >A player</button>
+        >Player</button>
         <button
           type="button"
           class:on={newKind === "matchup"}
           onclick={() => { newKind = "matchup"; if (newPlayerChar === ANY_CHAR) newPlayerChar = mainChar; }}
-        >A matchup</button>
+        >Matchup</button>
       </div>
 
       {#if newKind === "opponent"}
         <input
-          class="field"
+          class="pick code"
           bind:value={newCode}
           list="srs-known-opponents"
           placeholder="Connect code, e.g. FOX#123"
@@ -125,7 +127,7 @@
           {/each}
         </datalist>
       {:else}
-        <select class="field" bind:value={newPlayerChar} aria-label="Your character">
+        <select class="pick" bind:value={newPlayerChar} aria-label="Your character">
           <!-- "Any character" is for facts about the opposing character rather than about the
                pairing — useful if you play more than one. -->
           <option value={ANY_CHAR}>Any character (me)</option>
@@ -134,7 +136,7 @@
           {/each}
         </select>
         <span class="vs">vs</span>
-        <select class="field" bind:value={newOpponentChar} aria-label="Their character">
+        <select class="pick" bind:value={newOpponentChar} aria-label="Their character">
           {#each CHAR_NAMES as c}
             <option value={c}>{c}</option>
           {/each}
@@ -213,6 +215,14 @@
     margin-bottom: 8px;
   }
 
+  .pickers {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
   .seg {
     display: flex;
     gap: 4px;
@@ -240,6 +250,7 @@
     color: var(--accent);
   }
 
+  /* Search: stretches to fill the row, which is what a search field should do. */
   .field {
     flex: 1;
     min-width: 150px;
@@ -252,7 +263,24 @@
     padding: 7px 9px;
   }
 
-  .field:focus {
+  /* Subject pickers: sized to their content, never stretched. */
+  .pick {
+    flex: 0 0 auto;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 9px;
+  }
+
+  .pick.code {
+    width: 210px;
+  }
+
+  .field:focus,
+  .pick:focus {
     outline: none;
     border-color: var(--accent);
   }
