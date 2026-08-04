@@ -427,6 +427,155 @@
     {/if}
   </div>
 
+  <!-- NOW PLAYING card. Hoisted above the state branches below along with the notes panel:
+       when the app launches into a set already in progress the watcher recovers the opponent
+       from the DB, but those games are pre-existing so liveGameStats stays empty — this used to
+       fall inside the "no games tracked yet" branch and hide the opponent we'd just identified. -->
+  {#if $activeSet}
+    <!-- Tier colour comes from the watcher (opponent_tier_color), which computed it with the
+         opponent's leaderboard placement — recomputing it from rating alone here would drop
+         Grandmaster back to a Master colour. -->
+    {@const oppMedal = $activeSet.opponent_tier ? RANK_MEDAL_SVGS[$activeSet.opponent_tier] : ""}
+    <div style="
+      background: var(--card); border: 1px solid var(--border);
+      border-left: 3px solid #2ecc71; border-radius: 8px;
+      padding: 14px 16px; margin-bottom: 16px;
+    ">
+      <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #2ecc71; margin-bottom: 10px">
+        NOW PLAYING
+      </div>
+      <!-- Fixed proportions rather than space-between: the old flex row pushed the three
+           blocks to the far edges of a wide window and left a void in the middle. -->
+      <div style="
+        display: grid; grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1fr);
+        align-items: center; gap: 20px;
+      ">
+        <!-- Opponent identity -->
+        <div style="display: flex; align-items: center; gap: 12px; min-width: 0">
+          {#if oppMedal}
+            <div style="width: 42px; height: 42px; flex-shrink: 0" aria-hidden="true">
+              {@html oppMedal}
+            </div>
+          {/if}
+          <div style="min-width: 0">
+            <div style="
+              font-size: 17px; font-weight: 700; line-height: 1.2;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            ">{$activeSet.opponent_tag || $activeSet.opponent_code}</div>
+            {#if $activeSet.opponent_tag}
+              <div style="font-size: 11px; color: var(--muted)">{$activeSet.opponent_code}</div>
+            {/if}
+            {#if $activeSet.opponent_rating !== null}
+              <!-- An unranked player's rating is Slippi's 1100 placeholder (or a provisional
+                   mid-placement number), so printing it would present a non-number as fact. -->
+              <div style="font-size: 12px; color: {$activeSet.opponent_tier_color ?? 'var(--muted)'}">
+                {#if $activeSet.opponent_tier === "Unranked"}
+                  Unranked
+                {:else}
+                  {$activeSet.opponent_tier ?? ""} · {$activeSet.opponent_rating.toFixed(0)}
+                {/if}
+              </div>
+            {:else}
+              <div style="font-size: 12px; color: var(--muted)">Fetching rank…</div>
+            {/if}
+            <!-- Their ranked record this season, straight off their Slippi profile. Someone
+                 who hasn't played yet gets a plain note instead of "0W–0L (—)", which reads
+                 like a missing value rather than a fact about them. -->
+            {#if $activeSet.opponent_season_wins !== null && $activeSet.opponent_season_losses !== null}
+              {@const sw = $activeSet.opponent_season_wins}
+              {@const sl = $activeSet.opponent_season_losses}
+              {#if sw + sl > 0}
+                <div style="font-size: 12px; margin-top: 1px">
+                  <span class="win-text">{sw}W</span>–<span class="loss-text">{sl}L</span>
+                  <span style="color: var(--muted)">({winRate(sw, sl)}) this season</span>
+                </div>
+              {:else}
+                <div style="font-size: 12px; margin-top: 1px; color: var(--muted)">
+                  No ranked games this season
+                </div>
+              {/if}
+            {/if}
+            <!-- >= 0 rather than != null: the game-start peek leaves this as -1 because the
+                 character only becomes known from the metadata block when the game ends. -->
+            {#if $activeSet.opponent_char_id >= 0}
+              <div style="font-size: 11px; color: var(--muted)">
+                {CHARACTERS[$activeSet.opponent_char_id] ?? `Char ${$activeSet.opponent_char_id}`}
+              </div>
+            {/if}
+          </div>
+        </div>
+        <div style="text-align: center">
+          <div style="font-size: 30px; font-weight: 700; letter-spacing: 4px; line-height: 1">
+            <span class="win-text">{$activeSet.games_won}</span>
+            <span style="color: var(--muted)">–</span>
+            <span class="loss-text">{$activeSet.games_lost}</span>
+          </div>
+          <div style="font-size: 10px; color: var(--muted); margin-top: 2px">
+            {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
+          </div>
+        </div>
+        <div style="text-align: right">
+          {#if $activeSet.all_time_wins + $activeSet.all_time_losses > 0}
+            <div style="font-size: 13px">
+              All-time: <span class="win-text">{$activeSet.all_time_wins}W</span>–<span class="loss-text">{$activeSet.all_time_losses}L</span>
+            </div>
+            <div style="font-size: 11px; color: var(--muted)">
+              {$activeSet.all_time_unit === "sets" ? "sets" : "games"} vs this opponent
+            </div>
+          {:else}
+            <div style="font-size: 13px; color: var(--muted)">First match vs<br/>this opponent</div>
+          {/if}
+          {#if $activeSet.session_already_faced}
+            <div style="font-size: 11px; color: #f39c12; margin-top: 4px">⚠ Rematch this session</div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Where they finished last season. A full-width footer rather than another line in the
+           identity column: that column is already the tallest of the three, and the season name
+           needs the room. The name is spelled out because Slippi's profile history skips seasons
+           a player sat out — for a returning player this may be several seasons back. -->
+      {#if $activeSet.opponent_prev_season}
+        {@const ps = $activeSet.opponent_prev_season}
+        {@const psMedal = RANK_MEDAL_SVGS[ps.tier] ?? ""}
+        <div style="
+          display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+          margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+          font-size: 12px;
+        ">
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted)">
+            {ps.name.toUpperCase()}
+          </span>
+          {#if psMedal}
+            <div style="width: 20px; height: 20px; flex-shrink: 0" aria-hidden="true">
+              {@html psMedal}
+            </div>
+          {/if}
+          <span style="color: {ps.tier_color}; font-weight: 600">{ps.tier}</span>
+          {#if ps.tier !== "Unranked"}
+            <span style="color: var(--muted)">· {ps.rating.toFixed(0)}</span>
+          {/if}
+          <span>
+            <span class="win-text">{ps.wins}W</span>–<span class="loss-text">{ps.losses}L</span>
+            <span style="color: var(--muted)">({winRate(ps.wins, ps.losses)})</span>
+          </span>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- Anything you've previously written about this player or this matchup, plus the box to
+       write more. Deliberately hoisted ABOVE the state branches below, not nested in one:
+         - It must outlive `activeSet`, which a ranked set clears the instant someone reaches 2 —
+           right after a set is exactly when you want to jot the note down. It falls back to the
+           last opponent of the session and only changes when a NEW set starts.
+         - It must also survive the "no games tracked yet" branch, which is what you get when the
+           app launches into a set already in progress: the watcher recovers the opponent from
+           the DB, but those games are pre-existing so liveGameStats is empty and the whole rest
+           of the tab renders its empty state. The opponent is known; the notes should be up.
+       The panel resolves its own subject and renders nothing at all when there isn't one. -->
+  <OpponentNotes />
+
   {#if !$watcherActive}
     <p class="muted" style="margin-bottom: 16px">
       Monitoring will begin automatically when a game is detected.
@@ -459,148 +608,6 @@
     </div>
 
   {:else}
-
-    <!-- NOW PLAYING card -->
-    {#if $activeSet}
-      <!-- Tier colour comes from the watcher (opponent_tier_color), which computed it with the
-           opponent's leaderboard placement — recomputing it from rating alone here would drop
-           Grandmaster back to a Master colour. -->
-      {@const oppMedal = $activeSet.opponent_tier ? RANK_MEDAL_SVGS[$activeSet.opponent_tier] : ""}
-      <div style="
-        background: var(--card); border: 1px solid var(--border);
-        border-left: 3px solid #2ecc71; border-radius: 8px;
-        padding: 14px 16px; margin-bottom: 16px;
-      ">
-        <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #2ecc71; margin-bottom: 10px">
-          NOW PLAYING
-        </div>
-        <!-- Fixed proportions rather than space-between: the old flex row pushed the three
-             blocks to the far edges of a wide window and left a void in the middle. -->
-        <div style="
-          display: grid; grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1fr);
-          align-items: center; gap: 20px;
-        ">
-          <!-- Opponent identity -->
-          <div style="display: flex; align-items: center; gap: 12px; min-width: 0">
-            {#if oppMedal}
-              <div style="width: 42px; height: 42px; flex-shrink: 0" aria-hidden="true">
-                {@html oppMedal}
-              </div>
-            {/if}
-            <div style="min-width: 0">
-              <div style="
-                font-size: 17px; font-weight: 700; line-height: 1.2;
-                overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-              ">{$activeSet.opponent_tag || $activeSet.opponent_code}</div>
-              {#if $activeSet.opponent_tag}
-                <div style="font-size: 11px; color: var(--muted)">{$activeSet.opponent_code}</div>
-              {/if}
-              {#if $activeSet.opponent_rating !== null}
-                <!-- An unranked player's rating is Slippi's 1100 placeholder (or a provisional
-                     mid-placement number), so printing it would present a non-number as fact. -->
-                <div style="font-size: 12px; color: {$activeSet.opponent_tier_color ?? 'var(--muted)'}">
-                  {#if $activeSet.opponent_tier === "Unranked"}
-                    Unranked
-                  {:else}
-                    {$activeSet.opponent_tier ?? ""} · {$activeSet.opponent_rating.toFixed(0)}
-                  {/if}
-                </div>
-              {:else}
-                <div style="font-size: 12px; color: var(--muted)">Fetching rank…</div>
-              {/if}
-              <!-- Their ranked record this season, straight off their Slippi profile. Someone
-                   who hasn't played yet gets a plain note instead of "0W–0L (—)", which reads
-                   like a missing value rather than a fact about them. -->
-              {#if $activeSet.opponent_season_wins !== null && $activeSet.opponent_season_losses !== null}
-                {@const sw = $activeSet.opponent_season_wins}
-                {@const sl = $activeSet.opponent_season_losses}
-                {#if sw + sl > 0}
-                  <div style="font-size: 12px; margin-top: 1px">
-                    <span class="win-text">{sw}W</span>–<span class="loss-text">{sl}L</span>
-                    <span style="color: var(--muted)">({winRate(sw, sl)}) this season</span>
-                  </div>
-                {:else}
-                  <div style="font-size: 12px; margin-top: 1px; color: var(--muted)">
-                    No ranked games this season
-                  </div>
-                {/if}
-              {/if}
-              <!-- >= 0 rather than != null: the game-start peek leaves this as -1 because the
-                   character only becomes known from the metadata block when the game ends. -->
-              {#if $activeSet.opponent_char_id >= 0}
-                <div style="font-size: 11px; color: var(--muted)">
-                  {CHARACTERS[$activeSet.opponent_char_id] ?? `Char ${$activeSet.opponent_char_id}`}
-                </div>
-              {/if}
-            </div>
-          </div>
-          <div style="text-align: center">
-            <div style="font-size: 30px; font-weight: 700; letter-spacing: 4px; line-height: 1">
-              <span class="win-text">{$activeSet.games_won}</span>
-              <span style="color: var(--muted)">–</span>
-              <span class="loss-text">{$activeSet.games_lost}</span>
-            </div>
-            <div style="font-size: 10px; color: var(--muted); margin-top: 2px">
-              {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
-            </div>
-          </div>
-          <div style="text-align: right">
-            {#if $activeSet.all_time_wins + $activeSet.all_time_losses > 0}
-              <div style="font-size: 13px">
-                All-time: <span class="win-text">{$activeSet.all_time_wins}W</span>–<span class="loss-text">{$activeSet.all_time_losses}L</span>
-              </div>
-              <div style="font-size: 11px; color: var(--muted)">
-                {$activeSet.all_time_unit === "sets" ? "sets" : "games"} vs this opponent
-              </div>
-            {:else}
-              <div style="font-size: 13px; color: var(--muted)">First match vs<br/>this opponent</div>
-            {/if}
-            {#if $activeSet.session_already_faced}
-              <div style="font-size: 11px; color: #f39c12; margin-top: 4px">⚠ Rematch this session</div>
-            {/if}
-          </div>
-        </div>
-
-        <!-- Where they finished last season. A full-width footer rather than another line in the
-             identity column: that column is already the tallest of the three, and the season name
-             needs the room. The name is spelled out because Slippi's profile history skips seasons
-             a player sat out — for a returning player this may be several seasons back. -->
-        {#if $activeSet.opponent_prev_season}
-          {@const ps = $activeSet.opponent_prev_season}
-          {@const psMedal = RANK_MEDAL_SVGS[ps.tier] ?? ""}
-          <div style="
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-            margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
-            font-size: 12px;
-          ">
-            <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted)">
-              {ps.name.toUpperCase()}
-            </span>
-            {#if psMedal}
-              <div style="width: 20px; height: 20px; flex-shrink: 0" aria-hidden="true">
-                {@html psMedal}
-              </div>
-            {/if}
-            <span style="color: {ps.tier_color}; font-weight: 600">{ps.tier}</span>
-            {#if ps.tier !== "Unranked"}
-              <span style="color: var(--muted)">· {ps.rating.toFixed(0)}</span>
-            {/if}
-            <span>
-              <span class="win-text">{ps.wins}W</span>–<span class="loss-text">{ps.losses}L</span>
-              <span style="color: var(--muted)">({winRate(ps.wins, ps.losses)})</span>
-            </span>
-          </div>
-        {/if}
-      </div>
-    {/if}
-
-    <!-- Anything you've previously written about this player or this matchup, directly under the
-         card that identifies them — the opponent is known at game start, so the notes are up
-         before the match is. Deliberately OUTSIDE the {#if $activeSet} block: a ranked set clears
-         activeSet the moment someone reaches 2, and right after a set is when you actually want
-         to write a note down. The panel falls back to the last opponent of the session and
-         renders nothing at all when there's nobody to show. -->
-    <OpponentNotes />
 
     <!-- Per-game stats for the current/last match -->
     {#if lastMatch}
