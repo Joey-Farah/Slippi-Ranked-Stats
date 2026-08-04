@@ -6,6 +6,115 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-08-03 (OPPONENT + MATCHUP NOTES — BUILT, NOT RELEASED — READ FIRST)
+
+> **State: ✅ built, `tsc --noEmit` clean, `vite build` clean, **93/93 tests** (23 new in
+> `notes.test.ts`). Version NOT bumped, release notes NOT written — Joey asked for this to be
+> built overnight and reviewed in the morning before a release is set up.** The DDL and every
+> statement in the CRUD layer were additionally executed against real SQLite (`node:sqlite`)
+> before shipping them, including the index-usage query plans.
+>
+> **What it is (Joey's ask):** when you run into an opponent, the app pulls up any notes you've
+> previously left for yourself about that person — quick bullets, on screen before the match
+> starts. Extended mid-request to **matchups as well as people**.
+>
+> **Two kinds of note, one table:**
+> - **opponent** — keyed by connect code. "Always techs in place off the top platform."
+> - **matchup** — keyed by (**your** character → **their** character), *directional*, because
+>   Fox-vs-Marth and Marth-vs-Fox are not the same problem. `player_char = ''` is a deliberate
+>   wildcard meaning "any character I play", for facts about the opposing character rather than
+>   about the pairing.
+>
+> **Storage: a NEW `notes.db`, deliberately NOT the per-connect-code DB.** Same pattern as
+> `scanned.db` (`getNotesDb()` in `db.ts`). A note is about a *person*, not about which of your
+> accounts you happened to face them on: linked codes must all see the same notes, and switching
+> your primary connect code must not strand them in a file the app stops opening. Absent keys are
+> `''` rather than `NULL` throughout, so every lookup is plain equality instead of the
+> NULL-never-equals-NULL footgun on an indexed column. Two indexes, both confirmed used by
+> `EXPLAIN QUERY PLAN`.
+>
+> **One row = one bullet**, not one blob per subject. Bullets are what actually gets written
+> mid-session (one field, hit Enter), and individually addressable rows are what make pinning,
+> deleting the one that stopped being true, and capping the live list possible.
+>
+> **The whole table is resident in memory** (`notes` store in `notes.ts`, loaded once in
+> `App.svelte`'s `onMount` — *not* lazily when the Notes tab is first opened). A note list is
+> hundreds of rows at the very most, and keeping it resident means the live panel renders
+> synchronously off the same store update that puts the opponent on screen. That's the one moment
+> the feature has to be instant, and it must work whether or not the Notes tab was ever visited.
+>
+> **Why the timing works at all:** v1.8.13/v1.8.14 already put the opponent's code AND both
+> characters on screen at game *start* (the `.slp` header peek, ~100ms). So the notes panel is
+> populated before the match loads. Nothing new was needed in the watcher for this.
+>
+> **Files:**
+> - `src/lib/notes.ts` — pure matching/sorting/grouping (unit-tested) + the `notes` writable,
+>   the `activeSetNotes` derived, and the async actions. Imports `store.ts`, never the reverse —
+>   putting the writable in `store.ts` would have made the derived's dependency on
+>   `notesForContext` a cycle.
+> - `src/lib/db.ts` — `getNotesDb()` + `NoteRow` + CRUD.
+> - `src/components/NoteList.svelte` — one bullet per row: click to edit, Enter saves,
+>   Escape cancels, blur saves, ★ pins, ✕ is **two-step** (turns into "Delete?", auto-disarms
+>   after 4s). There's no undo, so a single stray click must not destroy a note written weeks ago.
+> - `src/components/NoteComposer.svelte` — the write box. Enter submits, Shift+Enter newlines.
+> - `src/components/OpponentNotes.svelte` — the live panel, rendered under NOW PLAYING in
+>   `LiveRankedSession.svelte`. Shows both lists plus a composer with a **This player /
+>   This matchup** target toggle (defaults to player; a note jotted mid-set is nearly always
+>   about the person). The matchup half hides and the toggle disables when either character
+>   isn't known yet — a recovered session has no header read at all.
+>
+> ⚠ **The panel is NOT gated on `activeSet`, and that's the point.** A ranked set clears
+> `activeSet` the instant someone reaches 2 — and the moment you actually want to write a note is
+> *right after* playing someone, not during. So `liveNoteSubject` (in `notes.ts`) falls back to
+> the last game of `liveGameStats` when nothing is live, the panel stays put until the next game
+> starts, and it gets a small **"last opponent"** chip so it's clear NOW PLAYING is gone.
+> `liveGameStats` already resets on a session gap, so this can't resurrect somebody you played
+> last night. Per-game rows carry no display name, so `preferredTag()` recovers one from their
+> own notes — which also means a player you have notes on is named on screen even if the profile
+> fetch fails outright.
+> - `src/components/tabs/Notes.svelte` — new tab (index 7). Browse/search/filter every note, and
+>   write notes **ahead of time** for someone you aren't playing: the connect-code field is an
+>   input backed by a `<datalist>` of everyone you've actually played (most-played first), so a
+>   code you've never faced is still typable.
+>
+> ⚠ **`activeTab` is persisted as an integer index, so the Notes tab was APPENDED (7), not
+> slotted next to Live Session where it belongs conceptually.** Inserting mid-list would silently
+> move every existing user to a different tab on update.
+>
+> ⚠ **Notes are deliberately NOT on the OBS overlay, and shouldn't be.** The panel is a scouting
+> report on the person you are playing; putting it on stream hands it straight to them. This is a
+> different call from the v1.8.14 last-season strip (which was "out of scope, easy to add later")
+> — this one is "don't".
+>
+> **`syncOpponentTag()`** is called from `applyOpponentProfile()` in `watcher.ts` (one line) so a
+> player who renames themselves doesn't sit in the Notes tab under a tag they haven't used in a
+> year. Guarded twice — no-ops unless they actually have notes and the name actually changed —
+> so it isn't a write per set.
+>
+> **DECISIONS FOR JOEY (both deliberately left as-is, both one-line changes):**
+> 1. **Premium gating.** The live panel inherits the Live Session tab's existing `$isPremium`
+>    gate for free. **The new Notes tab is currently ungated.** CLAUDE.md says to discuss gating
+>    before building it in, so it wasn't guessed at. If it should be Premium it's a `PremiumGate`
+>    wrapper in `Notes.svelte`, same as `LiveRankedSession.svelte`.
+> 2. **Not eyeballed against a live game** — same limitation as v1.8.14. What to watch: that
+>    notes for a known opponent are already up when the match loads, and that the matchup line
+>    names the right pairing.
+>
+> **What WAS verified beyond the test suite:**
+> - A real `tauri dev` run booted clean and sat there for ~3 min taking HMR updates with **no
+>   runtime errors** — so the new tab registers and the components mount.
+> - **`notes.db` was created by the actual app** (via the Tauri SQL plugin, not a simulation) and
+>   its schema read back out of `%APPDATA%\com.slippi.rankedstats\…\data\notes.db`: table plus
+>   both indexes, exactly as written. `refreshNotes()` at mount works end to end.
+> - The DDL and every CRUD statement were separately executed against real SQLite via
+>   `node:sqlite`, including `EXPLAIN QUERY PLAN` confirming both indexes are actually used and
+>   that the `updateOpponentTag` `<>` guard makes a repeat call a genuine no-op.
+> - ⚠ **The dev run was killed early on purpose: Joey was mid-session in Slippi at the time** and
+>   `tauri dev` shares the production app's identifier, hence its app-data dir, DBs and overlay
+>   files. **Don't leave a dev instance running alongside the installed app while playing.**
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-08-01 (v1.8.14 — opponent season history + the REAL opponent-delay fix — READ FIRST)
 
 > **State: ✅ RELEASED. `v1.8.14` tagged and pushed 2026-08-02; both CI jobs green (Windows +

@@ -5,6 +5,7 @@ const DB_DIR = "Slippi Ranked Stats/data";
 
 const _dbCache = new Map<string, Database>();
 let _scanned: Database | null = null;
+let _notes: Database | null = null;
 
 function dbPath(connectCode: string): string {
   const safe = connectCode.replace("#", "_");
@@ -12,6 +13,7 @@ function dbPath(connectCode: string): string {
 }
 
 const SCANNED_PATH = `sqlite:${DB_DIR}/scanned.db`;
+const NOTES_PATH = `sqlite:${DB_DIR}/notes.db`;
 
 async function ensureDataDir(): Promise<void> {
   await mkdir(DB_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
@@ -468,4 +470,119 @@ export async function getAllSetGrades(db: Database): Promise<SetGradeRow[]> {
 
 export async function deleteSetGrade(db: Database, matchId: string): Promise<void> {
   await db.execute(`DELETE FROM set_grades WHERE match_id = $1`, [matchId]);
+}
+
+// ── Notes ──────────────────────────────────────────────────────────────────
+//
+// Scouting notes the user writes for themselves: things to remember about a specific
+// opponent ("always techs in place off the top platform") or about a character matchup
+// ("camp the ledge, they over-commit with fair"). Surfaced on the Live Session tab the
+// moment an opponent is detected, which is the only moment they're actually useful.
+//
+// One row = one bullet, not one blob per subject. Bullets are what gets written mid-session —
+// a single field you type into and hit Enter — and individually addressable rows are what make
+// pinning, deleting the one that stopped being true, and capping the live list possible.
+
+// Notes deliberately live in their own database rather than the per-connect-code one. A note
+// is about a *person* or a *matchup*, not about which of your accounts you happened to face
+// them on: linked codes should all see the same notes, and switching your primary connect code
+// must not strand them in a file the app stops opening.
+export async function getNotesDb(): Promise<Database> {
+  if (!_notes) {
+    await ensureDataDir();
+    _notes = await Database.load(NOTES_PATH);
+    // Absent keys are '' rather than NULL throughout: every lookup is then plain equality,
+    // instead of the NULL-never-equals-NULL footgun on an indexed column.
+    await _notes.execute(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind          TEXT NOT NULL,
+        opponent_code TEXT NOT NULL DEFAULT '',
+        opponent_tag  TEXT NOT NULL DEFAULT '',
+        player_char   TEXT NOT NULL DEFAULT '',
+        opponent_char TEXT NOT NULL DEFAULT '',
+        body          TEXT NOT NULL,
+        pinned        INTEGER NOT NULL DEFAULT 0,
+        created_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL
+      )
+    `);
+    await _notes.execute(
+      `CREATE INDEX IF NOT EXISTS idx_notes_opponent ON notes (kind, opponent_code)`
+    );
+    await _notes.execute(
+      `CREATE INDEX IF NOT EXISTS idx_notes_matchup ON notes (kind, opponent_char, player_char)`
+    );
+  }
+  return _notes;
+}
+
+export interface NoteRow {
+  id: number;
+  kind: string;           // 'opponent' | 'matchup' — see NoteKind in notes.ts
+  opponent_code: string;  // opponent notes: their connect code (upper-cased). '' for matchup notes.
+  opponent_tag: string;   // their Slippi display name when known — connect codes alone are unmemorable
+  player_char: string;    // matchup notes: your character name. '' means "any character I play".
+  opponent_char: string;  // matchup notes: their character name. '' for opponent notes.
+  body: string;
+  pinned: number;         // 0 | 1 (SQLite has no boolean)
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listNotes(db: Database): Promise<NoteRow[]> {
+  return db.select<NoteRow[]>(`SELECT * FROM notes`);
+}
+
+export async function insertNote(db: Database, note: Omit<NoteRow, "id">): Promise<void> {
+  await db.execute(
+    `INSERT INTO notes
+      (kind, opponent_code, opponent_tag, player_char, opponent_char, body, pinned, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [
+      note.kind,
+      note.opponent_code,
+      note.opponent_tag,
+      note.player_char,
+      note.opponent_char,
+      note.body,
+      note.pinned,
+      note.created_at,
+      note.updated_at,
+    ]
+  );
+}
+
+export async function updateNoteBody(
+  db: Database,
+  id: number,
+  body: string,
+  updatedAt: string
+): Promise<void> {
+  await db.execute(`UPDATE notes SET body = $1, updated_at = $2 WHERE id = $3`, [
+    body,
+    updatedAt,
+    id,
+  ]);
+}
+
+export async function updateNotePinned(db: Database, id: number, pinned: number): Promise<void> {
+  await db.execute(`UPDATE notes SET pinned = $1 WHERE id = $2`, [pinned, id]);
+}
+
+// Keeps the display name fresh on every note about a player, so a tag change doesn't leave
+// the Notes tab showing whatever they were called the first time you wrote about them.
+export async function updateOpponentTag(
+  db: Database,
+  opponentCode: string,
+  tag: string
+): Promise<void> {
+  await db.execute(
+    `UPDATE notes SET opponent_tag = $1 WHERE kind = 'opponent' AND opponent_code = $2 AND opponent_tag <> $1`,
+    [tag, opponentCode]
+  );
+}
+
+export async function deleteNote(db: Database, id: number): Promise<void> {
+  await db.execute(`DELETE FROM notes WHERE id = $1`, [id]);
 }

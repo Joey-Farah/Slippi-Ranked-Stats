@@ -37,6 +37,7 @@ import {
   type PrevSeasonInfo,
 } from "./store";
 import { CHARACTERS } from "./parser";
+import { syncOpponentTag } from "./notes";
 import { gradeSet, featuredCategory, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
 import { pingTelemetry } from "./telemetry";
@@ -162,6 +163,11 @@ function applyOpponentProfile(matchId: string, opponentCode: string): void {
           opponent_prev_season: prevSeason,
         };
       });
+      // Scouting notes are keyed on the connect code, but listed under the player's name.
+      // Refresh the stored name whenever we learn it, so someone who renamed themselves
+      // doesn't sit in the Notes tab under a tag they haven't used in a year. No-ops unless
+      // they actually have notes and the name has changed.
+      if (oppTag) syncOpponentTag(opponentCode, oppTag).catch(() => {});
     })
     .catch(() => {});
 }

@@ -15,6 +15,7 @@
   import { convertFileSrc } from "@tauri-apps/api/core";
   import LineChart from "../charts/LineChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
+  import OpponentNotes from "../OpponentNotes.svelte";
 
   // ── Live Stats overlay (OBS) ───────────────────────────────────────────────
   const LAYOUT_OPTS: { id: "stacked" | "sidebyside"; label: string }[] = [
@@ -592,6 +593,14 @@
         {/if}
       </div>
     {/if}
+
+    <!-- Anything you've previously written about this player or this matchup, directly under the
+         card that identifies them — the opponent is known at game start, so the notes are up
+         before the match is. Deliberately OUTSIDE the {#if $activeSet} block: a ranked set clears
+         activeSet the moment someone reaches 2, and right after a set is when you actually want
+         to write a note down. The panel falls back to the last opponent of the session and
+         renders nothing at all when there's nobody to show. -->
+    <OpponentNotes />
 
     <!-- Per-game stats for the current/last match -->
     {#if lastMatch}

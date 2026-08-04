@@ -8,6 +8,7 @@
   import AllTimeStats from "./components/tabs/AllTimeStats.svelte";
   import GradeHistory from "./components/tabs/GradeHistory.svelte";
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
+  import Notes from "./components/tabs/Notes.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
   import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
@@ -16,6 +17,7 @@
   import { scanDirectory, PARSER_CAPABILITY_VERSION } from "./lib/parser";
   import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
+  import { refreshNotes } from "./lib/notes";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
   import { onMount } from "svelte";
@@ -110,6 +112,12 @@
     else isPremium.set(false);
 
     pingTelemetry("open");
+
+    // Scouting notes are held in memory for the whole app session. Loaded here — not lazily
+    // when the Notes tab is first opened — because the live session panel has to be able to
+    // render them the instant an opponent is detected, whether or not that tab was ever
+    // visited. The table is tiny; this is one small query at launch.
+    refreshNotes().catch(() => {});
 
     try {
       const update = await check();
@@ -249,7 +257,10 @@
     { label: "📈 Rating History" },
     { label: "📝 Grading" },
     { label: "🎯 Live Session" },
+    // Appended rather than slotted next to Live Session on purpose: activeTab is persisted as
+    // an index, so inserting in the middle would silently move everyone to a different tab.
     { label: "🕹️ Unranked & Direct Stats" },
+    { label: "🗒️ Notes" },
   ];
 </script>
 
@@ -355,6 +366,8 @@
         <LiveRankedSession />
       {:else if $activeTab === 6}
         <UnrankedStats />
+      {:else if $activeTab === 7}
+        <Notes />
       {/if}
     </div>
   </div>
