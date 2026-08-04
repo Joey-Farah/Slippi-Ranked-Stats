@@ -15,11 +15,10 @@ hand-off mechanism between work sessions and across machines.
 > the only remaining step is tagging `v1.9.0` and pushing the tag, which is what triggers CI and
 > publishes to users. **Do not tag without asking.**
 >
-> **⚠ ONE OPEN DECISION BEFORE TAGGING:** the **Notes tab ships UNGATED**. The live-session notes
-> panel inherits Live Session's `$isPremium` gate for free, but the standalone tab is currently
-> free for everyone. Joey was asked twice and hasn't answered; CLAUDE.md forbids guessing at
-> gating. One `PremiumGate` wrapper in `Notes.svelte` if it should be Premium — decide this before
-> the tag, since it changes what users get.
+> **✅ THE OPEN GATING DECISION IS CLOSED (2026-08-04): the Notes tab ships FREE.** Joey decided
+> the standalone tab stays ungated — no `PremiumGate` in `Notes.svelte`, and nobody should "fix"
+> its absence later. The live-session panel remains Premium only because it lives inside Live
+> Session's `$isPremium` gate. Nothing blocks the tag now except Joey asking for it.
 >
 > **⚠ LEAD MAINTENANCE WAS BADLY BROKEN — FIXED HERE (`GRADING_LOGIC_VERSION` 6→7).** Joey
 > reported winning a set without dropping a stock and getting a B. Confirmed against his real
