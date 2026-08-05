@@ -18,6 +18,7 @@
   import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { refreshNotes } from "./lib/notes";
+  import { scrollAffordance } from "./lib/tab-scroll";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
   import { onMount } from "svelte";
@@ -262,6 +263,42 @@
     { label: "🕹️ Unranked & Direct Stats" },
     { label: "🗒️ Notes" },
   ];
+
+  // ── Tab strip overflow ──────────────────────────────────────────────────────
+  // The strip scrolls instead of wrapping, so a clipped tab is invisible. The
+  // chevrons are its only affordance; they appear strictly when there is something
+  // off-screen to reach (see scrollAffordance).
+  let tabStrip: HTMLDivElement | null = $state(null);
+  let tabOverflow = $state({ left: false, right: false });
+
+  function syncTabOverflow() {
+    if (!tabStrip) return;
+    tabOverflow = scrollAffordance(tabStrip.scrollLeft, tabStrip.scrollWidth, tabStrip.clientWidth);
+  }
+
+  function nudgeTabs(direction: 1 | -1) {
+    if (!tabStrip) return;
+    // Leave a sliver of the outgoing tab visible so it stays obvious the row continues.
+    tabStrip.scrollBy({ left: direction * tabStrip.clientWidth * 0.8, behavior: "smooth" });
+  }
+
+  function revealTab(btn: HTMLElement) {
+    btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }
+
+  $effect(() => {
+    if (!tabStrip) return;
+    // activeTab is persisted, so on launch the selected tab can start off-screen —
+    // scroll it into view without animating the app's first paint.
+    const active = tabStrip.querySelector<HTMLElement>(".tab-btn.active");
+    active?.scrollIntoView({ block: "nearest", inline: "nearest" });
+
+    // Window resize, sidebar collapse and Ctrl +/- zoom all change what fits.
+    const ro = new ResizeObserver(syncTabOverflow);
+    ro.observe(tabStrip);
+    for (const child of tabStrip.children) ro.observe(child);
+    return () => ro.disconnect();
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -337,16 +374,34 @@
     {/if}
     <Header />
 
-    <div class="tabs">
-      {#each TABS as tab, i}
-        <button
-          class="tab-btn"
-          class:active={$activeTab === i}
-          onclick={() => activeTab.set(i)}
-        >
-          {tab.label}
-        </button>
-      {/each}
+    <div class="tabs-wrap">
+      <button
+        class="tab-scroll-btn left"
+        class:visible={tabOverflow.left}
+        aria-label="Scroll tabs left"
+        tabindex={tabOverflow.left ? 0 : -1}
+        onclick={() => nudgeTabs(-1)}
+      >‹</button>
+
+      <div class="tabs" bind:this={tabStrip} onscroll={syncTabOverflow}>
+        {#each TABS as tab, i}
+          <button
+            class="tab-btn"
+            class:active={$activeTab === i}
+            onclick={(e) => { activeTab.set(i); revealTab(e.currentTarget); }}
+          >
+            {tab.label}
+          </button>
+        {/each}
+      </div>
+
+      <button
+        class="tab-scroll-btn right"
+        class:visible={tabOverflow.right}
+        aria-label="Scroll tabs right"
+        tabindex={tabOverflow.right ? 0 : -1}
+        onclick={() => nudgeTabs(1)}
+      >›</button>
     </div>
 
     <div class="tab-content">

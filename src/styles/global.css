@@ -130,12 +130,30 @@ html, body, #app {
 
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
 
+/* The strip scrolls rather than wrapping, so the row keeps a fixed height at any
+   window size or zoom level. The wrapper owns the border and the chevrons; the
+   scrolling element inside owns only the buttons. */
+.tabs-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+
 .tabs {
   display: flex;
-  border-bottom: 1px solid var(--border);
+  flex: 1;
   padding: 0 16px;
   gap: 4px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  /* A horizontal scrollbar under the tabs would eat vertical space and look like a
+     rule; the chevrons are the affordance instead. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+
+.tabs::-webkit-scrollbar { display: none; }
 
 .tab-btn {
   background: none;
@@ -147,6 +165,47 @@ html, body, #app {
   border-bottom: 2px solid transparent;
   transition: color 0.15s, border-color 0.15s;
   white-space: nowrap;
+  /* Without this the buttons compress to fit instead of overflowing, and the strip
+     never becomes scrollable at all. */
+  flex: 0 0 auto;
+}
+
+/* Chevrons sit above the strip's edges with a fade, so a clipped tab reads as
+   "there is more this way" rather than as empty space. */
+.tab-scroll-btn {
+  position: absolute;
+  top: 0;
+  bottom: 1px;
+  z-index: 2;
+  width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  color: var(--text);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.tab-scroll-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tab-scroll-btn:hover { color: var(--accent); }
+
+.tab-scroll-btn.left {
+  left: 0;
+  background: linear-gradient(to right, var(--bg) 55%, transparent);
+}
+
+.tab-scroll-btn.right {
+  right: 0;
+  background: linear-gradient(to left, var(--bg) 55%, transparent);
 }
 
 .tab-btn:hover { color: var(--text); }
