@@ -38,6 +38,8 @@ Ctrl + and Ctrl − used to scale the app like an image — text went soft, the 
 
 Dragging the window to resize is smoother too — charts were redrawing far more often than they needed to.
 
+The tab bar no longer runs off the edge of a smaller window. With eight tabs it could push **Notes** out of sight entirely on a laptop screen; it now scrolls, with arrows appearing at the edges whenever there are more tabs to reach.
+
 ### 📈 The 20-snapshot average is now optional
 
 The dashed average line on the Rating History chart can be switched off with the **20-snap avg** button, if you'd rather see your Rating line on its own. The setting sticks.

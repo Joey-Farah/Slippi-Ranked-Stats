@@ -15,6 +15,12 @@ hand-off mechanism between work sessions and across machines.
 > the only remaining step is tagging `v1.9.0` and pushing the tag, which is what triggers CI and
 > publishes to users. **Do not tag without asking.**
 >
+> **Post-review fix (2026-08-04, `a51bf10`): the tab strip scrolls instead of clipping.** Found
+> testing the 1.9.0 build on a normal MacBook window — eight tabs overflowed a plain flex row and
+> cut off **Notes**, which is last and can't be moved (persisted index). Joey picked scrolling over
+> wrapping. Affordance details and the two load-bearing CSS rules are in CLAUDE.md's v1.9.0 bullet
+> (7); the epsilon in `tab-scroll.ts` exists because `zoom` yields fractional widths.
+>
 > **✅ THE OPEN GATING DECISION IS CLOSED (2026-08-04): the Notes tab ships FREE.** Joey decided
 > the standalone tab stays ungated — no `PremiumGate` in `Notes.svelte`, and nobody should "fix"
 > its absence later. The live-session panel remains Premium only because it lives inside Live
