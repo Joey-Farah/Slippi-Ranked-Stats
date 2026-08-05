@@ -192,6 +192,12 @@ export interface ActiveSet {
   games_won: number;
   games_lost: number;
   started_at: string;
+  // When THIS run began, as opposed to started_at, which the rebuild path rewrites to the
+  // latest game's start. Only meaningful for unranked/direct, where one match_id is the whole
+  // connection and there's a session clock to show; ranked just mirrors started_at.
+  // Survives the idle clear (see _runStarts in watcher.ts) so a run that goes quiet and picks
+  // back up under the same match_id keeps counting instead of restarting.
+  run_started_at: string;
   opponent_rating: number | null;   // fetched from Slippi API, null while loading
   opponent_tier: string | null;         // rank tier name, also selects the medal
   opponent_tier_color: string | null;   // rank tier color (getRankTier().color)

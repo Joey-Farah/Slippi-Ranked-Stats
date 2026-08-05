@@ -381,6 +381,21 @@ export async function getGamesByMatchId(
   );
 }
 
+// Start of the earliest game in a match, for the live session clock. Unbounded by design:
+// recoverActiveSet only looks back 15 minutes, but an unranked/direct match_id is the whole
+// connection and can run for hours, so the run's real start is usually outside that window.
+// MIN() rather than getGamesByMatchId so a 60-game run doesn't load 60 rows for one timestamp.
+export async function getMatchStartTime(
+  db: Database,
+  matchId: string
+): Promise<string | null> {
+  const rows = await db.select<{ started: string | null }[]>(
+    `SELECT MIN(timestamp) AS started FROM games WHERE match_id = $1`,
+    [matchId]
+  );
+  return rows[0]?.started ?? null;
+}
+
 // All games vs an opponent in one mode. Modes are kept separate on purpose: a ranked set
 // record and a pile of unranked friendlies against the same person aren't the same statistic
 // and must never be summed into one "all-time vs them" number.

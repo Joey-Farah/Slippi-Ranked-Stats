@@ -10,6 +10,7 @@
   import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
   import { RANK_MEDAL_SVGS } from "../../lib/rank-medals";
   import { gradeColor } from "../../lib/grading";
+  import { elapsedMs, formatElapsed } from "../../lib/session-timer";
   import { ensureStatsOverlayFiles, statsOverlayHtmlPath, statsOverlayPreviewPath, writeStatsOverlayPreviewFile } from "../../lib/stats-overlay";
   import { pingTelemetry } from "../../lib/telemetry";
   import { convertFileSrc } from "@tauri-apps/api/core";
@@ -134,6 +135,27 @@
       ? ($snapshots.at(-1)!.rating - $liveSessionStartRating)
       : null
   );
+
+  // ── Session clock (unranked/direct only) ───────────────────────────────────
+  // A ranked set is a bounded best-of-3 that ends by itself, so there's nothing to time. An
+  // unranked/direct match_id is the whole connection with that opponent and has no end event,
+  // so how long you've been at it is otherwise invisible.
+  let nowMs = $state(Date.now());
+
+  $effect(() => {
+    const s = $activeSet;
+    if (!s || s.mode === "ranked") return;   // no interval running while ranked / idle
+    nowMs = Date.now();                       // don't show a stale second on the first frame
+    const id = setInterval(() => { nowMs = Date.now(); }, 1000);
+    return () => clearInterval(id);
+  });
+
+  let runClock = $derived.by(() => {
+    const s = $activeSet;
+    if (!s || s.mode === "ranked") return null;
+    const ms = elapsedMs(s.run_started_at, nowMs);
+    return ms === null ? null : formatElapsed(ms);
+  });
 
   // Group live game stats by match_id, preserving insertion order
   let statsByMatch = $derived((() => {
@@ -549,6 +571,20 @@
           <div style="font-size: 10px; color: var(--muted); margin-top: 2px">
             {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
           </div>
+          <!-- Unranked/direct only: how long this connection has been going. Ranked sets end on
+               their own, so there's nothing to count. Survives the 15-minute idle clear, so a
+               run that goes quiet and resumes under the same match_id keeps its total. -->
+          {#if runClock}
+            <div class="run-clock" title="Time playing this opponent">
+              <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"
+                   fill="none" stroke="currentColor" stroke-width="2.4"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+              <span>{runClock}</span>
+            </div>
+          {/if}
         </div>
         <div style="text-align: right">
           {#if $activeSet.all_time_wins + $activeSet.all_time_losses > 0}
@@ -718,38 +754,73 @@
 
 <style>
   /* Session figures: one horizontal strip of label/value pairs. Wraps rather than scrolls, so a
-     narrow window stacks them instead of clipping. */
+     narrow window stacks them instead of clipping.
+
+     Label sits ABOVE its value rather than beside it. Inline, the row read as one run-on
+     sentence — "SETS 0–0 WIN RATE — RATING +0.0" — because the 7px label/value gap and the 22px
+     item gap were close enough that nothing marked where one figure ended and the next began. */
   .session-strip {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 8px 22px;
+    align-items: stretch;
+    gap: 4px 2px;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 9px 14px;
+    padding: 4px 6px;
     margin-bottom: 16px;
   }
 
   .s-item {
     display: flex;
-    align-items: baseline;
-    gap: 7px;
+    flex-direction: column;
+    gap: 3px;
     min-width: 0;
+    padding: 7px 16px;
+  }
+
+  /* Hairline between neighbours, drawn as an inset shadow rather than a border so it costs no
+     layout width (a border would shift every figure 1px as items appear and vanish). No radius
+     on .s-item on purpose: rounded corners would clip this into a curved tick instead of a
+     clean full-height rule. A wrapped row can lead with a divider — accepted. */
+  .s-item + .s-item {
+    box-shadow: inset 1px 0 0 var(--border);
   }
 
   .s-label {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--muted);
     white-space: nowrap;
   }
 
   .s-value {
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+    /* Equal-width digits: these tick over live, and proportional figures make the whole strip
+       twitch sideways every time a number changes width. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Session clock under the running score. Tabular figures so a ticking second never nudges the
+     scoreboard sideways, and a fixed pill so 9:59 → 10:00 → 1:00:00 doesn't reflow the column. */
+  .run-clock {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 7px;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
     white-space: nowrap;
   }
 

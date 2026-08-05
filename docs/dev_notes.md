@@ -6,14 +6,77 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-08-05 (UNRANKED/DIRECT SESSION TIMER + session-strip restyle — BANKED, AWAITING JOEY'S TESTING — READ FIRST)
+
+> **State: committed to `main`, NO version bump, NO tag, NOT released.** Joey wants to use it in a
+> real session before it goes out — **"i dont want to do a release until i've gotten the
+> opportunity to actually test the new changes" (2026-08-05).** Version stays **1.9.0**, which is
+> the version already public, so `release-notes.md` is untouched too. Fold this into the next
+> release and bump then. `tsc --noEmit` clean, `vite build` clean, **140/140 tests** (124 + 16 new
+> in `session-timer.test.ts`).
+>
+> **What it is:** a live clock on the Live Session tab showing how long the current
+> unranked/direct run against one opponent has been going. **Ranked deliberately has none** — a
+> ranked set is a bounded best-of-3 that ends by itself; an unranked/direct `match_id` is the
+> ENTIRE connection with no end event, which is the whole reason the question has no answer on
+> screen today. Renders in the NOW PLAYING card under the running score.
+>
+> **⚠ Scope decisions Joey made — don't "fix" these later:**
+> - **Live Session tab only, NOT the OBS overlay.** The overlay would need its own
+>   `OverlayVisibility` toggle and its own `setInterval` (state writes are event-driven and can't
+>   tick), and a clock that appears only in unranked/direct is effectively the mode indicator he
+>   rejected back in v1.8.13 — acceptable on the card, where the scoreboard caption already
+>   differs, but not on stream.
+> - **A resumed run keeps counting from the original start**, rather than restarting or freezing
+>   during the gap. Same `match_id` means the players never actually parted; they were sitting in
+>   the menu.
+>
+> **⚠ `started_at` on `ActiveSet` is NOT a run start and must not be used as one.** Three paths
+> construct an `ActiveSet` and they disagree about what it means:
+> - `showOpponentEarly` → `Date.now()` at the game-start peek ✅
+> - `recoverActiveSet` → `gs[0].timestamp`, first game **in the 15-minute recovery window** ⚠
+> - the `handleLiveGame` rebuild → `g.timestamp` of the game that just **ENDED** ❌
+>
+> So a new `run_started_at` field carries the clock's start instead, resolved through
+> `runStartFor()` in `watcher.ts` against a `_runStarts` Map keyed by `match_id` (unbounded, same
+> as the existing `_completedMatchIds` / `_knownMatchIds` Sets). First path to see a run defines
+> its start; every later rebuild reuses it. **That memo is also the mechanism that survives
+> `IDLE_CLEAR_MS`** — the 15-minute quiet timeout nulls `activeSet`, but the map outlives it, so a
+> run picking back up under the same id keeps its total. Ranked short-circuits and never enters
+> the map.
+>
+> **⚠ The 15-minute recovery window would have lied at launch.** `recoverActiveSet` only queries
+> games from the last 15 min, so opening the app into a two-hour run would start the clock from
+> whatever fell inside that window. New `getMatchStartTime()` (`db.ts`) does a `MIN(timestamp)`
+> over the whole table for that `match_id` — deliberately **not** `getGamesByMatchId`, which would
+> load all 60-odd rows of a long run to read one field. Ranked skips the query entirely.
+> `games.match_id` has no index, but `getGamesByMatchId` already scans on it and this runs once at
+> startup.
+>
+> **Also: the session strip was restyled** (Joey: "the set count just jammed up against each other
+> and the numbers and text are just floating"). The run-on was structural — a 7px label→value gap
+> against a 22px item gap meant nothing marked where one figure ended and the next began, so
+> "SETS 0–0 WIN RATE — RATING +0.0" read as one sentence. Labels now sit **above** their values
+> with hairline dividers between items. ⚠ Two load-bearing details: the divider is an
+> `inset box-shadow`, not a `border` (a border costs layout width and shifts every figure 1px as
+> items appear and vanish), and `.s-item` has **no `border-radius`** on purpose — rounding clips
+> that shadow into a curved tick instead of a clean full-height rule. `tabular-nums` on `.s-value`
+> and `.run-clock` stops live numbers twitching the row sideways.
+>
+> **NEXT UP:** Joey tests a real unranked/direct session. Then bump + release.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-08-03 (v1.9.0 — NOTES + LEAD-MAINTENANCE FIX + LIVE TAB REWORK — READ FIRST)
 
-> **State: PREPARED AND PUSHED TO `main`, DELIBERATELY NOT TAGGED.** Version bumped to 1.9.0 in
-> all three places, `release-notes.md` written. `tsc --noEmit` clean, `vite build` clean,
-> **124/124 tests**. Joey approved the release, then decided to hold it — **"save the release for
-> another day, I'll ask you to do the release tomorrow" (2026-08-03).** Everything is committed;
-> the only remaining step is tagging `v1.9.0` and pushing the tag, which is what triggers CI and
-> publishes to users. **Do not tag without asking.**
+> **State: ✅ RELEASED (2026-08-05).** `v1.9.0` is tagged on `17cf0eb` and pushed; the GitHub
+> release published at 2026-08-05T00:27:24Z with the Windows `.exe`, the universal `.dmg` + sigs,
+> and `latest.json`, so auto-update has gone out to users. `tsc --noEmit` clean, `vite build`
+> clean, **124/124 tests**.
+>
+> ⚠ This banner previously said "prepared but deliberately not tagged" (Joey had held the release
+> on 2026-08-03) and was **not updated when the tag actually went out** — which sent a later
+> session the wrong way. **Check `git tag` / `gh release view`, not just this banner.**
 >
 > **Post-review fix (2026-08-04, `a51bf10`): the tab strip scrolls instead of clipping.** Found
 > testing the 1.9.0 build on a normal MacBook window — eight tabs overflowed a plain flex row and
@@ -24,7 +87,7 @@ hand-off mechanism between work sessions and across machines.
 > **✅ THE OPEN GATING DECISION IS CLOSED (2026-08-04): the Notes tab ships FREE.** Joey decided
 > the standalone tab stays ungated — no `PremiumGate` in `Notes.svelte`, and nobody should "fix"
 > its absence later. The live-session panel remains Premium only because it lives inside Live
-> Session's `$isPremium` gate. Nothing blocks the tag now except Joey asking for it.
+> Session's `$isPremium` gate. This shipped that way in v1.9.0.
 >
 > **⚠ LEAD MAINTENANCE WAS BADLY BROKEN — FIXED HERE (`GRADING_LOGIC_VERSION` 6→7).** Joey
 > reported winning a set without dropping a stock and getting a B. Confirmed against his real

@@ -12,6 +12,7 @@ import {
   getSeasons,
   markFilesScanned,
   getGamesByMatchId,
+  getMatchStartTime,
   getGamesVsOpponent,
   type GameRow,
 } from "./db";
@@ -95,6 +96,26 @@ function armIdleClear(matchId: string): void {
 function cancelIdleClear(): void {
   if (_idleClearTimer) clearTimeout(_idleClearTimer);
   _idleClearTimer = null;
+}
+
+// When each unranked/direct run started, so the session clock on the live card survives being
+// rebuilt. Three separate paths construct an ActiveSet — the game-start peek, the rebuild in
+// handleLiveGame, and the startup recovery — and they disagree about what `started_at` means
+// (the rebuild sets it to the game that just ENDED). Whichever path sees a match_id first wins,
+// and every later rebuild of that same run reuses it.
+//
+// This is what makes a run that goes quiet past IDLE_CLEAR_MS and then picks back up continue
+// counting: in unranked/direct a match_id IS the connection, so the same id resuming means the
+// players never actually parted — they were sitting in the menu. Ranked doesn't participate;
+// a set is bounded and clears itself on completion.
+const _runStarts = new Map<string, string>();
+
+function runStartFor(matchId: string, mode: LiveMode, fallbackIso: string): string {
+  if (mode === "ranked") return fallbackIso;
+  const known = _runStarts.get(matchId);
+  if (known) return known;
+  _runStarts.set(matchId, fallbackIso);
+  return fallbackIso;
 }
 
 // The opponent's "mains" for the overlay: top characters from their Slippi profile as
@@ -359,6 +380,8 @@ async function showOpponentEarly(head: SlpHeaderInfo, db: Database): Promise<voi
 
   const oppExternal = head.opponent_char_external;
 
+  const startedAt = new Date().toISOString();
+
   activeSet.set({
     match_id: head.match_id,
     mode,
@@ -367,7 +390,10 @@ async function showOpponentEarly(head: SlpHeaderInfo, db: Database): Promise<voi
     player_char_id: externalToInternal(head.player_char_external) ?? -1,
     games_won: 0,
     games_lost: 0,
-    started_at: new Date().toISOString(),
+    started_at: startedAt,
+    // This path fires on the Game Start block of game 1, so "now" is the truest run start we
+    // ever get — closer than any replay timestamp, which is only readable once a game ends.
+    run_started_at: runStartFor(head.match_id, mode, startedAt),
     opponent_rating: null,
     opponent_tier: null,
     opponent_tier_color: null,
@@ -545,6 +571,9 @@ async function handleLiveGame(
       games_won: wins,
       games_lost: losses,
       started_at: g.timestamp,
+      // g.timestamp is the start of the game that just ENDED, which is only the run's start on
+      // the first game. On any later rebuild the memo returns the real one.
+      run_started_at: runStartFor(g.match_id, mode, g.timestamp),
       opponent_rating: carry?.opponent_rating ?? null,
       opponent_tier: carry?.opponent_tier ?? null,
       opponent_tier_color: carry?.opponent_tier_color ?? null,
@@ -768,6 +797,11 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
     const { allTimeWins, allTimeLosses, unit } = await computeAllTimeRecord(db, latest.opponent_code, mode);
     if (mode !== "ranked") armIdleClear(matchId);
 
+    // gs[0] is only the earliest game inside the 15-minute recovery window, so on its own it
+    // would restart the clock at launch for a run that's been going for hours. Ask the DB for
+    // the run's real first game (ranked doesn't show a clock, so it doesn't pay for the query).
+    const trueStart = mode === "ranked" ? null : await getMatchStartTime(db, matchId);
+
     activeSet.set({
       match_id: matchId,
       mode,
@@ -777,6 +811,7 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
       games_won: wins,
       games_lost: losses,
       started_at: gs[0].timestamp,
+      run_started_at: runStartFor(matchId, mode, trueStart ?? gs[0].timestamp),
       opponent_rating: null,
       opponent_tier: null,
       opponent_tier_color: null,
