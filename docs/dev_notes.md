@@ -64,6 +64,10 @@ hand-off mechanism between work sessions and across machines.
 > and `.run-clock` stops live numbers twitching the row sideways.
 >
 > **NEXT UP:** Joey tests a real unranked/direct session. Then bump + release.
+>
+> **Also awaiting a call on the next release:** a suggestion-box request for **longer / custom date
+> ranges** (banked below, 2026-08-09, not started). Not built — Joey wants to decide later whether
+> it rides along with the session timer or waits.
 
 ---
 
@@ -254,6 +258,33 @@ hand-off mechanism between work sessions and across machines.
 > - ⚠ **The dev run was killed early on purpose: Joey was mid-session in Slippi at the time** and
 >   `tauri dev` shares the production app's identifier, hence its app-data dir, DBs and overlay
 >   files. **Don't leave a dev instance running alongside the installed app while playing.**
+
+---
+
+## ▶ BANKED IDEA — Longer / custom date ranges (user suggestion, 2026-08-09, NOT started)
+
+A user asked via the suggestion box for **either a custom date range picker, or simply more preset
+options (6mo, 1yr, 2yr, …)** — today the sidebar offers only All Time / Last 90 Days / Last 30 Days.
+
+**Where it lives (small surface):**
+- `dateRange` — `persisted<"30d" | "90d" | "all">("srs_dateRange", "all")` in `store.ts:81`.
+- `filteredGames` (`store.ts:319`) does the cutoff arithmetic: `days = $range === "30d" ? 30 : 90`.
+  **Every statistic in the app derives from `filteredGames`**, so widening the range needs no
+  per-tab work — one store change covers the whole app.
+- The `<select>` in `Sidebar.svelte:283`.
+
+**Recommendation: ship the extra presets first** (`180d`, `1y`, `2y` alongside the existing three).
+It's the 80% of the value for a ~10-line change: widen the union type, replace the ternary with a
+lookup table keyed by the range id, add the options. Custom start/end is a bigger job — two date
+inputs, validation, a different persisted shape — and can follow if anyone asks for it.
+
+**⚠ Two things to get right:**
+- **The persisted value is a bare string in localStorage** (`srs_dateRange`). Adding members is
+  forward-safe; *renaming or removing* one would leave existing installs holding a value that hits
+  neither branch of the ternary and silently falls back to 90 days. Keep `"30d"`/`"90d"`/`"all"`
+  spelled exactly as they are, and make the lookup fall back to `"all"` on an unknown id.
+- **Nothing outside `filteredGames` should learn about the new ids.** The whole point of that store
+  is that the date filter is expressed once; a `=== "90d"` check anywhere else is the bug to avoid.
 
 ---
 
