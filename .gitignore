@@ -25,3 +25,5 @@ __pycache__/
 Thumbs.db
 TestingSLPFiles/
 .wrangler/
+.vercel
+.env*
