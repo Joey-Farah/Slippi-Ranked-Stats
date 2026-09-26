@@ -288,6 +288,43 @@ inputs, validation, a different persisted shape — and can follow if anyone ask
 
 ---
 
+## ▶ BANKED IDEA — Opponent-adjusted grading, à la Lucky Stats OPK+/DEF+/NEU+ (2026-09-25, NOT started)
+
+Joey wants this on file to think about later — **no action planned.** Source: Lucky 7s announced
+[OPK+, DEF+, NEU+ & OVR+](https://x.com/Lucky7sMelee/status/2103513904571650204) with a full
+methodology write-up at <https://luckystats.gg/opk/paper> (leaderboards at `/opk`).
+
+**Their method (OPS+ for Melee — 100 = average):**
+- **OPK+ / DEF+:** multiplicative Poisson attack/defense model (football-style). Expected kills =
+  openings × league rate × OFF[player] × CHAR_OFF × DEF[opponent] × CHAR_DEF × STAGE × MISMATCH[Elo
+  gap]. Fit by alternating updates across the whole dataset, so your punish is judged against your
+  actual opponents' durability.
+- **NEU+:** Bradley-Terry on each game's opening split, with player + character strengths.
+- **OVR+ = NEU+ × OPK+ × DEF+ / 10,000** = stocks taken per stock lost vs an average player.
+- **Shrinkage toward the player's Elo** (prior worth 150 openings), not toward league average —
+  shrinking to average made beating weak low-sample players over-credited.
+- **Mismatch bands** by pre-set Elo gap (favourite converts ×1.07–1.12, underdog ×0.94–0.86).
+- ~115k start.gg-identified tournament games; OVR+ alone predicts next-month sets at AUC 0.89 and
+  adds a small, significant gain over Elo.
+
+**Why it matters for us:** `gradeSet` scores raw stats as percentiles of the pooled ranked
+distribution, conditioned on matchup — **it never accounts for how good the opponent was.** A
+4-OPK set vs a Master and vs a Silver grade the same. Their Neutral / Punish / Defense split already
+mirrors our three grade categories.
+
+**Two routes if picked up:**
+- **Cheap:** opponent-strength adjustment from the opponent's Slippi rating (we already fetch it
+  per set), shaped like their mismatch multipliers. Needs the opponent's rating stored per set
+  historically — check what's persisted before assuming.
+- **Full model:** needs repeated player identities across many games. Unclear whether the
+  HuggingFace ranked datasets expose stable player ids — verify before designing. Pairs naturally
+  with the banked rank-stratified benchmarks idea.
+
+Their roadmap (Recovery+/Edgeguard+, neutral-opening classification, DMG+/KILL+ splitting punish)
+is also worth a skim for future grade categories.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-08-01 (v1.8.14 — opponent season history + the REAL opponent-delay fix — READ FIRST)
 
 > **State: ✅ RELEASED. `v1.8.14` tagged and pushed 2026-08-02; both CI jobs green (Windows +
