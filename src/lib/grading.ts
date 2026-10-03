@@ -174,7 +174,7 @@ const SET_BLOWN_LEAD_PENALTY = -4;
  *  version). Folded into GRADE_VERSION so a logic-only change — which doesn't
  *  move BENCHMARKS_VERSION — still forces a regrade. Bump on any change to
  *  weights, curves, bonuses, or stat math. */
-export const GRADING_LOGIC_VERSION = "7"; // 7: lead_maintenance_rate — nudge scales by lead GIVEN BACK, not peak lead; surrendering none = 1.0 (was capped at 0.58 for every player)
+export const GRADING_LOGIC_VERSION = "8"; // 8: parser parity fixes — pre-GO frame sentinel (recovery etc.), respawn-defense window, Nana final death. 7: lead_maintenance_rate — nudge scales by lead GIVEN BACK, not peak lead
 
 /** The version token stored with each grade and compared to detect stale grades.
  *  Combines the benchmark-data version with the scoring-logic version so EITHER
