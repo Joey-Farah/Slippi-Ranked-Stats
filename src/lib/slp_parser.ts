@@ -400,7 +400,9 @@ function computeConversionStats(
  * Popo-based edgeguard / recovery totals. Nana's death is detected by FRAME
  * ABSENCE: a gap in her frame numbers means she died (her stocks field mirrors
  * Popo's, so it can't be used). Her last present frame before a gap tells us
- * whether she died offstage.
+ * whether she died offstage. A death she never respawns from (Popo plays on alone) leaves no
+ * gap to find — her frames simply stop before the game's last frame — so that end-of-frames
+ * absence is a death too; missing it dropped a real edgeguard in IC games.
  *   isEdgeguard=true  (opponent is IC): a Nana death offstage = a success.
  *   isEdgeguard=false (player is IC):   a Nana death offstage = a counted failure
  *                                       (in sit, not success); making it back = success.
@@ -411,6 +413,7 @@ function countFollowerTrips(
   follFrames: FrameSnapshot[],
   ledgeX: number,
   isEdgeguard: boolean,
+  lastGameFrame: number,
 ): { sit: number; success: number } {
   const OFFSTAGE_Y = -5;
   const EG_WINDOW  = 480;
@@ -421,17 +424,19 @@ function countFollowerTrips(
   let prev: FrameSnapshot | null = null;
   let koActive = false; let koStartedOn = false; let prevInKb = false;
 
+  const died = (at: FrameSnapshot) => {
+    if (tripOpen && isOff(at)) {
+      if (koActive && koStartedOn) sit--;         // blast kill → exclude trip
+      else if (isEdgeguard)        success++;     // died offstage = edgeguard success
+      // recovery: died offstage = failed recovery, already counted in sit
+    }
+    tripOpen = false;
+    koActive = false; prevInKb = false;           // reset run tracking across the death gap
+  };
+
   for (const snap of follFrames) {
     // Death-by-absence: a gap before this frame means Nana died at `prev`.
-    if (prev !== null && snap.frame > prev.frame + 1) {
-      if (tripOpen && isOff(prev)) {
-        if (koActive && koStartedOn) sit--;       // blast kill → exclude trip
-        else if (isEdgeguard)        success++;   // died offstage = edgeguard success
-        // recovery: died offstage = failed recovery, already counted in sit
-      }
-      tripOpen = false;
-      koActive = false; prevInKb = false;         // reset run tracking across the death gap
-    }
+    if (prev !== null && snap.frame > prev.frame + 1) died(prev);
 
     const off = isOff(snap);
     if (!tripOpen && off && (prev === null || !isOff(prev))) {
@@ -454,6 +459,7 @@ function countFollowerTrips(
 
     prev = snap;
   }
+  if (prev !== null && prev.frame < lastGameFrame) died(prev);   // died and never came back
   return { sit, success };
 }
 
@@ -808,14 +814,15 @@ function computeAdvancedStats(
   // Ice Climbers: fold Nana's independent offstage trips into the Popo-based
   // edgeguard (opponent's Nana) and recovery (player's Nana) counters. Non-IC
   // ports have no follower frames → both calls are no-ops.
+  const lastGameFrame    = playerFrames.at(-1)!.frame;
   const oppFollFrames    = followerFrameData[oppPort];
   const playerFollFrames = followerFrameData[playerPort];
   if (oppFollFrames && oppFollFrames.length > 0) {
-    const t = countFollowerTrips(oppFollFrames, LEDGE_X, true);
+    const t = countFollowerTrips(oppFollFrames, LEDGE_X, true, lastGameFrame);
     egSit += t.sit; egSuccess += t.success;
   }
   if (playerFollFrames && playerFollFrames.length > 0) {
-    const t = countFollowerTrips(playerFollFrames, LEDGE_X, false);
+    const t = countFollowerTrips(playerFollFrames, LEDGE_X, false, lastGameFrame);
     recSit += t.sit; recSuccess += t.success;
   }
 

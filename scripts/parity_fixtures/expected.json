@@ -29,6 +29,36 @@
       "respawn_defense_rate": 0.6666666666666666
     }
   },
+  "nana_final_death_offstage.slp": {
+    "0": {
+      "neutral_win_ratio": 0.6363636363636364,
+      "opening_conversion_rate": 0.7,
+      "stage_control_ratio": 0.5995555555555555,
+      "openings_per_kill": 5,
+      "damage_per_opening": 39.157999992370605,
+      "avg_kill_percent": 134.8950023651123,
+      "edgeguard_success_rate": 0.10810810810810811,
+      "tech_chase_rate": 0.2,
+      "avg_death_percent": 87.03333282470703,
+      "recovery_success_rate": 0.9259259259259259,
+      "avg_stock_duration": 3057.75,
+      "respawn_defense_rate": 1
+    },
+    "2": {
+      "neutral_win_ratio": 0.36363636363636365,
+      "opening_conversion_rate": 0.47368421052631576,
+      "stage_control_ratio": 0.40044444444444444,
+      "openings_per_kill": 6.333333333333333,
+      "damage_per_opening": 14.924210397820724,
+      "avg_kill_percent": 87.03333282470703,
+      "edgeguard_success_rate": 0.07407407407407407,
+      "tech_chase_rate": 0.1111111111111111,
+      "avg_death_percent": 134.8950023651123,
+      "recovery_success_rate": 0.8918918918918919,
+      "avg_stock_duration": 2446.2,
+      "respawn_defense_rate": 1
+    }
+  },
   "never_died.slp": {
     "1": {
       "neutral_win_ratio": 0.5555555555555556,
