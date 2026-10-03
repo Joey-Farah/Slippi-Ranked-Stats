@@ -550,7 +550,7 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
 
     # ── Kill / death percent tracking ─────────────────────────────────────────
     # Use lastHitBy (post-frame field) for attribution: a stock loss is player's
-    # kill only when opp's lastHitBy == player_idx, matching slippi-js exactly.
+    # kill only when opp's lastHitBy == the player's port, matching slippi-js exactly.
     o_stock_diff = np.diff(o_stocks.astype(np.int16))
     p_stock_diff = np.diff(p_stocks.astype(np.int16))
 
@@ -560,8 +560,14 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     try:
         o_last_hit_by = np.array(o_post.last_hit_by, copy=False)
         p_last_hit_by = np.array(p_post.last_hit_by, copy=False)
-        kill_frames  = [f for f in raw_kill_frames  if int(o_last_hit_by[f]) == player_idx]
-        death_frames = [f for f in raw_death_frames if int(p_last_hit_by[f]) == opp_idx]
+        # last_hit_by holds a PORT (0-3), not an index into the players list — the two only
+        # coincide when the game is on P1+P2, so comparing to player_idx silently dropped one
+        # side's kills in every other port layout.
+        players  = [pl for pl in game.start.players if pl is not None]
+        p_portno = int(players[player_idx].port.value)
+        o_portno = int(players[opp_idx].port.value)
+        kill_frames  = [f for f in raw_kill_frames  if int(o_last_hit_by[f]) == p_portno]
+        death_frames = [f for f in raw_death_frames if int(p_last_hit_by[f]) == o_portno]
     except Exception:
         # Fallback if last_hit_by unavailable in this peppi version
         kill_frames  = [f for f in raw_kill_frames  if float(o_pct[f]) > 0]
