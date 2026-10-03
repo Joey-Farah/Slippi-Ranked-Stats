@@ -89,6 +89,36 @@
       "respawn_defense_rate": null
     }
   },
+  "pregame_offstage_spawn.slp": {
+    "2": {
+      "neutral_win_ratio": 0.4166666666666667,
+      "opening_conversion_rate": 0.6666666666666666,
+      "stage_control_ratio": 0.4415038857382903,
+      "openings_per_kill": 9,
+      "damage_per_opening": 19.134444342719185,
+      "avg_kill_percent": 93.31999969482422,
+      "edgeguard_success_rate": 0.1111111111111111,
+      "tech_chase_rate": 0,
+      "avg_death_percent": 81.8799991607666,
+      "recovery_success_rate": 0.6666666666666666,
+      "avg_stock_duration": 1230,
+      "respawn_defense_rate": 1
+    },
+    "3": {
+      "neutral_win_ratio": 0.5833333333333334,
+      "opening_conversion_rate": 0.6363636363636364,
+      "stage_control_ratio": 0.5374921235034656,
+      "openings_per_kill": 2.75,
+      "damage_per_opening": 29.774545149369672,
+      "avg_kill_percent": 81.8799991607666,
+      "edgeguard_success_rate": 0.3333333333333333,
+      "tech_chase_rate": 0,
+      "avg_death_percent": 93.31999969482422,
+      "recovery_success_rate": 0.8888888888888888,
+      "avg_stock_duration": 2050,
+      "respawn_defense_rate": 1
+    }
+  },
   "respawn_cut_by_game_end.slp": {
     "0": {
       "neutral_win_ratio": 0.5454545454545454,
