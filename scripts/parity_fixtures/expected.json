@@ -146,7 +146,7 @@
       "avg_death_percent": 104.54046630859375,
       "recovery_success_rate": 0.7692307692307693,
       "avg_stock_duration": 2396.4,
-      "respawn_defense_rate": 0.6666666666666666
+      "respawn_defense_rate": 1
     }
   },
   "respawn_hit_after_window.slp": {
@@ -176,7 +176,7 @@
       "avg_death_percent": 144.4699935913086,
       "recovery_success_rate": 1,
       "avg_stock_duration": 4617,
-      "respawn_defense_rate": 0.6666666666666666
+      "respawn_defense_rate": 1
     }
   },
   "tech_chase_window.slp": {
@@ -206,7 +206,7 @@
       "avg_death_percent": 109.9475040435791,
       "recovery_success_rate": 0.9047619047619048,
       "avg_stock_duration": 2095.4,
-      "respawn_defense_rate": 0.3333333333333333
+      "respawn_defense_rate": 0.6666666666666666
     }
   },
   "won_falco_vs_puff_p1p3.slp": {

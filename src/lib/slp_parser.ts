@@ -765,9 +765,11 @@ function computeAdvancedStats(
         respawnPct = snap.percent;
         respawnAwaitingSpawn = false;
       }
+      // Window-over is checked BEFORE damage: a hit landing on the first frame after the window
+      // isn't a respawn-defense failure (it was counted as one, ~1 respawn in 40).
       if (respawnEnd !== NO_FRAME) {
-        if (snap.percent > respawnPct + 5)  { respawnEnd = NO_FRAME; }
-        else if (snap.frame > respawnEnd)   { respawnSuccess++; respawnEnd = NO_FRAME; }
+        if (snap.frame > respawnEnd)            { respawnSuccess++; respawnEnd = NO_FRAME; }
+        else if (snap.percent > respawnPct + 5) { respawnEnd = NO_FRAME; }
       }
       prevOppStocksR = opp.stocks;
       prevOppStateR  = opp.state;
@@ -811,6 +813,11 @@ function computeAdvancedStats(
     if (dodgeFrame !== NO_FRAME && snap.frame > dodgeFrame + WD_LAND_F  + 1) dodgeFrame = NO_FRAME;
     prevPState = snap.state;
   }
+
+  // A respawn window still open at game end took no qualifying hit in the frames that exist —
+  // score it safe (as the benchmark does) rather than leaving it counted but never resolved,
+  // which silently read as a failure.
+  if (respawnEnd !== NO_FRAME) respawnSuccess++;
 
   // Always push the final stock (from last death/game-start to last frame).
   // This handles both the "never died" case and the common case where the last
