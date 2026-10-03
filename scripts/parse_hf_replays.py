@@ -672,7 +672,9 @@ def compute_game_stats(game, player_idx: int, opp_idx: int,
         tc_hits = 0
         for fd in down_frames:
             sp = float(o_pct[fd])
-            for fw in range(int(fd) + 1, min(int(fd) + 45, n_frames)):
+            # fd+1 .. fd+45 inclusive: a 45-frame (0.75 s) window, matching slp_parser.ts's
+            # TC_WINDOW (this stopped at +44, so a hit on the 45th frame was missed).
+            for fw in range(int(fd) + 1, min(int(fd) + 46, n_frames)):
                 if float(o_pct[fw]) > sp + 3.0:
                     tc_hits += 1; break
         tech_chase_rate = tc_hits / len(down_frames)
