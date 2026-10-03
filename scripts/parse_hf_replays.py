@@ -574,7 +574,11 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     # total_damage counts all damage dealt (all stock losses + final stock), regardless of
     # kill attribution. D/O = total damage / total openings.
     total_damage = float(np.sum(o_pct[raw_kill_frames])) if len(raw_kill_frames) > 0 else 0.0
-    total_damage += float(o_pct[-1])
+    # The stock the opponent is still ON at game end. When they ended on 0 stocks there is no
+    # such stock: o_pct[-1] still reads their last stock's death percent, which raw_kill_frames
+    # already counted — adding it again inflated D/O by ~4 in every game the player won.
+    if int(o_stocks[-1]) > 0:
+        total_damage += float(o_pct[-1])
     # Ice Climbers: add damage dealt to Nana so damage_per_opening counts hits on her
     # (and a Nana kill shows up as a high-damage opening). No-op for non-IC opponents.
     if of_pct is not None:
