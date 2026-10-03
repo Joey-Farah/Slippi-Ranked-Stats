@@ -1,3 +1,5 @@
 py-slippi>=1.6.0
+peppi-py==0.8.6   # pinned: follower (Nana) packing behavior is version-specific — see _follower_lists
+huggingface_hub
 numpy>=1.16.0
 ijson>=3.0.0

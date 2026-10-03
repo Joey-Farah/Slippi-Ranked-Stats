@@ -227,13 +227,54 @@ def _get_positions(post):
 
 
 # ── Ice Climbers follower (Nana) support ──────────────────────────────────────
-# peppi NULL-PADS the follower arrays to leader length: None on every frame Nana
-# is dead. Her stocks field MIRRORS Popo's shared stock, so the ONLY death signal
-# is the present->null transition. We fold hits on Nana into openings/damage and
+# The follower lists below are aligned to the leader's frame axis with None on every
+# frame Nana is dead. Her stocks field MIRRORS Popo's shared stock, so the ONLY death
+# signal is the present->null transition. We fold hits on Nana into openings/damage and
 # her offstage trips into edgeguard/recovery; kills stay Popo-only (Nana ≠ a stock).
+#
+# ⚠ peppi does NOT give us that alignment. peppi-py 0.8.6 stores the follower's present
+# frames PACKED at the front of the array with every null at the END — even its raw Arrow
+# struct carries no per-frame position — so index i is Nana's i-th living frame, not game
+# frame i. Read as-is, everything after her first death is shifted (it put 7% on a Nana who
+# had just respawned). Her real frame numbers come from the replay's own post-frame events
+# (follower_frame_numbers), and _follower_lists scatters the packed values back onto them.
 
-def _follower_lists(post):
-    """Extract (state, x, y, percent) as Python lists with None on absent frames."""
+_POST_FRAME = 0x38
+
+
+def follower_frame_numbers(filepath: str) -> dict[int, list[int]]:
+    """{port: sorted unique frame numbers on which that port's follower has a post-frame
+    event} — read straight from the .slp event stream (same offsets as slp_parser.ts:
+    payload 0 = frame i32 BE, 4 = port, 5 = is_follower). Empty when no port has a follower."""
+    with open(filepath, 'rb') as fh:
+        data = fh.read()
+    raw_len = int.from_bytes(data[11:15], 'big', signed=True)
+    start, end = 15, 15 + raw_len
+    if data[start] != 0x35:
+        return {}
+    ep_size = data[start + 1]
+    sizes = {data[start + 2 + i * 3]: int.from_bytes(data[start + 3 + i * 3:start + 5 + i * 3], 'big')
+             for i in range((ep_size - 1) // 3)}
+    frames: dict[int, set[int]] = {}
+    pos = start + 1 + ep_size
+    while pos < end:
+        cmd = data[pos]
+        size = sizes.get(cmd)
+        if size is None:
+            pos += 1
+            continue
+        if cmd == _POST_FRAME and data[pos + 6]:          # payload byte 5 = is_follower
+            frame = int.from_bytes(data[pos + 1:pos + 5], 'big', signed=True)
+            frames.setdefault(data[pos + 5], set()).add(frame)   # set: rollback re-sends a frame
+        pos += 1 + size
+    return {port: sorted(fs) for port, fs in frames.items()}
+
+
+def _follower_lists(post, frame_ids=None, present_frames=None):
+    """Extract (state, x, y, percent) as Python lists aligned to the leader's frames, None
+    on frames the follower is absent. When peppi handed the values back PACKED (every null
+    at the end), present_frames — the follower's real frame numbers — and frame_ids — the
+    leader's frame number per index — are required to put each value back where it belongs."""
     states = post.state.to_pylist()
     pcts   = post.percent.to_pylist()
     try:
@@ -244,7 +285,20 @@ def _follower_lists(post):
             xs = pos.field('x').to_pylist(); ys = pos.field('y').to_pylist()
     except (AttributeError, TypeError, ValueError):
         xs = [None] * len(states); ys = [None] * len(states)
-    return states, xs, ys, pcts
+
+    n_present = sum(s is not None for s in states)
+    packed = n_present < len(states) and all(s is not None for s in states[:n_present])
+    if not packed:
+        return states, xs, ys, pcts                       # already frame-aligned (or never died)
+    if present_frames is None or frame_ids is None or len(present_frames) != n_present:
+        raise ValueError(f"packed follower data ({n_present} frames) can't be realigned from "
+                         f"{None if present_frames is None else len(present_frames)} frame numbers")
+    index_of = {int(f): i for i, f in enumerate(frame_ids)}
+    out = [[None] * len(states) for _ in range(4)]
+    for j, frame in enumerate(present_frames):
+        i = index_of[frame]
+        out[0][i], out[1][i], out[2][i], out[3][i] = states[j], xs[j], ys[j], pcts[j]
+    return tuple(out)
 
 
 def _nullable_mask(states, predicate_ranges):
@@ -354,15 +408,25 @@ def _follower_offstage_trips(states, xs, ys, ledge_x, is_edgeguard):
     return sit, success
 
 
-def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
+def compute_game_stats(game, player_idx: int, opp_idx: int,
+                       follower_frames: dict[int, list[int]] | None = None) -> dict | None:
     """
     Compute all 18 performance stats for player_idx in the given peppi game.
 
     Uses numpy vectorized operations where possible; per-event Python loops
     for windowed stats (tech chase, edgeguard, recovery, etc.).
 
+    follower_frames: follower_frame_numbers(path) for this replay — required when either side
+    is Ice Climbers (see _follower_lists).
+
     Returns a dict with all STAT_KEYS, or None if the game is unusable.
     """
+    players  = [pl for pl in game.start.players if pl is not None]
+    p_portno = int(players[player_idx].port.value)
+    o_portno = int(players[opp_idx].port.value)
+    follower_frames = follower_frames or {}
+    frame_ids = game.frames.id.to_pylist()
+
     p_port = game.frames.ports[player_idx]
     o_port = game.frames.ports[opp_idx]
 
@@ -423,12 +487,12 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
     pf_states = pf_x = pf_y = pf_pct = None
     o_pct_conv = o_pct
     if o_foll is not None:
-        of_states, of_x, of_y, of_pct = _follower_lists(o_foll.post)
+        of_states, of_x, of_y, of_pct = _follower_lists(o_foll.post, frame_ids, follower_frames.get(o_portno))
         o_stun = o_stun | _follower_in_stun(of_states)
         o_ctrl = o_ctrl | _nullable_mask(of_states, IN_CONTROL_RANGES)
         o_pct_conv = o_pct + _follower_percent_array(of_pct)
     if p_foll is not None:
-        pf_states, pf_x, pf_y, pf_pct = _follower_lists(p_foll.post)
+        pf_states, pf_x, pf_y, pf_pct = _follower_lists(p_foll.post, frame_ids, follower_frames.get(p_portno))
         p_stun = p_stun | _follower_in_stun(pf_states)
         p_ctrl = p_ctrl | _nullable_mask(pf_states, IN_CONTROL_RANGES)
 
@@ -563,9 +627,6 @@ def compute_game_stats(game, player_idx: int, opp_idx: int) -> dict | None:
         # last_hit_by holds a PORT (0-3), not an index into the players list — the two only
         # coincide when the game is on P1+P2, so comparing to player_idx silently dropped one
         # side's kills in every other port layout.
-        players  = [pl for pl in game.start.players if pl is not None]
-        p_portno = int(players[player_idx].port.value)
-        o_portno = int(players[opp_idx].port.value)
         kill_frames  = [f for f in raw_kill_frames  if int(o_last_hit_by[f]) == p_portno]
         death_frames = [f for f in raw_death_frames if int(p_last_hit_by[f]) == o_portno]
     except Exception:
@@ -825,10 +886,17 @@ def process_both_ports(filepath: str) -> list[tuple[dict, str, str, int]]:
         char_id = int(p.character)
         char_names.append(CHARACTERS.get(char_id, f"Unknown_{char_id}"))
 
+    # Ice Climbers: Nana's real frame numbers, which peppi doesn't preserve (see _follower_lists).
+    has_follower = any(port is not None and port.follower is not None for port in game.frames.ports)
+    follower_frames = follower_frame_numbers(filepath) if has_follower else None
+
     results = []
     for player_idx in range(2):
         opp_idx = 1 - player_idx
-        stats = compute_game_stats(game, player_idx, opp_idx)
+        try:
+            stats = compute_game_stats(game, player_idx, opp_idx, follower_frames)
+        except ValueError:
+            return []          # follower data that can't be realigned — skip rather than mis-measure
         if stats is not None:
             results.append((stats, char_names[player_idx], char_names[opp_idx], player_idx))
 

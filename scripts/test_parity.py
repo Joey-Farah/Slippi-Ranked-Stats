@@ -28,10 +28,11 @@ def _close(a, b):
 
 @pytest.mark.parametrize("fixture,port", CASES)
 def test_benchmark_matches_app(fixture, port):
-    game = peppi.read_slippi(os.path.join(DIR, fixture))
+    path = os.path.join(DIR, fixture)
+    game = peppi.read_slippi(path)
     players = [p for p in game.start.players if p is not None]
     idx = [int(p.port.value) for p in players].index(int(port))
-    stats = P.compute_game_stats(game, idx, 1 - idx)
+    stats = P.compute_game_stats(game, idx, 1 - idx, P.follower_frame_numbers(path))
     want = EXPECTED[fixture][port]
     diffs = {k: (stats.get(k), v) for k, v in want.items() if not _close(stats.get(k), v)}
     assert not diffs, f"(benchmark, app) disagree: {diffs}"
