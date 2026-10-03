@@ -1546,3 +1546,40 @@ export function parseSlpBytesMultiCode(
 
   return out;
 }
+
+// ── Benchmark parity ───────────────────────────────────────────────────────
+
+/** The benchmarked stats — what `scripts/parse_hf_replays.py` must compute identically, since a
+ *  player's value is percentile-scored against the distribution that script produces. */
+export const PARITY_STATS = [
+  "neutral_win_ratio", "opening_conversion_rate", "stage_control_ratio",
+  "openings_per_kill", "damage_per_opening", "avg_kill_percent",
+  "edgeguard_success_rate", "tech_chase_rate",
+  "avg_death_percent", "recovery_success_rate", "avg_stock_duration", "respawn_defense_rate",
+] as const;
+
+/**
+ * Per-port benchmarked stats for any 1v1 replay, with none of the connect-code / match-mode
+ * gating the app's ingest path applies — public tournament replays carry neither. Exists so the
+ * parity test (`scripts/test_parity.py`) can hold the benchmark script to this parser's numbers.
+ * Win/loss is by final stocks, which only feeds the absolute lead/comeback stats (not compared).
+ */
+export function computeParityStats(bytes: Uint8Array): { port: number; stats: Record<string, number | null> }[] {
+  const stream = parseEventStream(bytes);
+  const ports = Object.keys(stream.frameData).map(Number);
+  if (ports.length !== 2) return [];
+  return ports.map((port) => {
+    const opp = ports.find((p) => p !== port)!;
+    const conv = computeConversionStats(port, opp, stream.frameData, stream.totalDamageTaken, stream.followerFrameData);
+    const won  = (stream.finalStocks[port] ?? 0) > (stream.finalStocks[opp] ?? 0) ? "win" : "loss";
+    const adv  = computeAdvancedStats(port, opp, stream.frameData, won, stream.stageId, stream.followerFrameData);
+    const mean = (xs: number[]) => (xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    const { attributedKillPercents, attributedDeathPercents, ...convRates } = conv;
+    const all: Record<string, number | null> = {
+      ...convRates, ...adv,
+      avg_kill_percent:  mean(attributedKillPercents),
+      avg_death_percent: mean(attributedDeathPercents),
+    };
+    return { port, stats: Object.fromEntries(PARITY_STATS.map((k) => [k, all[k] ?? null])) };
+  });
+}
