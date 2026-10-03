@@ -761,16 +761,15 @@ def compute_game_stats(game, player_idx: int, opp_idx: int,
         hit_advantage_rate = followups / len(hit_frs)
 
     # ── Average stock duration (frames) ─────────────────────────────────────
-    # Always include the last surviving stock. Exclude "never died" games from
-    # the benchmark — they'd contribute the full game length as one stock duration,
-    # inflating the distribution.
-    avg_stock_duration = None
-    if len(raw_death_frames) > 0:
-        prev = 0; durs = []
-        for fd in raw_death_frames:
-            durs.append(int(fd) - prev); prev = int(fd) + 1
-        durs.append(n_frames - prev)  # last surviving stock
-        avg_stock_duration = float(np.mean(durs))
+    # Always include the last surviving stock — and keep "never died" games, which contribute
+    # the whole game as one stock. Never losing a stock IS great defense, and the app scores
+    # those games this way; excluding them here left the app comparing its best games against a
+    # pool that had none of them.
+    prev = 0; durs = []
+    for fd in raw_death_frames:
+        durs.append(int(fd) - prev); prev = int(fd) + 1
+    durs.append(n_frames - prev)  # last surviving stock
+    avg_stock_duration = float(np.mean(durs))
 
     # ── Respawn defense rate ─────────────────────────────────────────────────
     # After opponent respawns, did the player avoid taking ≥5% for 120f?
