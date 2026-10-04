@@ -17,6 +17,7 @@ scripts/parse_hf_checkpoint*.json
 scripts/parse_hf_global_checkpoint.json
 scripts/parse_ranked_checkpoint.json
 scripts/raw_stats.sqlite*
+scripts/raw_stats_v2.sqlite*
 __pycache__/
 *.pyc
 .venv/

@@ -60,11 +60,28 @@ hand-off mechanism between work sessions and across machines.
 > regrade. Python side: install `scripts/requirements.txt` into the venv, then
 > `python -m pytest scripts/test_parity.py`. Expect Punish-heavy shifts only AFTER the rescan.
 >
-> **NEXT UP:** (1) Joey tests on the replay machine. (2) Rescan: `--dataset ranked` + `--dataset
-> v37` into a FRESH sidecar (keep the July `raw_stats.sqlite` as fallback), spot-check a
-> `--limit-tarballs` slice first, then `--dataset db` → `regen_benchmarks.py`. (3) Tie-scoring
-> decision. (4) Validate old-vs-new on Joey's sets, then release together with the banked session
-> timer (still awaiting its own test, below).
+> **⏭ OVERNIGHT RESCAN — run on the ethernet machine.** Tried on the MacBook 2026-10-03: ~5 MB/s
+> on WiFi = ~80 h projected, stopped at 53/934 tarballs (partial, discardable data left there). One
+> command runs the whole pipeline, and it's safe to re-run after any interruption:
+> ```
+> git fetch && git checkout fix/grading-parity && git pull
+> # venv on Python 3.12 — peppi-py does NOT build on 3.14 (pyarrow wheel missing)
+> py -3.12 -m venv .venv            # macOS: python3.12 -m venv .venv
+> .venv\Scripts\pip install -r scripts/requirements.txt      # macOS: .venv/bin/pip
+> .venv\Scripts\hf auth login        # read token; answer n to the git-credential question
+> .venv\Scripts\python scripts/run_rescan.py --check         # preflight: branch, peppi 0.8.6, HF login, parity green, disk
+> .venv\Scripts\python scripts/run_rescan.py                 # ranked -> v3.7 -> baselines -> grade-benchmarks.ts
+> ```
+> `run_rescan.py` writes a NEW `scripts/raw_stats_v2.sqlite` (July's `raw_stats.sqlite` is never
+> touched), moves any pre-existing scan checkpoints into `scripts/logs/` on its first run (July's
+> would mark every tarball done and make the scan skip everything), keeps the machine awake, and
+> logs to `scripts/logs/rescan_*.log`. It does NOT commit — the output is a modified
+> `scripts/grade_baselines.json` + `src/lib/grade-benchmarks.ts`.
+>
+> **NEXT UP:** (1) Joey tests the app fixes on the replay machine. (2) Overnight rescan (above).
+> (3) Commit the regenerated benchmarks + validate old-vs-new on Joey's sets (Falco-vs-Puff
+> first). (4) Tie-scoring decision. (5) Release together with the banked session timer (still
+> awaiting its own test, below).
 >
 > **Also banked from this session's grill (not started):** per-game grades for unranked/direct +
 > a session grade (open question: show in Grade History behind a Ranked/Unranked/Direct filter,
