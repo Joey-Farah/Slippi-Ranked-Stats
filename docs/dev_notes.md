@@ -6,6 +6,147 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
+## ⚠ SESSION HANDOFF — 2026-10-05 (GRADING PARITY AUDIT + FIXES — MERGED to `main`, RESCAN RUNNING, NOT RELEASED — READ FIRST)
+
+> **State: MERGED into `main` 2026-10-05 (branch `fix/grading-parity` kept), NO version bump, NO
+> tag.** The 3 app-side fixes are live on merge. The 5 benchmark-side fixes do nothing until the
+> rescan finishes — `grade-benchmarks.ts` is still July's (buggy) data until then.
+>
+> **Independently re-verified before the rescan was started (2026-10-05, Windows machine).** All 8
+> defects reproduced, and the fixes checked two ways the original audit did not:
+> - **Old vs new parser, both sides, on the 8 fixtures:** the old benchmark disagreed with the app
+>   on **49 of 192** (fixture, port, stat) values; the new one on **0**.
+> - **An UNBIASED corpus** — 210 fresh v3.7 games across 10 characters, 420 player-games, because
+>   the 8 fixtures are selection-biased (each was chosen *because* it exposed a known bug, so they
+>   can prove the found defects but not the absence of others). Compared **all 18** benchmarked
+>   stats, not just the 12 in `PARITY_STATS`. The 12 benchmark-scored stats agree **419/420**, the
+>   single miss being the already-known IC ordering residual.
+> - **The peppi packing claim confirmed directly:** for `ice_climbers_vs_fox.slp` the follower
+>   array is the right LENGTH (11963 = leader frames), which is why this hid — but all 7513
+>   non-nulls sit at the front, Nana died 3× (gaps at frames 2670/5193/8363), so values drift
+>   after her first death and are **4450 frames adrift** by game end. peppi's non-null count
+>   equals the `.slp` post-frame event count exactly, which is what makes
+>   `follower_frame_numbers()` a valid realignment source.
+>
+> **The 6 stats NOT in `PARITY_STATS` all disagree, and all 6 are harmless — don't "fix" them:**
+> `PARITY_STATS` is not a hand-picked subset with a blind spot; it is **exactly** the set of
+> benchmark-scored, user-visible stats. `CATEGORY_DEFS` (what `SetGradeDisplay.svelte` renders) is
+> 14 stats, of which `lead_maintenance_rate` + `comeback_rate` are `ABSOLUTE_STATS` — scored from
+> the parser's continuous degree on an absolute curve, the `ABSOLUTE_STATS` branch in `grading.ts`
+> short-circuiting **before** the thresholds lookup — leaving the other 12 = `PARITY_STATS`.
+> - `lead_maintenance_rate` / `comeback_rate` (61% disagree): rendered AND weighted (0.15 / 0.10),
+>   but never benchmarked, so the crude win/loss binary the scan stores for them is written and
+>   never read. This is also why the v1.9.0 rewrite of both needed no rescan.
+> - `l_cancel_ratio` (99.8%), `inputs_per_minute` (72.6%), `wavedash_miss_rate`, and
+>   `hit_advantage_rate` (19.3%): **computed and stored but rendered NOWHERE** — none of them
+>   appear in `CATEGORY_DEFS`, so the `DISPLAY_ONLY_STATS` dimming code in `SetGradeDisplay.svelte`
+>   is dead for them. `l_cancel_ratio`'s baseline is genuinely broken (sample_size 43,556 of
+>   2,129,888 = 2.0%, p5–p75 all 0.0, p90/p95 = 1.0) because the scan samples the frame the player
+>   ENTERS states 65–74 — the aerial attack, where `l_cancel` is still unset — instead of the
+>   landing-lag frame (70–74) where it is written; the app's guard fires on each state change
+>   *within* the range so it catches 65→70. Already known and parked: see `grading.ts:12-14`.
+>   **Joey's call 2026-10-05: not worth fixing — nothing the user can see.**
+>
+> **Also checked and clean:** the benchmark has **no stage filter** (only `n_frames < 60`) while
+> the app has excluded non-legal stages since v1.8.14 — measured **0 of 210** non-legal in the
+> v3.7 slice, and the ranked dataset is legal-only by construction, so this is a latent
+> inconsistency rather than a live skew. LRAS / no-contest games are included by both sides.
+>
+> **Why:** Joey's Falco-vs-Jigglypuff Punish sub-grades were near-always F although he wins the
+> matchup. For the first time, ran the benchmark parser (`scripts/parse_hf_replays.py`) and the
+> app parser (`slp_parser.ts`) **on the same replays** (140 public v3.7 games, 280 player-games).
+> Every earlier check compared the app with itself (v1.8.11's "891/891" was a recompute) or with
+> slippi-js, which is how these survived since April. **The app was right (it matches slippi-js);
+> the benchmarks were measuring different quantities.**
+>
+> **Defects found + fixed (all reproduced on real replays):**
+>
+> | Side | Defect | Effect |
+> |---|---|---|
+> | Bench | `damage_per_opening` re-added `o_pct[-1]` when the opponent ended on 0 stocks → last stock counted twice | baseline +~4.4 in EVERY won game, all matchups → winners under-scored on Punish (30% weight) |
+> | Bench | `last_hit_by` (a PORT) compared to the 0/1 player-list INDEX | games not on P1+P2 lost kill%/death%/OPK for one side. Ranked = P1/P2 (3/3 sampled), so mostly the ~20% v3.7 slice |
+> | Bench | **peppi-py 0.8.6 packs follower (Nana) frames at the front, nulls at the end** — even its raw Arrow struct has no per-frame position | every IC benchmark stat (playing IC AND vs IC) read the wrong frames after Nana's first death. Fix: `follower_frame_numbers()` reads her real frames from the .slp post-frame events; `_follower_lists` scatters them back. `peppi-py==0.8.6` now pinned |
+> | Bench | never-died games excluded from `avg_stock_duration` | app's best games compared against a pool with none of them. **Joey's call: include them** (never losing a stock IS great defense) |
+> | Bench | tech-chase window stopped at +44 frames vs the app's 45 | missed hits on the 45th frame |
+> | App | frame trackers used `-1` as "none", but frames run −123…−1 before GO | a trip opened in the countdown (drifting off Yoshi's Story's ledge from spawn) never resolved → scored a failed recovery. Now `NO_FRAME` (−∞) for all 7 trackers |
+> | App | respawn defense checked damage before window-over; window cut by game end never resolved | both read as failures |
+> | App | Nana's death undetected when she never respawns (frames just stop) | missed IC edgeguards |
+>
+> `GRADING_LOGIC_VERSION` 7→8 (regrades re-parse replays, so app fixes reach stored grades).
+> Known residual: 1 of 3,360 compared values (a neutral exchange in one IC game — ordering on the
+> frame Popo loses a stock while Nana is in hitstun). Not chased.
+>
+> **Permanent guard:** `scripts/test_parity.py` holds `compute_game_stats` to the app's numbers on
+> 8 fixture replays in `scripts/parity_fixtures/` (each picked because it exposed one of the
+> above). `expected.json` is generated by `node scripts/gen_parity_expected.ts`;
+> `src/lib/parity.test.ts` fails if it drifts from the parser. **Any change to stat logic on
+> either side must keep this green.**
+>
+> **NOT bugs (verified):** Falco-vs-Puff **kill %** — both parsers agree exactly; F there = bottom
+> ~28% of the pool. Also sound: neutral win, opening conversion, stage control, attribution
+> direction, inverted-stat directions, matchup orientation, filters, percentile math.
+>
+> **⏸ Awaiting Joey — tie-aware scoring (planned slice 7, NOT built).** Discrete stats pile up on
+> exact values (tech chase 0 at p25 in 467/569 matchups; respawn defense p50=1.0), and
+> `percentileScore` scores a tied 0 as 0. A mid-rank fix is fair but (a) a 0 shared by 35% of the
+> pool still scores ~17 = F, so it won't rescue the Puff edgeguard case, and (b) applied at the
+> ceiling it would cut a flawless respawn rate from 100 to ~70, reversing v1.8.9's "flawless ⇒
+> 100". Needs a decision; tie fractions are a regen-time query, so it does not block the rescan.
+>
+> **How to test on the replay machine:** `git fetch && git checkout fix/grading-parity`,
+> `npm install`, `npm test`, `npm run tauri dev` → Grade History shows every grade stale (v8) →
+> regrade. Python side: install `scripts/requirements.txt` into the venv, then
+> `python -m pytest scripts/test_parity.py`. Expect Punish-heavy shifts only AFTER the rescan.
+>
+> **⏭ OVERNIGHT RESCAN — run on the ethernet machine.** Tried on the MacBook 2026-10-03: ~5 MB/s
+> on WiFi = ~80 h projected, stopped at 53/934 tarballs (partial, discardable data left there). One
+> command runs the whole pipeline, and it's safe to re-run after any interruption:
+> ```
+> git fetch && git checkout fix/grading-parity && git pull
+> # venv on Python 3.12 — peppi-py does NOT build on 3.14 (pyarrow wheel missing)
+> py -3.12 -m venv .venv            # macOS: python3.12 -m venv .venv
+> .venv\Scripts\pip install -r scripts/requirements.txt      # macOS: .venv/bin/pip
+> .venv\Scripts\hf auth login        # read token; answer n to the git-credential question
+> .venv\Scripts\python scripts/run_rescan.py --check         # preflight: branch, peppi 0.8.6, HF login, parity green, disk
+> .venv\Scripts\python scripts/run_rescan.py                 # ranked -> v3.7 -> baselines -> grade-benchmarks.ts
+> ```
+> `run_rescan.py` writes a NEW `scripts/raw_stats_v2.sqlite` (July's `raw_stats.sqlite` is never
+> touched), moves any pre-existing scan checkpoints into `scripts/logs/` on its first run (July's
+> would mark every tarball done and make the scan skip everything), keeps the machine awake, and
+> logs to `scripts/logs/rescan_*.log`. It does NOT commit — the output is a modified
+> `scripts/grade_baselines.json` + `src/lib/grade-benchmarks.ts`.
+>
+> **Two pre-rescan changes made on merge (not defect fixes — pipeline hygiene):**
+> 1. **`--character` now defaults to `ALL`, was `FALCO`.** This is the exact trap that made the
+>    v1.8.9 rebuild silently drop matchup buckets for 22 characters. `run_rescan.py` always passed
+>    `ALL` explicitly and `--dataset ranked` returns before the character logic entirely, so the
+>    pipeline was never at risk — but a manual spot-check run was, and that is how it happened
+>    last time.
+> 2. **`pytest` added to `scripts/requirements.txt`.** `run_rescan.py --check` shells out to
+>    `pytest test_parity.py`, so a venv without it reports "parity test is red" when nothing is
+>    actually wrong. ⚠ Keep `peppi-py==0.8.6` pinned when installing — the Nana realignment is
+>    written against that exact version.
+>
+> **NEXT UP:** (1) Overnight rescan (command above). (2) Commit the regenerated benchmarks +
+> validate old-vs-new on Joey's sets (Falco-vs-Puff first). (3) Tie-scoring decision. (4) Release
+> together with the banked session timer + the longer date-range presets (both below).
+>
+> **⚠ Expected direction of the rescan's grade shift, so a surprise is distinguishable from a bug:**
+> - **Punish UP** — the damage-per-opening fix removes ~4–6.6 from the baseline in every won game,
+>   so players' D/O percentile rises. Biggest single mover (30% of Punish).
+> - **Defense DOWN slightly** — including never-died games adds the longest possible stock
+>   durations to the pool, so everyone else's percentile falls. Joey's deliberate call ("never
+>   losing a stock IS great defense"); the rescan locks it in.
+> - **More samples in kill%/death%/OPK** — the port-vs-index fix means non-P1P2 games now
+>   contribute a side they used to drop, so this changes pool COMPOSITION, not just values.
+> - **All IC matchups move, both directions.** Tech chase moves negligibly (5% of Punish).
+>
+> **Also banked from this session's grill (not started):** per-game grades for unranked/direct +
+> a session grade (open question: show in Grade History behind a Ranked/Unranked/Direct filter,
+> or Live Session only); Grade History date-range trim (e.g. last week).
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-08-05 (UNRANKED/DIRECT SESSION TIMER + session-strip restyle — BANKED, AWAITING JOEY'S TESTING — READ FIRST)
 
 > **State: committed to `main`, NO version bump, NO tag, NOT released.** Joey wants to use it in a

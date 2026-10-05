@@ -400,7 +400,9 @@ function computeConversionStats(
  * Popo-based edgeguard / recovery totals. Nana's death is detected by FRAME
  * ABSENCE: a gap in her frame numbers means she died (her stocks field mirrors
  * Popo's, so it can't be used). Her last present frame before a gap tells us
- * whether she died offstage.
+ * whether she died offstage. A death she never respawns from (Popo plays on alone) leaves no
+ * gap to find — her frames simply stop before the game's last frame — so that end-of-frames
+ * absence is a death too; missing it dropped a real edgeguard in IC games.
  *   isEdgeguard=true  (opponent is IC): a Nana death offstage = a success.
  *   isEdgeguard=false (player is IC):   a Nana death offstage = a counted failure
  *                                       (in sit, not success); making it back = success.
@@ -411,6 +413,7 @@ function countFollowerTrips(
   follFrames: FrameSnapshot[],
   ledgeX: number,
   isEdgeguard: boolean,
+  lastGameFrame: number,
 ): { sit: number; success: number } {
   const OFFSTAGE_Y = -5;
   const EG_WINDOW  = 480;
@@ -421,17 +424,19 @@ function countFollowerTrips(
   let prev: FrameSnapshot | null = null;
   let koActive = false; let koStartedOn = false; let prevInKb = false;
 
+  const died = (at: FrameSnapshot) => {
+    if (tripOpen && isOff(at)) {
+      if (koActive && koStartedOn) sit--;         // blast kill → exclude trip
+      else if (isEdgeguard)        success++;     // died offstage = edgeguard success
+      // recovery: died offstage = failed recovery, already counted in sit
+    }
+    tripOpen = false;
+    koActive = false; prevInKb = false;           // reset run tracking across the death gap
+  };
+
   for (const snap of follFrames) {
     // Death-by-absence: a gap before this frame means Nana died at `prev`.
-    if (prev !== null && snap.frame > prev.frame + 1) {
-      if (tripOpen && isOff(prev)) {
-        if (koActive && koStartedOn) sit--;       // blast kill → exclude trip
-        else if (isEdgeguard)        success++;   // died offstage = edgeguard success
-        // recovery: died offstage = failed recovery, already counted in sit
-      }
-      tripOpen = false;
-      koActive = false; prevInKb = false;         // reset run tracking across the death gap
-    }
+    if (prev !== null && snap.frame > prev.frame + 1) died(prev);
 
     const off = isOff(snap);
     if (!tripOpen && off && (prev === null || !isOff(prev))) {
@@ -454,6 +459,7 @@ function countFollowerTrips(
 
     prev = snap;
   }
+  if (prev !== null && prev.frame < lastGameFrame) died(prev);   // died and never came back
   return { sit, success };
 }
 
@@ -531,6 +537,12 @@ export function comebackDegree(clawedBack: number, high: number, won: boolean): 
 }
 
 /** Compute position- and timing-based stats. */
+/** "No window open" marker for the frame-valued trackers in computeAdvancedStats. NOT -1: frame
+ *  numbers run negative before GO (-123…-1), so a -1 sentinel collided with real frames — a trip
+ *  that opened during the countdown (e.g. drifting off Yoshi's Story's ledge from spawn) read as
+ *  "no trip open" forever after and was scored as a failed recovery. */
+const NO_FRAME = Number.NEGATIVE_INFINITY;
+
 function computeAdvancedStats(
   playerPort: number,
   oppPort: number,
@@ -590,7 +602,7 @@ function computeAdvancedStats(
   let onStageFrames = 0;
 
   let techSit = 0; let techHit = 0;
-  let tcFrame = -1; let tcPct  = -1;
+  let tcFrame = NO_FRAME; let tcPct  = -1;
   let prevOppKD = false;
 
   // Edgeguard (opponent's offstage trips) and recovery (yours). An offstage trip
@@ -600,18 +612,18 @@ function computeAdvancedStats(
   // needed). prevPOff/prevOppOff track on→off transitions; the *Ko* vars track
   // the current knockback run and whether it started on-stage.
   let egSit = 0; let egSuccess = 0;
-  let egFrame = -1; let egStocks = -1;
+  let egFrame = NO_FRAME; let egStocks = -1;
   let prevOppOff = false;
   let oKoActive = false; let oKoStartedOn = false; let prevOInKnockback = false;
 
   let recSit = 0; let recSuccess = 0;
-  let recFrame = -1; let recStocks = -1;
+  let recFrame = NO_FRAME; let recStocks = -1;
   let prevPOff = false;
   let pKoActive = false; let pKoStartedOn = false; let prevPInKnockback = false;
 
   let hitOpps      = 0;
   let hitFollowups = 0;
-  let hitWindowEnd = -1;
+  let hitWindowEnd = NO_FRAME;
   let prevOppVuln  = false;
 
   const stockDurations: number[] = [];
@@ -623,7 +635,7 @@ function computeAdvancedStats(
   // in post-frame data; the actual invincible-respawn state is 12 (Entry).
   const SPAWN_STATES = new Set([0, 12]);
   let respawnSit = 0; let respawnSuccess = 0;
-  let respawnEnd = -1; let respawnPct = -1;
+  let respawnEnd = NO_FRAME; let respawnPct = -1;
   let respawnAwaitingSpawn = false;
   let prevOppStocksR = -1;
   let prevOppStateR  = -1;
@@ -648,7 +660,7 @@ function computeAdvancedStats(
   let highAtClawBack = 0;
 
   let wdAttempts = 0; let wdSuccesses = 0;
-  let jumpFrame  = -1; let dodgeFrame  = -1;
+  let jumpFrame  = NO_FRAME; let dodgeFrame  = NO_FRAME;
   let prevPState = -1;
 
   for (const snap of playerFrames) {
@@ -700,18 +712,18 @@ function computeAdvancedStats(
         hitOpps++;
         hitWindowEnd = snap.frame + 30;
       }
-      if (hitWindowEnd >= 0) {
-        if (snap.frame <= hitWindowEnd && isAttacking(snap.state)) { hitFollowups++; hitWindowEnd = -1; }
-        else if (snap.frame > hitWindowEnd)                         {                 hitWindowEnd = -1; }
+      if (hitWindowEnd !== NO_FRAME) {
+        if (snap.frame <= hitWindowEnd && isAttacking(snap.state)) { hitFollowups++; hitWindowEnd = NO_FRAME; }
+        else if (snap.frame > hitWindowEnd)                         {                 hitWindowEnd = NO_FRAME; }
       }
       prevOppVuln = oppVuln;
 
       // ── Tech chase ─────────────────────────────────────────────────────
       const oppKD = isKnockdown(opp.state);
       if (!prevOppKD && oppKD) { techSit++; tcFrame = snap.frame; tcPct = opp.percent; }
-      if (tcFrame >= 0) {
-        if (snap.frame > tcFrame + TC_WINDOW)      { tcFrame = -1; }
-        else if (opp.percent > tcPct + TC_HIT_DMG) { techHit++; tcFrame = -1; }
+      if (tcFrame !== NO_FRAME) {
+        if (snap.frame > tcFrame + TC_WINDOW)      { tcFrame = NO_FRAME; }
+        else if (opp.percent > tcPct + TC_HIT_DMG) { techHit++; tcFrame = NO_FRAME; }
       }
       prevOppKD = oppKD;
 
@@ -721,15 +733,15 @@ function computeAdvancedStats(
       // recovered). A blast kill (death from one on-stage-origin knockback) is
       // excluded from the stat entirely. 8 s timeout closes without a success.
       const oppOff = Math.abs(opp.x) > LEDGE_X || opp.y < OFFSTAGE_Y;
-      if (egFrame < 0 && oppOff && !prevOppOff) { egSit++; egFrame = snap.frame; egStocks = opp.stocks; }
-      if (egFrame >= 0) {
+      if (egFrame === NO_FRAME && oppOff && !prevOppOff) { egSit++; egFrame = snap.frame; egStocks = opp.stocks; }
+      if (egFrame !== NO_FRAME) {
         if (opp.stocks < egStocks) {                                 // died offstage
           if (oKoActive && oKoStartedOn) egSit--;                    //   blast kill → exclude trip
           else                           egSuccess++;                //   real edgeguard
-          egFrame = -1;
+          egFrame = NO_FRAME;
         }
-        else if (!oppOff || madeItBack(opp.state)) { egFrame = -1; } // dropped: back over stage / on ledge
-        else if (snap.frame > egFrame + EG_WINDOW) { egFrame = -1; } // timed out
+        else if (!oppOff || madeItBack(opp.state)) { egFrame = NO_FRAME; } // dropped: back over stage / on ledge
+        else if (snap.frame > egFrame + EG_WINDOW) { egFrame = NO_FRAME; } // timed out
       }
       prevOppOff = oppOff;
 
@@ -744,7 +756,7 @@ function computeAdvancedStats(
       // before starting the window — that's when they're actually actionable.
       if (prevOppStocksR >= 0 && opp.stocks < prevOppStocksR) {
         respawnAwaitingSpawn = true;
-        respawnEnd = -1;
+        respawnEnd = NO_FRAME;
       }
       if (respawnAwaitingSpawn && prevOppStateR >= 0 &&
           SPAWN_STATES.has(prevOppStateR) && !SPAWN_STATES.has(opp.state) && opp.state > 12) {
@@ -753,9 +765,11 @@ function computeAdvancedStats(
         respawnPct = snap.percent;
         respawnAwaitingSpawn = false;
       }
-      if (respawnEnd >= 0) {
-        if (snap.percent > respawnPct + 5)  { respawnEnd = -1; }
-        else if (snap.frame > respawnEnd)   { respawnSuccess++; respawnEnd = -1; }
+      // Window-over is checked BEFORE damage: a hit landing on the first frame after the window
+      // isn't a respawn-defense failure (it was counted as one, ~1 respawn in 40).
+      if (respawnEnd !== NO_FRAME) {
+        if (snap.frame > respawnEnd)            { respawnSuccess++; respawnEnd = NO_FRAME; }
+        else if (snap.percent > respawnPct + 5) { respawnEnd = NO_FRAME; }
       }
       prevOppStocksR = opp.stocks;
       prevOppStateR  = opp.state;
@@ -768,14 +782,14 @@ function computeAdvancedStats(
     // back. A blast kill (death from one on-stage-origin knockback) is excluded —
     // you never got the chance to recover.
     const pOff = Math.abs(snap.x) > LEDGE_X || snap.y < OFFSTAGE_Y;
-    if (recFrame < 0 && pOff && !prevPOff) { recSit++; recFrame = snap.frame; recStocks = snap.stocks; }
-    if (recFrame >= 0) {
+    if (recFrame === NO_FRAME && pOff && !prevPOff) { recSit++; recFrame = snap.frame; recStocks = snap.stocks; }
+    if (recFrame !== NO_FRAME) {
       if (snap.stocks < recStocks) {                            // died offstage
         if (pKoActive && pKoStartedOn) recSit--;                //   blast kill → exclude trip
-        recFrame = -1;                                          //   else: failed recovery (counted)
+        recFrame = NO_FRAME;                                          //   else: failed recovery (counted)
       }
-      else if (!pOff || madeItBack(snap.state))   { recSuccess++; recFrame = -1; } // made it back over stage / on ledge
-      else if (snap.frame > recFrame + EG_WINDOW) {               recFrame = -1; } // timed out
+      else if (!pOff || madeItBack(snap.state))   { recSuccess++; recFrame = NO_FRAME; } // made it back over stage / on ledge
+      else if (snap.frame > recFrame + EG_WINDOW) {               recFrame = NO_FRAME; } // timed out
     }
     prevPOff = pOff;
 
@@ -788,17 +802,22 @@ function computeAdvancedStats(
     // ── Wavedash miss rate ─────────────────────────────────────────────────
     if (snap.state !== prevPState) {
       if (JUMP_STATES.has(snap.state) && snap.y < WD_JUMP_Y) {
-        jumpFrame = snap.frame; dodgeFrame = -1;
-      } else if (snap.state === AIRDODGE && jumpFrame >= 0 && snap.frame <= jumpFrame + WD_DODGE_F) {
-        wdAttempts++; dodgeFrame = snap.frame; jumpFrame = -1;
-      } else if (snap.state === WD_LAND && dodgeFrame >= 0 && snap.frame <= dodgeFrame + WD_LAND_F) {
-        wdSuccesses++; dodgeFrame = -1;
+        jumpFrame = snap.frame; dodgeFrame = NO_FRAME;
+      } else if (snap.state === AIRDODGE && jumpFrame !== NO_FRAME && snap.frame <= jumpFrame + WD_DODGE_F) {
+        wdAttempts++; dodgeFrame = snap.frame; jumpFrame = NO_FRAME;
+      } else if (snap.state === WD_LAND && dodgeFrame !== NO_FRAME && snap.frame <= dodgeFrame + WD_LAND_F) {
+        wdSuccesses++; dodgeFrame = NO_FRAME;
       }
     }
-    if (jumpFrame  >= 0 && snap.frame > jumpFrame  + WD_DODGE_F + 1) jumpFrame  = -1;
-    if (dodgeFrame >= 0 && snap.frame > dodgeFrame + WD_LAND_F  + 1) dodgeFrame = -1;
+    if (jumpFrame  !== NO_FRAME && snap.frame > jumpFrame  + WD_DODGE_F + 1) jumpFrame  = NO_FRAME;
+    if (dodgeFrame !== NO_FRAME && snap.frame > dodgeFrame + WD_LAND_F  + 1) dodgeFrame = NO_FRAME;
     prevPState = snap.state;
   }
+
+  // A respawn window still open at game end took no qualifying hit in the frames that exist —
+  // score it safe (as the benchmark does) rather than leaving it counted but never resolved,
+  // which silently read as a failure.
+  if (respawnEnd !== NO_FRAME) respawnSuccess++;
 
   // Always push the final stock (from last death/game-start to last frame).
   // This handles both the "never died" case and the common case where the last
@@ -808,14 +827,15 @@ function computeAdvancedStats(
   // Ice Climbers: fold Nana's independent offstage trips into the Popo-based
   // edgeguard (opponent's Nana) and recovery (player's Nana) counters. Non-IC
   // ports have no follower frames → both calls are no-ops.
+  const lastGameFrame    = playerFrames.at(-1)!.frame;
   const oppFollFrames    = followerFrameData[oppPort];
   const playerFollFrames = followerFrameData[playerPort];
   if (oppFollFrames && oppFollFrames.length > 0) {
-    const t = countFollowerTrips(oppFollFrames, LEDGE_X, true);
+    const t = countFollowerTrips(oppFollFrames, LEDGE_X, true, lastGameFrame);
     egSit += t.sit; egSuccess += t.success;
   }
   if (playerFollFrames && playerFollFrames.length > 0) {
-    const t = countFollowerTrips(playerFollFrames, LEDGE_X, false);
+    const t = countFollowerTrips(playerFollFrames, LEDGE_X, false, lastGameFrame);
     recSit += t.sit; recSuccess += t.success;
   }
 
@@ -1545,4 +1565,41 @@ export function parseSlpBytesMultiCode(
   }
 
   return out;
+}
+
+// ── Benchmark parity ───────────────────────────────────────────────────────
+
+/** The benchmarked stats — what `scripts/parse_hf_replays.py` must compute identically, since a
+ *  player's value is percentile-scored against the distribution that script produces. */
+export const PARITY_STATS = [
+  "neutral_win_ratio", "opening_conversion_rate", "stage_control_ratio",
+  "openings_per_kill", "damage_per_opening", "avg_kill_percent",
+  "edgeguard_success_rate", "tech_chase_rate",
+  "avg_death_percent", "recovery_success_rate", "avg_stock_duration", "respawn_defense_rate",
+] as const;
+
+/**
+ * Per-port benchmarked stats for any 1v1 replay, with none of the connect-code / match-mode
+ * gating the app's ingest path applies — public tournament replays carry neither. Exists so the
+ * parity test (`scripts/test_parity.py`) can hold the benchmark script to this parser's numbers.
+ * Win/loss is by final stocks, which only feeds the absolute lead/comeback stats (not compared).
+ */
+export function computeParityStats(bytes: Uint8Array): { port: number; stats: Record<string, number | null> }[] {
+  const stream = parseEventStream(bytes);
+  const ports = Object.keys(stream.frameData).map(Number);
+  if (ports.length !== 2) return [];
+  return ports.map((port) => {
+    const opp = ports.find((p) => p !== port)!;
+    const conv = computeConversionStats(port, opp, stream.frameData, stream.totalDamageTaken, stream.followerFrameData);
+    const won  = (stream.finalStocks[port] ?? 0) > (stream.finalStocks[opp] ?? 0) ? "win" : "loss";
+    const adv  = computeAdvancedStats(port, opp, stream.frameData, won, stream.stageId, stream.followerFrameData);
+    const mean = (xs: number[]) => (xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    const { attributedKillPercents, attributedDeathPercents, ...convRates } = conv;
+    const all: Record<string, number | null> = {
+      ...convRates, ...adv,
+      avg_kill_percent:  mean(attributedKillPercents),
+      avg_death_percent: mean(attributedDeathPercents),
+    };
+    return { port, stats: Object.fromEntries(PARITY_STATS.map((k) => [k, all[k] ?? null])) };
+  });
 }
