@@ -61,11 +61,23 @@ def preflight():
     except importlib.metadata.PackageNotFoundError:
         log("FAIL: peppi-py not installed — pip install -r scripts/requirements.txt")
         ok = False
+    # Test what actually matters — whether the datasets are READABLE — not whether a token
+    # happens to be present. Both repos are public: an anonymous read measured 70 MB/s on
+    # 2026-10-05 (≈ 6 h of transfer for the 1.43 TB ranked set), so a token buys higher rate
+    # limits, not access. Failing on login status alone blocked a run that would have worked.
     try:
-        from huggingface_hub import whoami
-        log(f"HuggingFace: logged in as {whoami()['name']}")
-    except Exception:
-        log("FAIL: not logged in to HuggingFace — run `hf auth login` (a read token)")
+        from huggingface_hub import list_repo_tree
+        for repo in (P.RANKED_REPO_ID, P.REPO_ID):
+            next(iter(list_repo_tree(repo, repo_type=P.REPO_TYPE)))
+        try:
+            from huggingface_hub import whoami
+            log(f"HuggingFace: datasets readable, logged in as {whoami()['name']}")
+        except Exception:
+            log("HuggingFace: datasets readable ANONYMOUSLY (no token). Fine — rate limits are "
+                "lower, so `hf auth login` with a read token if downloads start stalling.")
+    except Exception as e:
+        log(f"FAIL: cannot read the HuggingFace datasets ({type(e).__name__}: {str(e)[:120]}) — "
+            f"check the network, or `hf auth login` if they have been made private")
         ok = False
     r = subprocess.run([sys.executable, "-m", "pytest", "-q", "test_parity.py"],
                        cwd=SCRIPTS, capture_output=True, text=True)
