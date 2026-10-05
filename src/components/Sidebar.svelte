@@ -3,7 +3,7 @@
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { fetch } from "@tauri-apps/plugin-http";
   import {
-    connectCode, replayDirs, dateRange,
+    connectCode, replayDirs, dateRange, DATE_RANGES,
     games, snapshots, seasons,
     isScanning, isFetchingSnapshot, scanProgress, statusMessage, sidebarOpen, isPremium,
     discordToken, discordUsername, linkedCodes, displayName,
@@ -281,9 +281,9 @@
   <div class="sidebar-section">
     <span class="sidebar-label">Date Range</span>
     <select bind:value={$dateRange}>
-      <option value="all">All Time</option>
-      <option value="90d">Last 90 Days</option>
-      <option value="30d">Last 30 Days</option>
+      {#each DATE_RANGES as r}
+        <option value={r.id}>{r.label}</option>
+      {/each}
     </select>
   </div>
 

@@ -65,9 +65,9 @@ hand-off mechanism between work sessions and across machines.
 >
 > **NEXT UP:** Joey tests a real unranked/direct session. Then bump + release.
 >
-> **Also awaiting a call on the next release:** a suggestion-box request for **longer / custom date
-> ranges** (banked below, 2026-08-09, not started). Not built — Joey wants to decide later whether
-> it rides along with the session timer or waits.
+> **Riding along with it:** the suggestion-box request for **longer date ranges** is now
+> **built** (2026-10-05) — 180-day / 1-year / 2-year presets, see the DONE section below. Also
+> unreleased, also at 1.9.0, so it goes out in the same bump.
 
 ---
 
@@ -261,30 +261,35 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ▶ BANKED IDEA — Longer / custom date ranges (user suggestion, 2026-08-09, NOT started)
+## ✅ DONE — Longer date-range presets (user suggestion 2026-08-09, built 2026-10-05, BANKED on `main`)
 
 A user asked via the suggestion box for **either a custom date range picker, or simply more preset
-options (6mo, 1yr, 2yr, …)** — today the sidebar offers only All Time / Last 90 Days / Last 30 Days.
+options (6mo, 1yr, 2yr, …)** — the sidebar offered only All Time / Last 90 Days / Last 30 Days.
+**Shipped the presets**, which was the 80% of the value; a custom start/end picker is still open
+(two date inputs, validation, a different persisted shape) and can follow if anyone asks.
 
-**Where it lives (small surface):**
-- `dateRange` — `persisted<"30d" | "90d" | "all">("srs_dateRange", "all")` in `store.ts:81`.
-- `filteredGames` (`store.ts:319`) does the cutoff arithmetic: `days = $range === "30d" ? 30 : 90`.
-  **Every statistic in the app derives from `filteredGames`**, so widening the range needs no
-  per-tab work — one store change covers the whole app.
-- The `<select>` in `Sidebar.svelte:283`.
+**What landed:** `DATE_RANGES` — a single `{ id, label, days }` table in `store.ts`, now
+**All Time / 2 Years / Last Year / 180 Days / 90 Days / 30 Days** — plus `rangeDays(id)` and a
+`DateRange` type derived from the table. `filteredGames` replaced its
+`days = $range === "30d" ? 30 : 90` ternary with `rangeDays($range)`, and `Sidebar.svelte` now
+`{#each}`es the table instead of hard-coding three `<option>`s — so a future preset is one row.
+5 tests in `src/lib/date-range.test.ts` (145 total). **No version bump** — joins the banked session
+timer awaiting Joey's test.
 
-**Recommendation: ship the extra presets first** (`180d`, `1y`, `2y` alongside the existing three).
-It's the 80% of the value for a ~10-line change: widen the union type, replace the ternary with a
-lookup table keyed by the range id, add the options. Custom start/end is a bigger job — two date
-inputs, validation, a different persisted shape — and can follow if anyone asks for it.
+**⚠ Why `rangeDays` returns `null` for an id it doesn't know.** The selection is persisted as a
+bare string under `srs_dateRange` and `persisted()` does not validate what it reads back, so a
+value written by a newer build (or hand-edited) reaches the filter verbatim. `null` = no cutoff =
+show everything, which is the safe degradation; **the old ternary silently meant 90 days** for any
+unrecognised id, and that is exactly the trap renaming a preset would have sprung. The three
+original ids (`"all"` / `"90d"` / `"30d"`) are spelled exactly as before and a test pins them —
+adding presets is forward-safe, renaming or removing one strands existing installs.
 
-**⚠ Two things to get right:**
-- **The persisted value is a bare string in localStorage** (`srs_dateRange`). Adding members is
-  forward-safe; *renaming or removing* one would leave existing installs holding a value that hits
-  neither branch of the ternary and silently falls back to 90 days. Keep `"30d"`/`"90d"`/`"all"`
-  spelled exactly as they are, and make the lookup fall back to `"all"` on an unknown id.
-- **Nothing outside `filteredGames` should learn about the new ids.** The whole point of that store
-  is that the date filter is expressed once; a `=== "90d"` check anywhere else is the bug to avoid.
+**⚠ `filteredGames` is still the only consumer of these ids.** Every statistic in the app derives
+from it, which is why widening the range needed no per-tab work at all; a `=== "90d"` check
+anywhere else is the bug the table exists to prevent.
+
+The windows are plain day counts (`1y` = 365, `2y` = 730), matching how `30d`/`90d` already worked
+— not calendar-month arithmetic, so "Last Year" is 365 days rather than the same date last year.
 
 ---
 

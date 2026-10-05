@@ -78,7 +78,36 @@ export const effectiveCodes = derived(
 
 // Alias used by App.svelte (always the primary connect code)
 export const primaryCode = derived(connectCode, ($code) => $code);
-export const dateRange = persisted<"30d" | "90d" | "all">("srs_dateRange", "all");
+
+// Date-range presets for the sidebar filter, newest window last.
+//
+// Each `id` is persisted verbatim in localStorage under `srs_dateRange`, so these strings are
+// a storage format and not just option values: ADDING a preset is forward-safe, but renaming
+// or removing one leaves existing installs holding an id this table no longer knows. That is
+// what rangeDays()'s fallback is for — an unrecognised id reads as "all" (show everything)
+// rather than silently landing on whatever window an if/else happens to end on.
+//
+// `days: null` means no cutoff. Every statistic in the app derives from filteredGames, which
+// is the ONLY consumer of these ids — keep it that way; a `=== "90d"` test anywhere else is
+// the bug this table exists to prevent.
+export const DATE_RANGES = [
+  { id: "all",  label: "All Time",      days: null },
+  { id: "2y",   label: "Last 2 Years",  days: 730 },
+  { id: "1y",   label: "Last Year",     days: 365 },
+  { id: "180d", label: "Last 180 Days", days: 180 },
+  { id: "90d",  label: "Last 90 Days",  days: 90  },
+  { id: "30d",  label: "Last 30 Days",  days: 30  },
+] as const;
+
+export type DateRange = (typeof DATE_RANGES)[number]["id"];
+
+// Days in a range id, or null for "no cutoff" — including for an id we don't recognise,
+// which is how a value persisted by a future (or hand-edited) build degrades safely.
+export function rangeDays(id: string): number | null {
+  return DATE_RANGES.find((r) => r.id === id)?.days ?? null;
+}
+
+export const dateRange = persisted<DateRange>("srs_dateRange", "all");
 
 // UI zoom (Ctrl +/−/0). Persisted — someone who scales the app down to fit more on screen
 // means it, and having to redo it every launch is worse than not having the control.
@@ -324,10 +353,9 @@ export const gradeHistoryProgress = writable<{ current: number; total: number }>
 // one filter covers all of them. See LEGAL_STAGES for why they're excluded at all.
 export const filteredGames = derived([games, dateRange], ([$games, $range]) => {
   const legal = $games.filter((g) => isLegalStage(g.stage_id));
-  if ($range === "all") return legal;
-  const now = new Date();
-  const days = $range === "30d" ? 30 : 90;
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const days = rangeDays($range);
+  if (days === null) return legal;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   return legal.filter((g) => new Date(g.timestamp) >= cutoff);
 });
 
