@@ -6,8 +6,44 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-10-06 (GRADING PARITY FIXES + RESCAN — BENCHMARKS REGENERATED, AWAITING JOEY'S TEST — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-10-06 (v1.10.0 — PARITY FIXES + RESCAN + REPLAY-PATH SELF-HEAL + CHART ZOOM — READ FIRST)
 
+> **State: v1.10.0 prepared this session — version bumped in `package.json`,
+> `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` (+ both lockfiles), `release-notes.md`
+> written. NOT tagged or pushed yet.** Joey tested the whole thing in `tauri dev` on the Windows
+> machine and approved. 162 tests, `tsc` clean, `vite build` clean.
+>
+> **Two defects found by that testing — both would have shipped silently:**
+> 1. **Moving replays destroyed grade history.** `games.filepath` is an absolute path captured at
+>    scan time, and a regrade re-parses the `.slp` to pick up parser fixes. Joey had reorganised
+>    `C:\Slippi Replays\` into subfolders, so 1,976 rows pointed at nothing while every file sat
+>    one directory over — the `GRADING_LOGIC_VERSION` 7→8 bump then dropped **211 graded sets, 16%
+>    of his history**, showing "No parseable files". Fixed by `src/lib/replay-index.ts`: the
+>    regrade falls back to locating the replay by BASENAME across `replayDirs` and writes the
+>    corrected path back (`updateGameFilepath`), so the repair is permanent and also unbreaks
+>    "Show in folder". Index built lazily, at most once per regrade, only after a path actually
+>    fails. ⚠ **The first attempt at this fix ran and repaired nothing**, because the dir-walk was
+>    wrapped in a bare `catch {}` — the per-set error now names the index size and the folder
+>    problem instead of a generic message. Don't re-silence it.
+> 2. **The sidebar Date Range never reached the rating chart.** `snapshots` is a plain writable
+>    fed from the API, NOT derived from `games`, so it never came along via `filteredGames`. The
+>    rating line drew all of history while the rolling win rate and set annotations beside it
+>    (both from `sets`) honoured the filter — two series on one chart on different windows, with
+>    nothing saying so. New `dateFilteredSnapshots`; window arithmetic factored into
+>    `rangeCutoff()` so the two stores can't drift.
+>
+> **Also shipped: drag-to-zoom on the rating chart** (`zoom` prop on `LineChart`). A slider under
+> the plot was built first and **rejected by Joey as clunky** — permanent chrome for an occasional
+> action; don't reintroduce it. ⚠ **The toolbox must be RENDERED for its `dataZoom` feature to
+> register the drag handler that `takeGlobalCursor` arms** — with `show: false` ECharts skips it
+> entirely and dragging does nothing (shipped dead once, caught by Joey). It is rendered with
+> `itemSize: 0` + `showTitle: false` instead. The cursor mode is re-armed after every drag (a
+> completed drag drops it) and after every `notMerge` re-render. Zoom start/end live in PLAIN
+> variables, not `$state` — reactive ones retrigger the `$effect` mid-gesture — and exist so the
+> window survives a data change. The y axis releases its fixed bounds while zoomed, because the
+> caller's `max(50, range*0.15)` padding is sized for the whole history and renders a 20-point
+> span flat.
+>
 > **✅ RESCAN COMPLETE 2026-10-06 15:12 (Windows machine, ~20.5 h).** `scripts/grade_baselines.json`
 > + `src/lib/grade-benchmarks.ts` regenerated and committed. `BENCHMARKS_VERSION` is now
 > `2026-10-06T20:12:46`, so every stored grade reads stale and regrades.
