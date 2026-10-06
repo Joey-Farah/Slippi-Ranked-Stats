@@ -12,6 +12,12 @@
   // Season filter: "current" shows only the active season, "all" shows everything
   let seasonFilter = $state<"current" | "all">("current");
 
+  // Drag-to-zoom on the rating chart. The chart itself shows no control — the reset chip below
+  // appears only once a range is actually selected, and the hint beside it is the only thing
+  // that tells a first-time user the gesture exists at all.
+  let ratingChart = $state<any>(null);
+  let ratingZoomed = $state(false);
+
   // Snapshots filtered to the selected season
   // Season filter layered on top of the sidebar's Date Range (dateFilteredSnapshots), so the
   // rating line obeys the same window as the win-rate and set annotations drawn beside it.
@@ -136,6 +142,17 @@
       <div class="section-title" style="display:flex; align-items:center; justify-content:space-between">
         <span>Rating Over Time</span>
         <div style="display:flex; gap:10px; align-items:center">
+        {#if ratingZoomed}
+          <button
+            onclick={() => ratingChart?.resetZoom()}
+            style="font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; font-family:inherit;
+              border:1px solid var(--accent); background:transparent; color:var(--accent);"
+          >Reset zoom ✕</button>
+        {:else}
+          <span style="font-size:11px; color:var(--muted); opacity:0.65">
+            drag across the chart to zoom
+          </span>
+        {/if}
         <!-- Series toggle. A real chip in the card's control row, not a clickable legend entry:
              a legend that toggles looks identical to a legend that doesn't, so nobody finds it.
              Same ✓-prefixed on/off chip the overlay's "Show on overlay" row uses. -->
@@ -198,6 +215,9 @@
         y2Data={$showRatingAvg && rollingRatingAvg.length > 1 ? rollingRatingAvg : undefined}
         label2="20-snap avg"
         color2="#f39c12"
+        zoom={true}
+        bind:this={ratingChart}
+        onzoom={(z) => (ratingZoomed = z)}
       />
     </div>
   {:else}
