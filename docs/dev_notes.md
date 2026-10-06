@@ -6,8 +6,61 @@ hand-off mechanism between work sessions and across machines.
 
 ---
 
-## ⚠ SESSION HANDOFF — 2026-10-05 (GRADING PARITY AUDIT + FIXES — MERGED to `main`, RESCAN RUNNING, NOT RELEASED — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-10-06 (GRADING PARITY FIXES + RESCAN — BENCHMARKS REGENERATED, AWAITING JOEY'S TEST — READ FIRST)
 
+> **✅ RESCAN COMPLETE 2026-10-06 15:12 (Windows machine, ~20.5 h).** `scripts/grade_baselines.json`
+> + `src/lib/grade-benchmarks.ts` regenerated and committed. `BENCHMARKS_VERSION` is now
+> `2026-10-06T20:12:46`, so every stored grade reads stale and regrades.
+>
+> **Completeness — the check that matters, because v1.8.9 shipped a silently incomplete scan:**
+> | | July | New |
+> |---|---|---|
+> | replays | 2,129,888 | 2,128,194 (−0.08%) |
+> | ranked / v37 | 1,699,122 / 430,766 | 1,698,082 / 430,112 |
+> | player chars | 26 | 26 |
+> | matchup combos (≥20) | 636 | 636 |
+> | matchup entries in the TS (≥50) | 569 | 567 |
+> Same volume, same coverage, no character thin or missing — so the ONLY variable is the fixes.
+>
+> **Grade impact, measured against Joey's 1,346 stored sets** (harness held the per-game stat
+> values fixed and swapped only the benchmarks, so this isolates the benchmark change; the harness
+> reproduced all 16,456 stored per-stat scores and all 968 category scores exactly before being
+> trusted, and **0 sets changed benchmark bucket**, so nothing is a fallback artifact):
+> | | mean | median | predicted |
+> |---|---|---|---|
+> | overall | +1.48 | +1.60 | — |
+> | neutral | −0.02 | +0.00 | flat ✅ |
+> | punish | **+3.76** | +4.10 | UP ✅ |
+> | defense | −0.08 | −0.10 | DOWN ❌ (see below) |
+>
+> **159 of 1,346 sets gained a letter; 0 lost one.** S 410→495, A 530→490, B 204→183, C 161→142.
+>
+> **It is one stat doing all of it: `damage_per_opening` +12.57 mean score.** That is the
+> double-counting fix, and the arithmetic closes exactly — 12.57 × its 0.30 Punish weight = +3.77,
+> i.e. the whole +3.76 Punish gain. Everything else moved <1 point.
+>
+> **⚠ The "Defense down" prediction was WRONG and should not be repeated.**
+> `avg_stock_duration` did fall as expected (−0.61 score, from including never-died games), but at
+> 0.20 of Defense × 0.20 of overall the category moved −0.08 — not noticeable. Don't expect the
+> never-died decision to show up in a user's Defense grade.
+>
+> **⚠ The Falco-vs-Jigglypuff complaint that started this is IMPROVED, NOT SOLVED — and that was
+> predictable before the scan.** The audit itself listed Falco-vs-Puff kill% under "NOT bugs
+> (verified)". Punish mean 57.04→60.43; D-or-F fell from 58% to 44% of those 106 sets; 28 are
+> still F. Checked against the matchup's own 16,751-sample benchmark rather than the global pool,
+> those 28 are genuinely Joey's worst sets: `openings_per_kill` 8.12 vs matchup p50 6.67 (worse
+> than ~70% of Falcos in the matchup) and `avg_kill_percent` 130.03 vs p50 115.86 (~79%) —
+> together half the Punish weight. Across all 106 sets he is ABOVE the matchup median on OPK
+> (6.07 vs 6.67), D/O (23.12 vs 19.59) and edgeguard (0.07 vs 0.06); the one real weakness is
+> **kill percent** (121.94 vs 115.86, worse than ~63% of Falcos). **So the remaining F grades are
+> a real measurement, not a defect — don't go hunting for one.** Moving them would be a scoring
+> philosophy change (see the tie-aware scoring decision, still open).
+>
+> **⚠ Joey's replays ARE on the Windows machine** — `C:\Slippi Replays\`, 20,086 files, 63 GB
+> (NOT under the user folder, which is why a `~`-rooted search missed them). So a full in-app
+> regrade, which re-parses replays and therefore exercises the 3 app-parser fixes too, can be
+> tested there. `JOEY_870.db` holds 17,832 games / 1,346 grades.
+>
 > **State: MERGED into `main` 2026-10-05 (branch `fix/grading-parity` kept), NO version bump, NO
 > tag.** The 3 app-side fixes are live on merge. The 5 benchmark-side fixes do nothing until the
 > rescan finishes — `grade-benchmarks.ts` is still July's (buggy) data until then.
