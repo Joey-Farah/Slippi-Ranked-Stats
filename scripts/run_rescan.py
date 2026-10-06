@@ -128,16 +128,44 @@ def first_run_setup():
         fh.write(time.strftime("%Y-%m-%d %H:%M:%S\n"))
 
 
+# parse_hf_replays.py's stall watchdog hard-exits with this code when a download freezes
+# (hung TCP connection — routine on multi-GB tarballs). It is a "relaunch me" signal, not a
+# failure: the per-tarball checkpoint makes resume free, and partial downloads survive. The
+# scan's own comment says to "run the scan under a supervisor loop that relaunches it" — this
+# is that supervisor. Without it a single stalled connection killed the whole rescan 6.5 h in.
+WATCHDOG_RESTART_RC = 42
+
+# A restart that makes no progress means something other than a stall is wrong, so don't spin
+# forever. Progress = the step's log grew, which it does on every completed tarball.
+MAX_STALLED_RESTARTS = 5
+
+
 def step(name, args):
     path = os.path.join(LOGS, f"rescan_{name}.log")
     log(f"step {name}: {' '.join(args)}  (log: {path})")
-    with open(path, "a", encoding="utf-8") as fh:
-        rc = subprocess.run([sys.executable, "-u", *args], cwd=REPO, stdout=fh,
-                            stderr=subprocess.STDOUT).returncode
-    if rc != 0:
-        log(f"step {name} FAILED (exit {rc}) — see {path}; re-run this script to resume")
-        sys.exit(rc)
-    log(f"step {name} done")
+    attempt = 0
+    stalled_restarts = 0
+    while True:
+        attempt += 1
+        before = os.path.getsize(path) if os.path.exists(path) else 0
+        with open(path, "a", encoding="utf-8") as fh:
+            rc = subprocess.run([sys.executable, "-u", *args], cwd=REPO, stdout=fh,
+                                stderr=subprocess.STDOUT).returncode
+        if rc == 0:
+            log(f"step {name} done" + (f" (after {attempt} launches)" if attempt > 1 else ""))
+            return
+        if rc != WATCHDOG_RESTART_RC:
+            log(f"step {name} FAILED (exit {rc}) — see {path}; re-run this script to resume")
+            sys.exit(rc)
+        progressed = (os.path.getsize(path) if os.path.exists(path) else 0) > before
+        stalled_restarts = 0 if progressed else stalled_restarts + 1
+        if stalled_restarts > MAX_STALLED_RESTARTS:
+            log(f"step {name}: watchdog restarted {MAX_STALLED_RESTARTS} times with no progress "
+                f"— giving up; see {path}")
+            sys.exit(rc)
+        log(f"step {name}: download stalled, watchdog restart #{attempt} "
+            f"({'progress since last launch' if progressed else f'NO progress, {stalled_restarts}/{MAX_STALLED_RESTARTS}'})")
+        time.sleep(15)
 
 
 def main():
