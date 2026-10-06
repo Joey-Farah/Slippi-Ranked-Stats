@@ -107,6 +107,14 @@ export function rangeDays(id: string): number | null {
   return DATE_RANGES.find((r) => r.id === id)?.days ?? null;
 }
 
+/** The cutoff instant for a range id, or null for "no cutoff". The one place the window
+ *  arithmetic lives — both filteredGames and dateFilteredSnapshots go through it, so the two
+ *  can't drift into showing different windows on the same screen. */
+export function rangeCutoff(id: string, now: number = Date.now()): Date | null {
+  const days = rangeDays(id);
+  return days === null ? null : new Date(now - days * 24 * 60 * 60 * 1000);
+}
+
 export const dateRange = persisted<DateRange>("srs_dateRange", "all");
 
 // UI zoom (Ctrl +/−/0). Persisted — someone who scales the app down to fit more on screen
@@ -353,10 +361,22 @@ export const gradeHistoryProgress = writable<{ current: number; total: number }>
 // one filter covers all of them. See LEGAL_STAGES for why they're excluded at all.
 export const filteredGames = derived([games, dateRange], ([$games, $range]) => {
   const legal = $games.filter((g) => isLegalStage(g.stage_id));
-  const days = rangeDays($range);
-  if (days === null) return legal;
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const cutoff = rangeCutoff($range);
+  if (cutoff === null) return legal;
   return legal.filter((g) => new Date(g.timestamp) >= cutoff);
+});
+
+// Rating snapshots within the sidebar's Date Range.
+//
+// `snapshots` is a plain writable fed from the Slippi API, NOT derived from `games`, so it never
+// came along with filteredGames the way every other statistic does. The result was two series on
+// one chart disagreeing: the Rating History line drew all of history while the rolling win rate
+// and per-set annotations beside it (both from `sets`, hence filteredGames) honoured the filter.
+// Season filtering stays in the component on top of this — that is a different axis.
+export const dateFilteredSnapshots = derived([snapshots, dateRange], ([$snaps, $range]) => {
+  const cutoff = rangeCutoff($range);
+  if (cutoff === null) return $snaps;
+  return $snaps.filter((s) => new Date(s.timestamp) >= cutoff);
 });
 
 // ── Derived: ranked games only ─────────────────────────────────────────────

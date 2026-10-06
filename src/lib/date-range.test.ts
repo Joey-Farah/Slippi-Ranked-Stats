@@ -80,6 +80,36 @@ describe("date-range presets", () => {
     dateRange.set("all");
   });
 
+  it("applies the same window to rating snapshots as to games", async () => {
+    // The Rating History line comes from `snapshots`, which is a plain writable and so never
+    // went through filteredGames. Before dateFilteredSnapshots the chart drew all of history
+    // while the win-rate overlaid on it honoured the filter.
+    const { snapshots, dateRange, dateFilteredSnapshots, filteredGames, games } = await import("./store");
+    snapshots.set([
+      { timestamp: new Date(Date.now() - 5 * DAY).toISOString(), rating: 1500 },
+      { timestamp: new Date(Date.now() - 200 * DAY).toISOString(), rating: 1400 },
+      { timestamp: new Date(Date.now() - 500 * DAY).toISOString(), rating: 1300 },
+    ] as any);
+    games.set([gameDaysAgo(5), gameDaysAgo(200), gameDaysAgo(500)]);
+
+    dateRange.set("30d");
+    expect(get(dateFilteredSnapshots)).toHaveLength(1);
+    dateRange.set("1y");
+    expect(get(dateFilteredSnapshots)).toHaveLength(2);
+    dateRange.set("all");
+    expect(get(dateFilteredSnapshots)).toHaveLength(3);
+
+    // and the two stores agree on the same window — the bug was them disagreeing
+    for (const r of ["30d", "1y", "all"] as const) {
+      dateRange.set(r);
+      expect(get(dateFilteredSnapshots).length).toBe(get(filteredGames).length);
+    }
+
+    snapshots.set([]);
+    games.set([]);
+    dateRange.set("all");
+  });
+
   it("still drops non-legal stages inside a window", async () => {
     const { games, dateRange, filteredGames } = await import("./store");
     games.set([gameDaysAgo(100, 31), gameDaysAgo(100, 4 /* Peach's Castle */)]);

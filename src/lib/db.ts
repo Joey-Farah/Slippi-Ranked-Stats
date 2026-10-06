@@ -195,6 +195,23 @@ export async function insertGame(
   );
 }
 
+/**
+ * Point a game row at where its replay actually is.
+ *
+ * games.filepath is captured at scan time, so reorganising the replay folder leaves every
+ * stored path dangling while the files sit untouched one directory over. The regrade repairs
+ * them as it finds them (see resolveReplayPath) and calls this so the repair sticks — otherwise
+ * every future regrade pays the directory walk again, and "Show in folder" stays broken.
+ * Keyed on filename, which is UNIQUE in this table.
+ */
+export async function updateGameFilepath(
+  db: Database,
+  filename: string,
+  filepath: string
+): Promise<void> {
+  await db.execute(`UPDATE games SET filepath = $1 WHERE filename = $2`, [filepath, filename]);
+}
+
 export async function getGames(
   db: Database,
   since?: string

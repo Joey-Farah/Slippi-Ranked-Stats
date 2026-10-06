@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { snapshots, seasons, sets, connectCode, linkedCodes, showRatingAvg } from "../../lib/store";
+  import { snapshots, dateFilteredSnapshots, seasons, sets, connectCode, linkedCodes, showRatingAvg } from "../../lib/store";
   import LineChart from "../charts/LineChart.svelte";
 
   // Convert an ISO timestamp string to a local-time display string "YYYY-MM-DD HH:MM"
@@ -13,16 +13,19 @@
   let seasonFilter = $state<"current" | "all">("current");
 
   // Snapshots filtered to the selected season
+  // Season filter layered on top of the sidebar's Date Range (dateFilteredSnapshots), so the
+  // rating line obeys the same window as the win-rate and set annotations drawn beside it.
   let filteredSnapshots = $derived((() => {
-    if (seasonFilter === "all" || $seasons.length === 0) return $snapshots;
+    const inRange = $dateFilteredSnapshots;
+    if (seasonFilter === "all" || $seasons.length === 0) return inRange;
     // "current" = snapshots after the most recent season_end date
     const latestEnd = $seasons
       .map((s) => s.season_end)
       .filter(Boolean)
       .sort()
       .at(-1);
-    if (!latestEnd) return $snapshots;
-    return $snapshots.filter((s) => s.timestamp > latestEnd);
+    if (!latestEnd) return inRange;
+    return inRange.filter((s) => s.timestamp > latestEnd);
   })());
 
   // Rating line data — uses filteredSnapshots, with null gaps at season boundaries

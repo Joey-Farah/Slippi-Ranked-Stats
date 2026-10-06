@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    isPremium, connectCode, effectiveCodes, sets,
+    isPremium, connectCode, effectiveCodes, sets, replayDirs,
     gradeHistory, gradeHistoryBusy, gradeHistoryProgress,
     discordToken, discordUsername,
     type GradeHistoryEntry, type LiveGameStats,
@@ -8,9 +8,10 @@
   import { startDiscordAuth, verifyPatronRole } from "../../lib/discord";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { invoke } from "@tauri-apps/api/core";
-  import { CHARACTERS, parseSlpFile, isLegalStage } from "../../lib/parser";
+  import { CHARACTERS, parseSlpFile, isLegalStage, collectSlpFiles } from "../../lib/parser";
+  import { indexByBasename, resolveReplayPath } from "../../lib/replay-index";
   import { gradeSet, scoreToGrade, formatStatValue, gradeColor, CATEGORY_DEFS, GRADE_VERSION, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
-  import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, type SetGradeRow } from "../../lib/db";
+  import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, updateGameFilepath, type SetGradeRow } from "../../lib/db";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
   import GradingMethodology from "../GradingMethodology.svelte";
 
@@ -233,6 +234,34 @@
   })());
 
   async function gradeAllSets(force = false) {
+    // Replay lookup for rows whose stored filepath has gone stale (the folder was
+    // reorganised). Built lazily and at most once per regrade: an install whose paths all
+    // resolve never walks the directories at all. null = not built yet.
+    let replayIndex: Map<string, string> | null = null;
+    // Why the index came back unusable, surfaced in the per-set error rather than swallowed —
+    // a silent catch here is indistinguishable from "the file really is gone".
+    let replayIndexNote = "";
+    const replayIndexFor = async (): Promise<Map<string, string>> => {
+      if (replayIndex) return replayIndex;
+      const entries: { name: string; path: string }[] = [];
+      const problems: string[] = [];
+      if ($replayDirs.length === 0) problems.push("no replay folders configured");
+      for (const dir of $replayDirs) {
+        try {
+          const found = await collectSlpFiles(dir);
+          entries.push(...found);
+          if (found.length === 0) problems.push(`${dir}: 0 .slp found`);
+        } catch (e: any) {
+          problems.push(`${dir}: ${e?.message ?? e}`);
+        }
+      }
+      replayIndex = indexByBasename(entries);
+      replayIndexNote = `replay index: ${replayIndex.size} files`
+        + (problems.length ? ` [${problems.join("; ")}]` : "");
+      console.warn("[regrade] " + replayIndexNote);
+      return replayIndex;
+    };
+
     const code = $connectCode;
     const codes = $effectiveCodes;
     const toGrade = force ? completedSets : ungradedSets;
@@ -274,7 +303,20 @@
         for (const g of target.games) {
           if (!g.filepath) continue;
           try {
-            const parsed = await parseSlpFile(g.filepath, target.sourceCode ?? code);
+            let parsed;
+            try {
+              parsed = await parseSlpFile(g.filepath, target.sourceCode ?? code);
+            } catch (readErr) {
+              // The stored path didn't resolve. Before giving up — which silently drops the
+              // set's grade — look the replay up by basename under the configured folders;
+              // moving files between subdirectories is routine and must not cost history.
+              const found = resolveReplayPath(g.filepath, g.filename, await replayIndexFor());
+              if (!found) throw readErr;
+              parsed = await parseSlpFile(found, target.sourceCode ?? code);
+              // Persist the correction so later regrades (and "Show in folder") stay fixed.
+              const db = dbMap.get(target.sourceCode ?? code) ?? null;
+              if (db) { try { await updateGameFilepath(db, g.filename, found); } catch {} }
+            }
             for (const p of parsed) {
               liveGames.push({
                 match_id:                p.match_id,
@@ -368,7 +410,11 @@
         } else if (liveGames.length > 0) {
           entry.error = "No frame data (opponent likely disconnected before games started)";
         } else {
-          entry.error = "No parseable files";
+          // Say WHY nothing parsed. "No parseable files" on a set whose replays are sitting
+          // one folder over is how 211 sets silently lost their grades.
+          entry.error = "No parseable files"
+            + (replayIndexNote ? ` — ${replayIndexNote}` : "")
+            + (target.games.length ? ` — ${target.games.length} game row(s), first path: ${target.games[0].filepath ?? "(none)"}` : " — 0 game rows");
         }
       } catch (e: any) {
         entry.error = e?.message ?? String(e);

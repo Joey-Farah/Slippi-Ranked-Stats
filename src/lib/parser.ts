@@ -277,7 +277,7 @@ async function walkDir(dirPath: string, results: FileEntry[], isRoot = false): P
   }
 }
 
-async function collectSlpFiles(dirPath: string): Promise<FileEntry[]> {
+export async function collectSlpFiles(dirPath: string): Promise<FileEntry[]> {
   const results: FileEntry[] = [];
   await walkDir(dirPath, results, true);
   return results;
