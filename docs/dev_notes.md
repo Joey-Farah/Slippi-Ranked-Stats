@@ -239,14 +239,26 @@ opponent line, and you are still playing that person.
 - Overlay: L/R labels live in `<u>` (underlined by default — `text-decoration: none` was missed),
   and the Z pill was 0.44em tall against a 0.4em glyph.
 
-⚠ **Release state at the time of writing:** v1.12.1's **Windows** job succeeded and its installer
-is published; the **macOS** job was still running. Confirm it finished before tagging v1.12.2, so
-two releases don't overlap.
+**Released 2026-10-07** as v1.12.2 (tag `v1.12.2`, commit `a0d7ef4`). v1.12.1 published cleanly on
+both platforms first, so v1.12.2's release notes are its own section only — they do NOT fold
+v1.12.1's forward, unlike v1.12.1 which folded in v1.12.0.
 
-⚠ **Still owed to the website:** a screenshot of **Grading → Unranked & Direct** and a feature
-card for it in `site/index.html`. Joey asked for opponent connect codes to be replaced with fake
-ones — do it by editing pixels, not blurring: short high-contrast text often survives a blur.
-Pillow is now installed in `.venv`.
+⚠ **STILL OWED TO THE WEBSITE — not done, despite appearances.** `b5c6aa5` refreshed
+`site/screenshots/overlay-preview.png` and dropped the ranked-only framing, which makes the live
+site *look* updated. It is not: there is still **no Grading → Unranked & Direct screenshot and no
+feature card** for it in `site/index.html` (grep it for "unranked" — the only hit is the word
+"friendly" in the scan blurb). Needed:
+- A fresh capture of the **post-parity** Unranked & Direct view. ⚠ The screenshots Joey pasted
+  during the session show the **pre-parity** layout (the separate "GRADED" card, no History / By
+  Matchup split) — they were the complaint, not the deliverable, so they cannot be reused.
+- Opponent connect codes replaced with **fake** ones. Joey's call: edit the pixels, do not blur —
+  short high-contrast text often survives a blur. Pillow is installed in `.venv`.
+
+💡 **Pasted screenshots survive a `/compact` in the transcript, even though they leave context.**
+`~/.claude/projects/<project-slug>/<session-id>.jsonl` keeps every pasted image as a base64
+`{"type":"image"}` block alongside the message text. Filter lines containing `"type":"image"`,
+`json.loads` each, and `base64.b64decode` `message.content[].source.data`. Recovered 10 images
+this way after the compact. Worth remembering — this project reviews UI by screenshot constantly.
 
 ### 4. Still open
 
