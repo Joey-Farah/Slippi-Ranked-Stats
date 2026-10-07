@@ -11,6 +11,7 @@
   import { RANK_MEDAL_SVGS } from "../../lib/rank-medals";
   import { gradeColor, gradeGame } from "../../lib/grading";
   import { elapsedMs, formatElapsed } from "../../lib/session-timer";
+  import { simulateLiveSession, clearLiveSimulation } from "../../lib/dev-session-sim";
 
   // Per-game grade, cached by match_id+index. Grading is pure and cheap, but the live card
   // re-renders on every clock tick, and an unranked run can stack 60+ rows — regrading all of
@@ -89,6 +90,25 @@
       statsPathCopied = true;
       setTimeout(() => (statsPathCopied = false), 1500);
     } catch (e) { console.error(e); }
+  }
+
+  // ── DEV ONLY: replay a stored session into the live card ───────────────────
+  // import.meta.env.DEV is statically false in a production build, so this block and the
+  // button below are dropped entirely by the bundler — it cannot ship to users.
+  const IS_DEV = import.meta.env.DEV;
+  let devSimMsg = $state("");
+  async function devSimulateSession() {
+    devSimMsg = "loading…";
+    try {
+      const r = await simulateLiveSession({ minGames: 2, preferUnranked: true });
+      devSimMsg = `${r.mode} · ${r.parsed} games vs ${r.opponent}`;
+    } catch (e: any) {
+      devSimMsg = `failed: ${e?.message ?? e}`;
+    }
+  }
+  function devClearSession() {
+    clearLiveSimulation();
+    devSimMsg = "";
   }
 
   // ── Test: simulate a set result on the overlay, no set required ─────────────
@@ -444,6 +464,24 @@
                 border: 1px solid var(--border); background: var(--bg); color: var(--text);
               "
             >Simulate set result</button>
+            {#if IS_DEV}
+              <button
+                type="button"
+                onclick={devSimulateSession}
+                style="padding: 7px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;
+                  font-size: 12px; font-weight: 700; border: 1px dashed var(--accent);
+                  background: transparent; color: var(--accent);"
+              >[dev] Load last session</button>
+              <button
+                type="button"
+                onclick={devClearSession}
+                style="padding: 7px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;
+                  font-size: 12px; border: 1px dashed var(--border); background: transparent; color: var(--muted);"
+              >[dev] Clear</button>
+              {#if devSimMsg}
+                <span style="font-size: 11px; color: var(--muted); align-self: center">{devSimMsg}</span>
+              {/if}
+            {/if}
           </div>
           <div class="muted" style="font-size: 11px; margin-top: 6px; line-height: 1.5">
             Plays the full set-end sequence on your overlay (opponent → grade → Rating change), then returns to live.
