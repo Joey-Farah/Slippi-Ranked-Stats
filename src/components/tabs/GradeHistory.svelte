@@ -1,10 +1,17 @@
 <script lang="ts">
   import {
     isPremium, connectCode, effectiveCodes, sets, replayDirs,
+    unrankedGames, directGames,
     gradeHistory, gradeHistoryBusy, gradeHistoryProgress,
     discordToken, discordUsername,
     type GradeHistoryEntry, type LiveGameStats,
   } from "../../lib/store";
+  import { countGradeCandidates } from "../../lib/grade-queue";
+  import { gameOutcome } from "../../lib/outcome";
+  import {
+    gameGradeBusy, gameGradeProgress, gameGradeNote, unrankedGameGrades,
+    loadGameStats, runGameStatsBatch, countGameStatsQueue, cancelGameGrading,
+  } from "../../lib/game-grading";
   import { startDiscordAuth, verifyPatronRole } from "../../lib/discord";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { invoke } from "@tauri-apps/api/core";
@@ -13,6 +20,7 @@
   import { gradeSet, scoreToGrade, formatStatValue, gradeColor, CATEGORY_DEFS, GRADE_VERSION, type GradeLetter, type CategoryKey, type SetGrade } from "../../lib/grading";
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, updateGameFilepath, type SetGradeRow } from "../../lib/db";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
+  import GradeFilterBar, { type ResultFilter, type SortMode } from "../GradeFilterBar.svelte";
   import GradingMethodology from "../GradingMethodology.svelte";
 
   function rowToEntry(row: SetGradeRow): GradeHistoryEntry {
@@ -98,6 +106,116 @@
     return gradeColor(letter);
   }
 
+  // ── Ranked / Unranked sub-tabs ─────────────────────────────────────────────
+  //
+  // Ranked grades a SET; unranked and direct can only grade a GAME, because one unranked
+  // match_id is the entire connection with that opponent (verified at up to 62 games), so
+  // "what is a set?" has no answer there. Two different units of measurement is why these are
+  // separate views rather than one list with a mode column.
+  //
+  // Deliberately NOT persisted, unlike the main tab strip's activeTab. The unranked side has
+  // nothing to show until per-game grades are computed and stored, so persisting the choice
+  // would land a user who clicked it once on an empty panel every launch. It also matches the
+  // History / By Matchup toggle below, which is in-tab state too.
+  let subTab = $state<"ranked" | "unranked">("ranked");
+
+  // Unranked + direct games that a grading pass would attempt. Metadata only — no replay is
+  // opened — so this is instant and safe to show on a tab with nothing graded yet. Counting
+  // CANDIDATES rather than games: see countGradeCandidates for the one disqualifier that isn't
+  // knowable without parsing.
+  let unrankedQueue = $derived(countGradeCandidates([...$unrankedGames, ...$directGames]));
+
+  // Per-game grades for the Unranked side. These come from stored stats, so the only cost on
+  // tab open is scoring rows already in memory.
+  //
+  // ⚠ `gameQueueCount` is the number of replays the batch job would READ, counted from the
+  // database and therefore NOT date-filtered — unlike unrankedQueue above, which is. The button
+  // must use this one: offering "Grade 40 Games" to someone on "Last 30 Days" and then marking
+  // the job complete would leave years of history silently ungraded.
+  let gameQueueCount = $state<number | null>(null);
+  let gameGradeError = $state("");
+
+  async function refreshGameQueue() {
+    try {
+      gameQueueCount = await countGameStatsQueue($effectiveCodes);
+    } catch (e: any) {
+      gameQueueCount = null;
+      gameGradeError = e?.message ?? String(e);
+    }
+  }
+
+  // Hydrate stored stats + the queue count once the codes are known. Reading rows is cheap;
+  // the expensive part (opening replays) only ever happens on an explicit button press.
+  let _gameStatsLoadedFor = "";
+  $effect(() => {
+    const key = $effectiveCodes.join(",");
+    if (!key || key === _gameStatsLoadedFor) return;
+    _gameStatsLoadedFor = key;
+    loadGameStats($effectiveCodes).then(refreshGameQueue);
+  });
+
+  async function gradeUnrankedGames() {
+    if ($gameGradeBusy || !$connectCode) return;
+    gameGradeError = "";
+    try {
+      await runGameStatsBatch({
+        codes: $effectiveCodes,
+        primaryCode: $connectCode,
+        replayDirs: $replayDirs,
+      });
+    } catch (e: any) {
+      gameGradeError = e?.message ?? String(e);
+    }
+    await refreshGameQueue();
+  }
+
+  let gameGradeFilter = $state<"all" | "unranked" | "direct">("all");
+  let openGameKey = $state<string | null>(null);
+
+  // The same filter/sort/code-search controls the Ranked view has, with independent state —
+  // switching sub-tabs must not carry a "Fox only" filter into a list where it means something
+  // different. The controls themselves are GradeFilterBar.svelte, shared by both.
+  let gFilterLetter     = $state<string | null>(null);
+  let gFilterResult     = $state<ResultFilter>("all");
+  let gFilterPlayerChar = $state<string | null>(null);
+  let gFilterOppChar    = $state<string | null>(null);
+  let gFilterOppCode    = $state("");
+  let gSortMode         = $state<SortMode>("date-desc");
+
+  // Dropdown options come from the whole unranked set, not the mode-filtered slice, so picking
+  // "Direct" can't empty the character lists and strand a selection that's still applied.
+  let gameUniquePlayerChars = $derived([...new Set($unrankedGameGrades.map((e) => e.playerChar))].sort());
+  let gameUniqueOppChars    = $derived([...new Set($unrankedGameGrades.map((e) => e.opponentChar))].sort());
+  let gameUniqueOppCodes    = $derived(
+    [...new Set($unrankedGameGrades.map((e) => e.opponentCode))].filter(Boolean).sort()
+  );
+
+  let unrankedList = $derived((() => {
+    let h = $unrankedGameGrades.filter(
+      (e) => gameGradeFilter === "all" || e.matchType === gameGradeFilter
+    );
+    if (gFilterLetter     !== null)  h = h.filter((e) => e.grade?.letter === gFilterLetter);
+    // ⚠ Via gameOutcome, not a raw string compare: outside ranked a quit-out is neither a win
+    // nor a loss, and that rule must stay in the one place that owns it (outcome.ts).
+    if (gFilterResult     !== "all") h = h.filter((e) => gameOutcome(e.result, e.matchType) === gFilterResult);
+    if (gFilterPlayerChar !== null)  h = h.filter((e) => e.playerChar === gFilterPlayerChar);
+    if (gFilterOppChar    !== null)  h = h.filter((e) => e.opponentChar === gFilterOppChar);
+    if (gFilterOppCode.trim() !== "") {
+      const q = gFilterOppCode.trim().toLowerCase();
+      h = h.filter((e) => e.opponentCode.toLowerCase().includes(q));
+    }
+    const arr = [...h];
+    switch (gSortMode) {
+      case "date-desc":  arr.sort((a, b) => b.timestamp.localeCompare(a.timestamp)); break;
+      case "date-asc":   arr.sort((a, b) => a.timestamp.localeCompare(b.timestamp)); break;
+      case "score-desc": arr.sort((a, b) => (b.grade?.score ?? -1)  - (a.grade?.score ?? -1));  break;
+      case "score-asc":  arr.sort((a, b) => (a.grade?.score ?? 101) - (b.grade?.score ?? 101)); break;
+    }
+    return arr;
+  })());
+
+  let unrankedGraded = $derived(unrankedList.filter((e) => e.grade !== null));
+
   // A set counts as complete (gradeable) at first-to-2 games, OR when it ended in a
   // quit-out (LRAS forfeit) with at least one full game actually played — mirrors the
   // live watcher's completion rule so live-graded forfeit sets show + regrade here too.
@@ -125,11 +243,11 @@
   let showMethodology  = $state(false);
   let selectedMatchId  = $state<string | null>(null);
   let filterLetter     = $state<string | null>(null);
-  let filterResult     = $state<"all" | "win" | "loss">("all");
+  let filterResult     = $state<ResultFilter>("all");
   let filterPlayerChar = $state<string | null>(null);
   let filterOppChar    = $state<string | null>(null);
   let filterOppCode    = $state("");
-  let sortMode = $state<"date-desc" | "date-asc" | "score-desc" | "score-asc">("date-desc");
+  let sortMode = $state<SortMode>("date-desc");
 
   let uniquePlayerChars = $derived([...new Set(activeHistory.map((r) => r.playerChar))].sort());
   let uniqueOppChars    = $derived([...new Set(activeHistory.map((r) => r.opponentChar))].sort());
@@ -553,6 +671,26 @@
   </div>
 {/if}
 
+<!-- Ranked / Unranked sub-tabs. Outside the premium upsell above, which is about the feature
+     as a whole and applies to either side. -->
+<div style="display: flex; gap: 4px; margin-bottom: 12px">
+  {#each [["ranked", "Ranked"], ["unranked", "Unranked & Direct"]] as [id, label]}
+    <button
+      type="button"
+      onclick={() => { subTab = id as "ranked" | "unranked"; }}
+      style="
+        padding: 7px 18px; font-size: 13px; font-weight: 700; border-radius: 6px;
+        border: 1px solid {subTab === id ? '#7c3aed' : 'var(--border)'};
+        background: {subTab === id ? '#7c3aed22' : 'transparent'};
+        color: {subTab === id ? '#7c3aed' : 'var(--muted)'};
+        cursor: pointer; font-family: inherit;
+      "
+    >{label}</button>
+  {/each}
+</div>
+
+{#if subTab === "ranked"}
+
   <!-- Header -->
   <div class="card" style="margin-bottom: 16px">
     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap">
@@ -854,161 +992,21 @@
       </div>
     {/if}
 
-    <!-- Filter + sort controls -->
+    <!-- Filter + sort controls. Shared with the Unranked & Direct view so the two can't
+         drift apart — see GradeFilterBar.svelte. -->
     {#if !$gradeHistoryBusy}
-      {@const anyFilterActive = filterLetter !== null || filterResult !== "all" || filterPlayerChar !== null || filterOppChar !== null || filterOppCode.trim() !== ""}
-      <div class="card" style="padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
-
-        <!-- Grade filter group -->
-        <div>
-          <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em; margin-bottom: 6px">GRADE</div>
-          <div style="display: flex; gap: 3px">
-            <button
-              type="button"
-              onclick={() => filterLetter = null}
-              style="
-                padding: 4px 10px; font-size: 12px; font-weight: 700; border-radius: 4px;
-                border: 1px solid {filterLetter === null ? '#7c3aed' : 'var(--border)'};
-                background: {filterLetter === null ? '#7c3aed22' : 'transparent'};
-                color: {filterLetter === null ? '#7c3aed' : 'var(--muted)'};
-                cursor: pointer;
-              "
-            >ALL</button>
-            {#each ["S","A","B","C","D","F"] as letter}
-              <button
-                type="button"
-                onclick={() => filterLetter = filterLetter === letter ? null : letter}
-                style="
-                  padding: 4px 10px; font-size: 12px; font-weight: 800; border-radius: 4px;
-                  border: 1px solid {filterLetter === letter ? gc(letter) : 'var(--border)'};
-                  background: {filterLetter === letter ? gc(letter) + '22' : 'transparent'};
-                  color: {filterLetter === letter ? gc(letter) : 'var(--muted)'};
-                  cursor: pointer;
-                "
-              >{letter}</button>
-            {/each}
-          </div>
-        </div>
-
-        <div style="width: 1px; height: 36px; background: var(--border); flex-shrink: 0"></div>
-
-        <!-- Result filter group -->
-        <div>
-          <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em; margin-bottom: 6px">RESULT</div>
-          <div style="display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden">
-            {#each [["all","All"],["win","W"],["loss","L"]] as [val, label]}
-              <button
-                type="button"
-                onclick={() => filterResult = val as "all" | "win" | "loss"}
-                style="
-                  padding: 4px 12px; font-size: 12px; font-weight: 700; border: none;
-                  background: {filterResult === val ? (val === 'win' ? '#2ecc7133' : val === 'loss' ? '#e74c3c33' : '#7c3aed22') : 'transparent'};
-                  color: {filterResult === val ? (val === 'win' ? '#2ecc71' : val === 'loss' ? '#e74c3c' : '#7c3aed') : 'var(--muted)'};
-                  cursor: pointer;
-                "
-              >{label}</button>
-            {/each}
-          </div>
-        </div>
-
-        <!-- Character filters (only shown when relevant) -->
-        {#if uniquePlayerChars.length > 1 || uniqueOppChars.length > 0}
-          <div style="width: 1px; height: 36px; background: var(--border); flex-shrink: 0"></div>
-          <div>
-            <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em; margin-bottom: 6px">CHARACTER</div>
-            <div style="display: flex; gap: 6px">
-              {#if uniquePlayerChars.length > 1}
-                <select
-                  bind:value={filterPlayerChar}
-                  style="
-                    font-size: 12px; font-weight: 600; max-width: 140px;
-                    background: var(--bg); color: {filterPlayerChar ? 'var(--text)' : 'var(--muted)'};
-                    border: 1px solid {filterPlayerChar ? '#7c3aed' : 'var(--border)'}; border-radius: 4px;
-                    padding: 4px 8px; cursor: pointer;
-                  "
-                >
-                  <option value={null}>My Char</option>
-                  {#each uniquePlayerChars as char}
-                    <option value={char}>{char}</option>
-                  {/each}
-                </select>
-              {/if}
-              {#if uniqueOppChars.length > 0}
-                <select
-                  bind:value={filterOppChar}
-                  style="
-                    font-size: 12px; font-weight: 600; max-width: 140px;
-                    background: var(--bg); color: {filterOppChar ? 'var(--text)' : 'var(--muted)'};
-                    border: 1px solid {filterOppChar ? '#7c3aed' : 'var(--border)'}; border-radius: 4px;
-                    padding: 4px 8px; cursor: pointer;
-                  "
-                >
-                  <option value={null}>Opp Char</option>
-                  {#each uniqueOppChars as char}
-                    <option value={char}>{char}</option>
-                  {/each}
-                </select>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        <!-- Opponent connect-code search -->
-        <div style="width: 1px; height: 36px; background: var(--border); flex-shrink: 0"></div>
-        <div>
-          <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em; margin-bottom: 6px">OPPONENT CODE</div>
-          <input
-            type="text"
-            list="opp-code-list"
-            bind:value={filterOppCode}
-            placeholder="e.g. JOEY#870"
-            spellcheck="false"
-            autocomplete="off"
-            style="
-              font-size: 12px; font-weight: 600; width: 130px; box-sizing: border-box;
-              background: var(--bg); color: {filterOppCode ? 'var(--text)' : 'var(--muted)'};
-              border: 1px solid {filterOppCode ? '#7c3aed' : 'var(--border)'}; border-radius: 4px;
-              padding: 4px 8px; font-family: inherit;
-            "
-          />
-          <datalist id="opp-code-list">
-            {#each uniqueOppCodes as code}<option value={code}></option>{/each}
-          </datalist>
-        </div>
-
-        <!-- Sort + clear — pushed right -->
-        <div style="margin-left: auto; display: flex; align-items: flex-end; gap: 10px">
-          {#if anyFilterActive}
-            <button
-              type="button"
-              onclick={() => { filterLetter = null; filterResult = "all"; filterPlayerChar = null; filterOppChar = null; filterOppCode = ""; }}
-              style="
-                background: none; border: none; padding: 4px 0; margin-bottom: 1px;
-                font-size: 11px; color: var(--muted); cursor: pointer;
-                text-decoration: underline; text-underline-offset: 2px;
-                font-family: inherit;
-              "
-            >Clear filters</button>
-          {/if}
-          <div>
-            <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em; margin-bottom: 6px">SORT</div>
-            <select
-              bind:value={sortMode}
-              style="
-                font-size: 12px; font-weight: 600;
-                background: var(--bg); color: var(--muted);
-                border: 1px solid var(--border); border-radius: 4px;
-                padding: 4px 8px; cursor: pointer;
-              "
-            >
-              <option value="date-desc">Date ↓</option>
-              <option value="date-asc">Date ↑</option>
-              <option value="score-desc">Score ↓</option>
-              <option value="score-asc">Score ↑</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      <GradeFilterBar
+        bind:filterLetter
+        bind:filterResult
+        bind:filterPlayerChar
+        bind:filterOppChar
+        bind:filterOppCode
+        bind:sortMode
+        {uniquePlayerChars}
+        {uniqueOppChars}
+        {uniqueOppCodes}
+        codeListId="ranked-opp-codes"
+      />
     {/if}
 
     <!-- Results list with inline expansion -->
@@ -1016,7 +1014,7 @@
 
       <!-- Column headers -->
       <div style="
-        display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 20px;
+        display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 44px 44px 44px 20px;
         gap: 8px; padding: 10px 16px;
         font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em;
         border-bottom: 1px solid var(--border);
@@ -1027,6 +1025,9 @@
         <div>RESULT</div>
         <div style="text-align: right">SCORE</div>
         <div style="text-align: center">GR</div>
+        <div style="text-align: center">NEU</div>
+        <div style="text-align: center">PUN</div>
+        <div style="text-align: center">DEF</div>
         <div></div>
       </div>
 
@@ -1043,7 +1044,7 @@
             onclick={() => { selectedMatchId = selectedMatchId === r.matchId ? null : r.matchId; }}
             style="
               width: 100%; text-align: left; background: none; border: none;
-              display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 20px;
+              display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 44px 44px 44px 20px;
               align-items: center; gap: 8px;
               padding: 12px 16px;
               border-left: 3px solid {isSelected ? gc(letter) : 'transparent'};
@@ -1072,6 +1073,16 @@
             ">
               {letter ?? (r.error ? "?" : "…")}
             </div>
+            <!-- Category letters, same shape as the Unranked view and the By Matchup table.
+                 A dash means the category had no benchmarked stat with data, which is a real
+                 state and not an error. -->
+            {#each CATEGORY_ORDER as cat}
+              {@const c = r.grade?.categories?.[cat] ?? null}
+              <div style="
+                font-size: 14px; font-weight: 800; text-align: center;
+                color: {c?.letter ? gc(c.letter) : 'var(--muted)'};
+              ">{c?.letter ?? "—"}</div>
+            {/each}
             <div style="font-size: 11px; color: var(--muted); text-align: right; transition: transform 0.15s; transform: rotate({isSelected ? 180 : 0}deg)">
               ▾
             </div>
@@ -1120,3 +1131,262 @@
   {/if}
 
   {/if}<!-- end {:else} history view -->
+
+{:else}
+
+  <!-- Unranked & Direct: per-GAME grades, scored from stored `game_stats` rows.
+       Opening this tab costs only the scoring pass (~0.1s for a 15k corpus) — replays are read
+       once, by the explicit batch job below, never on open.
+       See docs/plans/per-game-grade-persistence.md. -->
+  <div class="card" style="margin-bottom: 16px">
+    <div class="section-title" style="margin-bottom: 6px">Unranked &amp; Direct grades</div>
+    <div style="font-size: 12px; color: var(--muted); line-height: 1.7; max-width: 700px">
+      Friendlies are graded <strong style="color: var(--text)">per game</strong>, not per set — in
+      unranked and direct play one match covers the whole connection with that opponent, so there
+      is no set to score. The win bonus is off here: these are practice games, not results.
+    </div>
+  </div>
+
+  <!-- Grade / progress bar -->
+  <div class="card" style="margin-bottom: 16px">
+    <div style="display: flex; align-items: center; gap: 26px; flex-wrap: wrap">
+      <div>
+        <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em">
+          GRADED
+        </div>
+        <div style="font-size: 30px; font-weight: 800; line-height: 1.25; font-variant-numeric: tabular-nums">
+          {unrankedGraded.length.toLocaleString()}
+        </div>
+        <div style="font-size: 11px; color: var(--muted)">
+          {#if gameQueueCount === null}
+            games scored
+          {:else if gameQueueCount > 0}
+            {gameQueueCount.toLocaleString()} not graded yet
+          {:else}
+            everything graded
+          {/if}
+        </div>
+      </div>
+
+      {#if $gameGradeBusy}
+        <div style="flex: 1; min-width: 240px">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px">
+            Reading replays… {$gameGradeProgress.current.toLocaleString()} of
+            {$gameGradeProgress.total.toLocaleString()}
+          </div>
+          <div style="height: 7px; background: var(--border); border-radius: 4px; overflow: hidden">
+            <div style="
+              height: 100%; background: #7c3aed; border-radius: 4px;
+              width: {$gameGradeProgress.total > 0
+                ? Math.round(($gameGradeProgress.current / $gameGradeProgress.total) * 100)
+                : 0}%;
+              transition: width 0.2s;
+            "></div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick={cancelGameGrading}
+          style="
+            padding: 9px 18px; font-size: 13px; font-weight: 700; font-family: inherit;
+            background: transparent; color: var(--muted);
+            border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+            flex-shrink: 0;
+          "
+        >Stop</button>
+      {:else}
+        <div style="flex: 1; min-width: 240px; font-size: 12px; color: var(--muted); line-height: 1.7">
+          Grading reads each replay once and stores the result, so this runs as a one-off job.
+          Afterwards, benchmark and scoring changes re-grade instantly without touching a replay.
+          <!-- The honest framing of the 30x gap in dev_notes: the work is ~9ms/game, the app
+               pays ~0.3s/game, and nobody has instrumented which layer eats it yet. -->
+          Expect it to take a while on a large history; you can stop and resume any time.
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; flex-shrink: 0">
+          <button
+            type="button"
+            disabled={!gameQueueCount}
+            onclick={gradeUnrankedGames}
+            style="
+              padding: 10px 20px; font-size: 13px; font-weight: 700; font-family: inherit;
+              background: #7c3aed; color: #fff; border: none; border-radius: 6px;
+              white-space: nowrap;
+              cursor: {gameQueueCount ? 'pointer' : 'default'};
+              opacity: {gameQueueCount ? 1 : 0.4};
+            "
+          >
+            {#if gameQueueCount === null}
+              Grade Games
+            {:else if gameQueueCount > 0}
+              Grade {gameQueueCount.toLocaleString()} Games
+            {:else}
+              All Graded
+            {/if}
+          </button>
+          {#if gameQueueCount}
+            <div style="font-size: 11px; color: var(--muted)">All dates, not just the filter</div>
+          {/if}
+        </div>
+      {/if}
+    </div>
+
+    <!-- Read failures are surfaced, never swallowed: fewer grades than the button promised is
+         otherwise indistinguishable from the job having worked. -->
+    {#if $gameGradeNote && !$gameGradeBusy}
+      <div style="margin-top: 12px; font-size: 12px; color: #e67e22">{$gameGradeNote}</div>
+    {/if}
+    {#if gameGradeError}
+      <div style="margin-top: 12px; font-size: 12px; color: #e74c3c">{gameGradeError}</div>
+    {/if}
+  </div>
+
+  {#if unrankedList.length === 0}
+    <div style="text-align: center; padding: 48px 24px; color: var(--muted); font-size: 13px">
+      {#if gameQueueCount}
+        Nothing graded yet — press <strong style="color: var(--text)">Grade</strong> above to score
+        your unranked and direct games.
+      {:else}
+        No unranked or direct games found.
+      {/if}
+    </div>
+  {:else}
+    <!-- Mode filter. Unranked and direct are different populations (direct is friendlies with
+         people you know, often on non-legal stages), so being able to separate them matters more
+         here than it does in ranked. -->
+    <div style="display: flex; gap: 6px; margin-bottom: 12px; align-items: center">
+      {#each [["all", "All"], ["unranked", "Unranked"], ["direct", "Direct"]] as [id, label]}
+        <button
+          type="button"
+          onclick={() => { gameGradeFilter = id as "all" | "unranked" | "direct"; openGameKey = null; }}
+          style="
+            padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 6px;
+            border: 1px solid {gameGradeFilter === id ? '#7c3aed' : 'var(--border)'};
+            background: {gameGradeFilter === id ? '#7c3aed22' : 'transparent'};
+            color: {gameGradeFilter === id ? '#7c3aed' : 'var(--muted)'};
+            cursor: pointer; font-family: inherit;
+          "
+        >{label}</button>
+      {/each}
+      <div style="margin-left: auto; font-size: 11px; color: var(--muted)">
+        {unrankedGraded.length.toLocaleString()} graded
+        {#if unrankedList.length > unrankedGraded.length}
+          · {(unrankedList.length - unrankedGraded.length).toLocaleString()} with no frame data
+        {/if}
+      </div>
+    </div>
+
+    <!-- Same controls as the Ranked view, independent state. allowNoResult because a quit-out
+         outside ranked counts as neither a win nor a loss, so those games would otherwise be
+         unreachable by any result filter. -->
+    <GradeFilterBar
+      bind:filterLetter={gFilterLetter}
+      bind:filterResult={gFilterResult}
+      bind:filterPlayerChar={gFilterPlayerChar}
+      bind:filterOppChar={gFilterOppChar}
+      bind:filterOppCode={gFilterOppCode}
+      bind:sortMode={gSortMode}
+      uniquePlayerChars={gameUniquePlayerChars}
+      uniqueOppChars={gameUniqueOppChars}
+      uniqueOppCodes={gameUniqueOppCodes}
+      allowNoResult={true}
+      codeListId="unranked-opp-codes"
+    />
+
+    <div class="card" style="padding: 0; overflow: hidden">
+      <!-- Column headers -->
+      <div style="
+        display: grid; grid-template-columns: 58px 1fr 1.1fr 46px 76px 44px 44px 44px 20px;
+        gap: 8px; padding: 10px 16px;
+        font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em;
+        border-bottom: 1px solid var(--border);
+      ">
+        <div>DATE</div>
+        <div>OPPONENT</div>
+        <div>MATCHUP</div>
+        <div style="text-align: center">W/L</div>
+        <div style="text-align: center">GRADE</div>
+        <div style="text-align: center">NEU</div>
+        <div style="text-align: center">PUN</div>
+        <div style="text-align: center">DEF</div>
+        <div></div>
+      </div>
+
+      {#each unrankedList.slice(0, 400) as e (e.filename)}
+        {@const isOpen = openGameKey === e.filename}
+        {@const d = new Date(e.timestamp)}
+        {@const won = e.result === "win" || e.result === "lras_win"}
+        <div style="border-bottom: 1px solid var(--border)">
+          <button
+            type="button"
+            disabled={e.grade === null}
+            onclick={() => { openGameKey = isOpen ? null : e.filename; }}
+            style="
+              width: 100%; text-align: left; background: none; border: none;
+              display: grid; grid-template-columns: 58px 1fr 1.1fr 46px 76px 44px 44px 44px 20px;
+              align-items: center; gap: 8px; padding: 11px 16px;
+              border-left: 3px solid {isOpen && e.grade ? gc(e.grade.letter) : 'transparent'};
+              background: {isOpen && e.grade ? `${gc(e.grade.letter)}0d` : 'transparent'};
+              cursor: {e.grade ? 'pointer' : 'default'};
+              font-family: inherit; color: var(--text);
+            "
+          >
+            <div style="font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums">
+              {d.getMonth() + 1}/{d.getDate()}
+            </div>
+            <div style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+              {e.opponentCode || "—"}
+              {#if e.matchType === "direct"}
+                <span style="font-size: 10px; color: var(--muted); font-weight: 700"> DIRECT</span>
+              {/if}
+            </div>
+            <div style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+              {e.playerChar} <span style="color: var(--muted)">vs</span> {e.opponentChar}
+            </div>
+            <!-- A quit-out outside ranked is "no result", not a loss (see outcome.ts) — so this
+                 column has three states, and blank is a real one. -->
+            <div style="text-align: center; font-size: 13px; font-weight: 700; color: {
+              e.result === 'win' ? '#2ecc71' : e.result === 'loss' ? '#e74c3c' : 'var(--muted)'
+            }">
+              {e.result === "win" ? "W" : e.result === "loss" ? "L" : "—"}
+            </div>
+            {#if e.grade}
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 1px">
+                <div style="
+                  font-size: 18px; font-weight: 800; line-height: 1; color: {gc(e.grade.letter)};
+                  {e.grade.letter === 'S' ? `text-shadow: 0 0 8px ${gc(e.grade.letter)}aa;` : ''}
+                ">{e.grade.letter}</div>
+                <div style="font-size: 10px; color: var(--muted)">{e.grade.score.toFixed(0)}</div>
+              </div>
+              {#each CATEGORY_ORDER as cat}
+                {@const c = e.grade.categories[cat]}
+                <div style="
+                  font-size: 14px; font-weight: 800; text-align: center;
+                  color: {c.letter ? gc(c.letter) : 'var(--muted)'};
+                ">{c.letter ?? "—"}</div>
+              {/each}
+              <div style="font-size: 11px; color: var(--muted); text-align: right; transition: transform 0.15s; transform: rotate({isOpen ? 180 : 0}deg)">▾</div>
+            {:else}
+              <div style="text-align: center; font-size: 11px; color: var(--muted)">—</div>
+              <div style="grid-column: span 3; font-size: 11px; color: var(--muted); text-align: center">
+                no frame data
+              </div>
+              <div></div>
+            {/if}
+          </button>
+
+          {#if isOpen && e.grade}
+            <div style="padding: 4px 16px 16px">
+              <SetGradeDisplay grade={e.grade} detailed={$isPremium} />
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+
+    {#if unrankedList.length > 400}
+      <div style="text-align: center; padding: 14px; font-size: 12px; color: var(--muted)">
+        Showing the 400 most recent of {unrankedList.length.toLocaleString()}.
+      </div>
+    {/if}
+  {/if}
+{/if}<!-- end ranked / unranked sub-tab -->

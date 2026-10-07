@@ -165,6 +165,22 @@ export interface ScanResult {
 //   2 — v1.8.12: direct-connect added
 export const PARSER_CAPABILITY_VERSION = 2;
 
+// Generation of the parser's STAT MATH, for stored per-game stats (`game_stats.stats_version`).
+// Bump this ONLY when a change alters the stat NUMBERS a replay produces — then every stored row
+// is wrong and has to be re-read (~75 min, ~50 GB for a 15k corpus).
+//
+// This is deliberately separate from GRADING_LOGIC_VERSION / BENCHMARKS_VERSION, which describe
+// how stats are SCORED. A benchmark rebuild or a weight tweak re-scores stored rows in ~0.1s
+// without touching a replay; conflating the two is what made every grading release a full
+// re-parse. See docs/plans/per-game-grade-persistence.md.
+//
+// ⚠ Getting this wrong is SILENT — stale stats score cleanly and look right. When in doubt,
+// bump it: the cost is time, the cost of not bumping it is wrong grades nobody can see are
+// wrong. `scripts/test_parity.py` is the existing guard on parser stat changes; keep it green.
+//   1 — GRADING_LOGIC_VERSION 8 era: parser-parity fixes (pre-GO frame sentinel,
+//       respawn-defense window, Nana final death)
+export const PARSER_STATS_VERSION = 1;
+
 let _scanCancelled = false;
 export function cancelScan() { _scanCancelled = true; }
 

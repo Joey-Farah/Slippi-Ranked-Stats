@@ -147,6 +147,64 @@ async function initSchema(db: Database) {
       breakdown_json   TEXT NOT NULL
     )
   `);
+
+  // Per-game parser STATS — not per-game grades. Storing the stats and deriving the grade is
+  // what makes a benchmark-only release cheap: re-scoring 15k rows is ~0.1s, while re-parsing
+  // their replays is ~75 min and ~50 GB of reads. See docs/plans/per-game-grade-persistence.md.
+  //
+  // Lives here, beside `games` and `set_grades`, because a row is about ONE row of `games` —
+  // keyed to its filename, carrying its result, meaningless without it. (Contrast scanned.db,
+  // shared because a scan mark is about a file, and notes.db, shared because a note is about a
+  // person.)
+  //
+  // ⚠ Keyed on `filename` (the basename), never `filepath` — filepath is absolute and captured
+  // at scan time, and a folder reorganisation already destroyed 211 graded sets once.
+  // ⚠ A NULL stat means "not applicable" (comeback_rate when never behind, etc.), NEVER
+  // "not computed". Not-computed is the absence of the row.
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS game_stats (
+      filename        TEXT PRIMARY KEY,
+      match_id        TEXT NOT NULL,
+      game_timestamp  TEXT NOT NULL,
+      match_type      TEXT NOT NULL,
+      player_char     TEXT NOT NULL,
+      opponent_char   TEXT NOT NULL,
+      opponent_code   TEXT NOT NULL,
+      result          TEXT NOT NULL,
+      stage_id        INTEGER NOT NULL,
+      duration_frames INTEGER NOT NULL,
+      kills           INTEGER,
+      deaths          INTEGER,
+      stats_version   INTEGER NOT NULL,
+      parsed_at       TEXT NOT NULL,
+      openings_per_kill       REAL,
+      damage_per_opening      REAL,
+      neutral_win_ratio       REAL,
+      counter_hit_rate        REAL,
+      inputs_per_minute       REAL,
+      l_cancel_ratio          REAL,
+      avg_kill_percent        REAL,
+      avg_death_percent       REAL,
+      defensive_option_rate   REAL,
+      opening_conversion_rate REAL,
+      stage_control_ratio     REAL,
+      lead_maintenance_rate   REAL,
+      tech_chase_rate         REAL,
+      edgeguard_success_rate  REAL,
+      hit_advantage_rate      REAL,
+      recovery_success_rate   REAL,
+      avg_stock_duration      REAL,
+      respawn_defense_rate    REAL,
+      comeback_rate           REAL,
+      wavedash_miss_rate      REAL
+    )
+  `);
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_game_stats_ts ON game_stats (game_timestamp)`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_game_stats_version ON game_stats (stats_version)`
+  );
 }
 
 // ── Games ──────────────────────────────────────────────────────────────────
@@ -502,6 +560,93 @@ export async function getAllSetGrades(db: Database): Promise<SetGradeRow[]> {
 
 export async function deleteSetGrade(db: Database, matchId: string): Promise<void> {
   await db.execute(`DELETE FROM set_grades WHERE match_id = $1`, [matchId]);
+}
+
+// ── Per-game stats ─────────────────────────────────────────────────────────
+
+/** The 20 parser stat columns, in the order the INSERT binds them. Exported because the batch
+ *  job builds its rows from `LiveGameStats`, whose field names these deliberately mirror
+ *  one-for-one — a rename on either side has to be a rename on both. */
+export const GAME_STAT_FIELDS = [
+  "openings_per_kill", "damage_per_opening", "neutral_win_ratio", "counter_hit_rate",
+  "inputs_per_minute", "l_cancel_ratio", "avg_kill_percent", "avg_death_percent",
+  "defensive_option_rate", "opening_conversion_rate", "stage_control_ratio",
+  "lead_maintenance_rate", "tech_chase_rate", "edgeguard_success_rate",
+  "hit_advantage_rate", "recovery_success_rate", "avg_stock_duration",
+  "respawn_defense_rate", "comeback_rate", "wavedash_miss_rate",
+] as const;
+
+export type GameStatField = (typeof GAME_STAT_FIELDS)[number];
+
+export type GameStatsRow = {
+  filename:        string;
+  match_id:        string;
+  game_timestamp:  string;
+  match_type:      string;
+  player_char:     string;
+  opponent_char:   string;
+  opponent_code:   string;
+  result:          string;
+  stage_id:        number;
+  duration_frames: number;
+  kills:           number | null;
+  deaths:          number | null;
+  stats_version:   number;
+  parsed_at:       string;
+} & { [K in GameStatField]: number | null };
+
+const GAME_STATS_COLUMNS = [
+  "filename", "match_id", "game_timestamp", "match_type",
+  "player_char", "opponent_char", "opponent_code", "result",
+  "stage_id", "duration_frames", "kills", "deaths",
+  "stats_version", "parsed_at",
+  ...GAME_STAT_FIELDS,
+] as const;
+
+/** Chunked upsert. Chunk size matches `markFilesScanned` — a kill mid-run costs at most one
+ *  chunk of work, and the queue is defined as "no row at the current stats_version", so there
+ *  is no checkpoint to reconcile afterwards. */
+export async function saveGameStats(db: Database, rows: GameStatsRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  const cols = GAME_STATS_COLUMNS;
+  const CHUNK = 100; // 100 rows x 34 cols = 3,400 binds, comfortably under SQLite's limit
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const placeholders = chunk
+      .map((_, r) => `(${cols.map((_c, c) => `$${r * cols.length + c + 1}`).join(",")})`)
+      .join(",");
+    const values = chunk.flatMap((row) => cols.map((c) => (row as any)[c] ?? null));
+    await db.execute(
+      `INSERT OR REPLACE INTO game_stats (${cols.join(",")}) VALUES ${placeholders}`,
+      values
+    );
+  }
+}
+
+/** Filenames that already have stats at this parser generation — i.e. the ones the batch job
+ *  can skip. Rows at an older `stats_version` are deliberately NOT returned: a parser stat
+ *  change has to re-read them. */
+export async function getCurrentGameStatsFilenames(
+  db: Database,
+  statsVersion: number
+): Promise<Set<string>> {
+  const rows = await db.select<{ filename: string }[]>(
+    `SELECT filename FROM game_stats WHERE stats_version = $1`,
+    [statsVersion]
+  );
+  return new Set(rows.map((r) => r.filename));
+}
+
+/** All stored per-game stats, newest first. Scoring happens in memory from these rows —
+ *  measured at ~0.1s for a 15k-row corpus, which is why no score is stored. */
+export async function getAllGameStats(db: Database): Promise<GameStatsRow[]> {
+  return db.select<GameStatsRow[]>(
+    `SELECT * FROM game_stats ORDER BY game_timestamp DESC`
+  );
+}
+
+export async function clearGameStats(db: Database): Promise<void> {
+  await db.execute(`DELETE FROM game_stats`);
 }
 
 // ── Notes ──────────────────────────────────────────────────────────────────
