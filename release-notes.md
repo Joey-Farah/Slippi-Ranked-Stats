@@ -1,3 +1,21 @@
+## What's New in v1.12.1
+
+Includes everything from v1.12.0, which went out earlier today — see below.
+
+### 🎮 Grades for friendlies on the stream overlay
+
+Unranked and direct games already got a grade in the app. Now they show on the overlay too, right after each game, the same way a ranked set's grade does.
+
+It says **GAME GRADE** rather than SET, shows your running game count, and holds for about 20 seconds before going back to the opponent line. A game that ended in a quit-out shows **NO RESULT** instead of a win or a loss.
+
+There's a separate **Post-game grade** toggle for it, so you can have ranked grades on stream without friendly grades — they come up a lot more often.
+
+### 📈 Grade distribution for friendlies
+
+The Unranked & Direct view now has the same summary the Ranked view does: how many of each
+letter you've got, the spread, and your overall average. It counts games rather than sets,
+and follows whatever filters you've set.
+
 ## What's New in v1.12.0
 
 ### 📊 Grades for your unranked and direct games
