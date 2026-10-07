@@ -71,7 +71,7 @@ describe("live session records", () => {
     liveGameStats.set(run);
 
     expect(await read(liveSetRecord)).toEqual({ wins: 0, losses: 0, total: 0 });
-    expect(await read(liveUnrankedRecord)).toEqual({ wins: 9, losses: 3, total: 12 });
+    expect(await read(liveUnrankedRecord)).toEqual({ wins: 9, losses: 3, total: 12, noResult: 0 });
   });
 
   it("counts direct games and keeps the two records separate", async () => {
@@ -85,10 +85,13 @@ describe("live session records", () => {
       game("u1", "unranked", "loss"),
     ]);
     expect(await read(liveSetRecord)).toEqual({ wins: 1, losses: 0, total: 1 });
-    expect(await read(liveUnrankedRecord)).toEqual({ wins: 2, losses: 2, total: 4 });
+    expect(await read(liveUnrankedRecord)).toEqual({ wins: 2, losses: 2, total: 4, noResult: 0 });
   });
 
-  it("treats a forfeit win as a win in both records", async () => {
+  it("counts a forfeit as a win in ranked, but as no result in direct/unranked", async () => {
+    // Changed 2026-10-06. A ranked quit-out is a real forfeit and Slippi scores it as a win.
+    // Outside ranked it is just how people end a game or return to character select, and
+    // counting it made a 2–2 friendlies session read as 4–2.
     const { liveGameStats, liveSetRecord, liveUnrankedRecord } = await import("./store");
     liveGameStats.set([
       game("r1", "ranked", "win"),
@@ -96,6 +99,6 @@ describe("live session records", () => {
       game("d1", "direct", "lras_win"),
     ]);
     expect(await read(liveSetRecord)).toEqual({ wins: 1, losses: 0, total: 1 });
-    expect(await read(liveUnrankedRecord)).toEqual({ wins: 1, losses: 0, total: 1 });
+    expect(await read(liveUnrankedRecord)).toEqual({ wins: 0, losses: 0, total: 0, noResult: 1 });
   });
 });
