@@ -175,12 +175,37 @@ hand-off mechanism between work sessions and across machines.
 > ~28% of the pool. Also sound: neutral win, opening conversion, stage control, attribution
 > direction, inverted-stat directions, matchup orientation, filters, percentile math.
 >
-> **⏸ Awaiting Joey — tie-aware scoring (planned slice 7, NOT built).** Discrete stats pile up on
-> exact values (tech chase 0 at p25 in 467/569 matchups; respawn defense p50=1.0), and
-> `percentileScore` scores a tied 0 as 0. A mid-rank fix is fair but (a) a 0 shared by 35% of the
-> pool still scores ~17 = F, so it won't rescue the Puff edgeguard case, and (b) applied at the
-> ceiling it would cut a flawless respawn rate from 100 to ~70, reversing v1.8.9's "flawless ⇒
-> 100". Needs a decision; tie fractions are a regen-time query, so it does not block the rescan.
+> **⏸ DEFERRED — tie-aware scoring. Joey's call 2026-10-06: "it's fine for now", revisit for the
+> release AFTER v1.10.0.** Not a defect; a scoring-philosophy question.
+>
+> **The problem:** discrete stats pile up on exact values, and `percentileScore` scores a tied
+> value at the BOTTOM of the tied group rather than the middle of it. Measured on the NEW
+> (v1.10.0) benchmarks, over 636 matchup buckets:
+> | | buckets | share |
+> |---|---|---|
+> | `tech_chase_rate` p25 == 0 | 516 | 81% |
+> | `respawn_defense_rate` p50 == 1.0 | 567 | 89% |
+> | `edgeguard_success_rate` p25 == 0 | 77 | 12% |
+>
+> So in 81% of matchups at least a quarter of the pool tech-chased 0 times in the set; scoring 0
+> there is scored as worse than all of them rather than equal to them.
+>
+> **Why it is not obviously worth doing — both still true against the new pool:**
+> - A 0 shared by 35% of the pool mid-ranks to ~17, still an F. It would NOT have rescued the
+>   Falco-vs-Puff case (which turned out not to be a scoring problem at all — see above).
+> - Applied at the ceiling it reverses v1.8.9's "flawless ⇒ 100": with `respawn_defense_rate`
+>   p50 = 1.0 in 89% of matchups, a perfect set mid-ranks to ~70.
+>
+> **Three options, recommendation first:**
+> 1. **Mid-rank at the floor only, keep the saturated-ceiling rule.** Asymmetric but preserves
+>    both intuitions — ties at 0 stop being scored as dead last, flawless still scores 100.
+> 2. Leave it (where it stands now).
+> 3. Full mid-rank — statistically consistent, but deliberately undoes flawless ⇒ 100.
+>
+> **⚠ Cost depends on a file that is NOT in git.** It needs tie fractions (what share of each
+> bucket sits exactly at the floor / ceiling) stored in the benchmarks, which is a **query over
+> `scripts/raw_stats_v2.sqlite` — minutes, NO rescan**. That sidecar is multi-GB, gitignored and
+> lives only on the Windows machine. **Delete it and this becomes another ~20-hour rescan.**
 >
 > **How to test on the replay machine:** `git fetch && git checkout fix/grading-parity`,
 > `npm install`, `npm test`, `npm run tauri dev` → Grade History shows every grade stale (v8) →
