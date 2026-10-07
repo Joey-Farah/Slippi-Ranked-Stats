@@ -9,7 +9,7 @@
   import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier, isLegalStage } from "../../lib/parser";
   import { RANK_MEDAL_SVGS } from "../../lib/rank-medals";
-  import { gradeColor, gradeGame } from "../../lib/grading";
+  import { gradeColor, gradeGame, featuredCategory, type FeaturedGrade } from "../../lib/grading";
   import { elapsedMs, formatElapsed } from "../../lib/session-timer";
   import { simulateLiveSession, clearLiveSimulation } from "../../lib/dev-session-sim";
 
@@ -211,6 +211,19 @@
     return [...map.entries()];
   })());
 
+  // Grade of the most recently finished game, with the same BEST/WORST sub-grade a completed
+  // ranked set gets. This is the whole point of per-game grading in unranked/direct: those runs
+  // never "complete", so without it a friendlies session produces no grade feedback at all.
+  let lastGameReveal = $derived((() => {
+    const games = lastMatch?.[1] ?? [];
+    const g = games.at(-1);
+    if (!g) return null;
+    const grade = gameGrade(g);
+    if (!grade) return null;
+    const won = g.result === "win" || g.result === "lras_win";
+    return { grade, won, featured: featuredCategory(grade, won), index: games.length };
+  })());
+
   // Most recent match
   let lastMatch = $derived(statsByMatch.at(-1));
 
@@ -288,15 +301,35 @@
   }
 </script>
 
-{#snippet gradeRevealCard(letter: string, subtitle?: string)}
-  {#key letter}
+{#snippet gradeRevealCard(
+  letter: string,
+  subtitle?: string,
+  title: string = "Last Set Grade",
+  featured: FeaturedGrade | null = null,
+  won: boolean = true,
+  hint: string = "Check the Grading tab for a full breakdown.",
+)}
+  {#key letter + (subtitle ?? "")}
     <div class="grade-reveal">
-      <div class="grade-reveal-label">Last Set Grade</div>
+      <div class="grade-reveal-label">{title}</div>
       {#if subtitle}
         <div style="font-size:11px; color:var(--muted); margin-bottom:6px">{subtitle}</div>
       {/if}
       <div class="grade-reveal-letter" style="color: {gradeColor(letter)}">{letter}</div>
-      <div class="grade-reveal-hint">Check the Grading tab for a full breakdown.</div>
+      <!-- Same BEST-on-win / WORST-on-loss sub-grade the OBS overlay shows after a set, down to
+           the caption wording, so the two never disagree about what stood out. -->
+      {#if featured}
+        <div style="font-size:11px; color:var(--muted); margin-top:2px">
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.06em; opacity:0.75; margin-right:5px">
+            {won ? "BEST" : "WORST"}
+          </span>
+          {featured.stat?.label ?? featured.label}:
+          <span style="font-weight:700; color:{gradeColor(featured.stat?.letter ?? featured.letter)}">
+            {featured.stat?.letter ?? featured.letter}
+          </span>
+        </div>
+      {/if}
+      <div class="grade-reveal-hint">{hint}</div>
     </div>
   {/key}
 {/snippet}
@@ -817,7 +850,21 @@
       {#if complete && $lastSetGrade}
         {@render gradeRevealCard(
           $lastSetGrade.letter,
-          `vs ${allGames[0].opponent_code} · ${$lastSetGrade.setResult === "win" ? "Win" : "Loss"} ${$lastSetGrade.wins}–${$lastSetGrade.losses}`
+          `vs ${allGames[0].opponent_code} · ${$lastSetGrade.setResult === "win" ? "Win" : "Loss"} ${$lastSetGrade.wins}–${$lastSetGrade.losses}`,
+          "Last Set Grade",
+          featuredCategory($lastSetGrade, $lastSetGrade.setResult === "win"),
+          $lastSetGrade.setResult === "win",
+        )}
+      {:else if lastGameReveal}
+        <!-- No completed set: an unranked/direct run has no end, and a ranked set is still in
+             progress. Grade the game that just finished instead. -->
+        {@render gradeRevealCard(
+          lastGameReveal.grade.letter,
+          `Game ${lastGameReveal.index} · ${lastGameReveal.won ? "Win" : "Loss"} vs ${allGames[0].opponent_code}`,
+          "Last Game Grade",
+          lastGameReveal.featured,
+          lastGameReveal.won,
+          "Scored on how you played — the win bonus doesn't apply to a single game.",
         )}
       {/if}
     {/if}

@@ -71,3 +71,30 @@ describe("gradeGame", () => {
     expect(s.winBonus).toBe(5);
   });
 });
+
+describe("featuredCategory on a single game", () => {
+  it("picks the BEST stat on a win and the WORST on a loss", async () => {
+    const { gradeGame, featuredCategory } = await import("./grading");
+    // Strong punish, weak defense — the same game read two ways.
+    const g = gradeGame(game({
+      openings_per_kill: 3, damage_per_opening: 45, avg_kill_percent: 80,
+      avg_death_percent: 60, recovery_success_rate: 0.3, avg_stock_duration: 1200,
+    }), "Falco", "Fox");
+    const best = featuredCategory(g, true);
+    const worst = featuredCategory(g, false);
+    expect(best).not.toBeNull();
+    expect(worst).not.toBeNull();
+    // They must not be the same pick, or the BEST/WORST caption is meaningless.
+    expect(best!.label).not.toBe(worst!.label);
+    expect(best!.label).toBe("Punish");
+    expect(worst!.label).toBe("Defense");
+  });
+
+  it("returns a stat within the chosen category, not just the category", async () => {
+    const { gradeGame, featuredCategory } = await import("./grading");
+    const f = featuredCategory(gradeGame(game(), "Falco", "Fox"), true);
+    expect(f?.stat).not.toBeNull();
+    expect(typeof f?.stat?.label).toBe("string");
+    expect("SABCDF").toContain(f!.stat!.letter);
+  });
+});
