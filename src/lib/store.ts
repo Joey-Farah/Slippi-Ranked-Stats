@@ -150,7 +150,9 @@ export interface OverlayVisibility {
   season: boolean;       // season W/L
   today: boolean;        // today's session W/L record
   opponent: boolean;     // opponent scouting line during a set
-  grade: boolean;        // post-set grade letter (+ standout stat)
+  grade: boolean;        // post-set grade letter (+ standout stat) — RANKED
+  gameGrade: boolean;    // post-GAME grade for unranked/direct. Its own toggle because it
+                         // fires every ~2 min, not once per set.
   setResult: boolean;    // post-set result line (SET WON/LOST · score · vs opp)
   setRating: boolean;    // post-set "THIS SET" rating change (independent of the live Rating toggle)
   inputs: boolean;       // live controller input viewer (reads Dolphin's memory; Windows only)
@@ -158,7 +160,7 @@ export interface OverlayVisibility {
 export const OVERLAY_VISIBILITY_DEFAULT: OverlayVisibility = {
   tag: true, medal: true, rank: true, mmr: true, sessionDelta: true,
   global: true, season: true, today: true, opponent: true, grade: true,
-  setResult: true, setRating: true,
+  setResult: true, setRating: true, gameGrade: true,
   // Off by default, unlike every other element. It is the only one that needs a second process
   // (Dolphin) plus a localhost socket, so it should be a thing you turn on, not a thing that
   // silently fails for everyone who isn't running Melee.
@@ -356,7 +358,12 @@ export const setResultFlash = writable<SetResultFlash | null>(null);
 // once the refetched rating differs. Not persisted — null on a fresh launch.
 export interface OverlaySetResult {
   setId: number;
-  result: "win" | "loss";
+  /** ⚠ "none" is reachable only outside ranked, where a quit-out counts as neither a win nor a
+   *  loss (see outcome.ts). The overlay must not claim a result in that case. */
+  result: "win" | "loss" | "none";
+  /** True when this entry is one GAME (unranked/direct) rather than a completed set. Drives the
+   *  wording and suppresses the Rating line, since friendlies don't move Rating. */
+  perGame?: boolean;
   wins: number;
   losses: number;
   opponentCode: string;

@@ -3,7 +3,7 @@ import { parseSlpHeader, type SlpHeaderInfo } from "./slp_parser";
 import { get } from "svelte/store";
 import type Database from "@tauri-apps/plugin-sql";
 import { parseSlpFile, getRankTier, isLegalStage, type ParsedGameRow } from "./parser";
-import { tallyOutcomes } from "./outcome";
+import { tallyOutcomes, gameOutcome } from "./outcome";
 import {
   insertGame,
   getGames,
@@ -40,7 +40,7 @@ import {
 } from "./store";
 import { CHARACTERS } from "./parser";
 import { syncOpponentTag } from "./notes";
-import { gradeSet, featuredCategory, GRADE_VERSION } from "./grading";
+import { gradeSet, gradeGame, featuredCategory, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
 import { pingTelemetry } from "./telemetry";
 
@@ -544,6 +544,55 @@ async function handleLiveGame(
   // Unranked/direct runs never "complete", so they need an idle timeout to stop showing a
   // stale opponent once the players part ways. Re-armed on every game in the run.
   if (!isRanked) armIdleClear(g.match_id);
+
+  // Outside ranked there is no set to complete, so the overlay's post-set bridge never fired and
+  // friendlies showed no grade on stream — even though v1.11.0 computes one and shows it in the
+  // app. Publish a per-GAME entry instead, after every game.
+  //
+  // ⚠ Deliberately NOT routed through the isComplete path: that one is set-shaped. It refetches
+  // Rating (which friendlies never move, and a phantom refetch writes junk snapshots — see
+  // scheduleSnapshotFetch), writes set_grades, and assumes a win or a loss. None of that holds
+  // for one unranked game.
+  if (!isRanked) {
+    try {
+      const stats = get(liveGameStats).find(
+        (x) => x.match_id === g.match_id && x.timestamp === g.timestamp
+      );
+      // avg_stock_duration === null means the replay held no frames; non-legal stages aren't
+      // benchmarked. Both are "no grade", not "grade of zero".
+      if (stats && stats.avg_stock_duration !== null && isLegalStage(stats.stage_id)) {
+        const playerCharName   = CHARACTERS[g.player_char_id]   ?? "Unknown";
+        const opponentCharName = CHARACTERS[g.opponent_char_id] ?? "Unknown";
+        const grade = gradeGame(stats, playerCharName, opponentCharName);
+        const hasRealData = Object.values(grade.categories).some((c) => c.score !== null);
+        if (hasRealData) {
+          const outcome = gameOutcome(g.result, mode);
+          const featured = featuredCategory(grade, outcome === "win");
+          lastOverlaySet.set({
+            setId: Date.now(),
+            result: outcome,
+            // The run's running game tally, not a set score — these are games, never summed
+            // with sets.
+            wins,
+            losses,
+            opponentCode: g.opponent_code,
+            opponentChar: opponentCharName,
+            opponentCharId: internalToExternal(g.opponent_char_id),
+            // null: friendlies don't move Rating, so there is no change to show.
+            ratingBefore: null,
+            gradeLetter: grade.letter,
+            perGame: true,
+            subLabel: featured?.label ?? null,
+            subLetter: featured?.letter ?? null,
+            subStatLabel: featured?.stat?.label ?? null,
+            subStatLetter: featured?.stat?.letter ?? null,
+          });
+        }
+      }
+    } catch {
+      // A failed grade must never stop the live card updating.
+    }
+  }
 
   // Rebuild the whole card for a genuinely new match, and also when an unranked/direct run is
   // no longer the one on screen — the idle timeout clears a quiet run, but the players may just

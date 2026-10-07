@@ -266,6 +266,7 @@ function overlayDoc(boot: string): string {
   <script>
     var POLL_MS = 500;
     var POSTSET_MS = 180000; // hold the set result + grade until the next set starts or 3 min passes
+    var PERGAME_MS = 20000;  // unranked/direct: show the game grade, then back to the opponent line
 
     var GRADE_COLORS = { S: "#FF1493", A: "#00C853", B: "#00B0FF", C: "#FFC400", D: "#FF7300", F: "#FF1744" };
     var MEDALS = ${MEDALS_JSON};
@@ -320,10 +321,11 @@ function overlayDoc(boot: string): string {
       if (postSet && postSetData) {
         var won = postSetData.result === "win";
         var gradeEl = "", subEl = "";
-        if (postSetData.gradeLetter && vis(s, "grade")) {
+        if (postSetData.gradeLetter && vis(s, postSetData.perGame ? "gameGrade" : "grade")) {
           var gc = GRADE_COLORS[postSetData.gradeLetter] || "#fff";
           var cls = (animatedSetId === postSetData.setId) ? "grade" : "grade show";
-          gradeEl = '<div class="gradewrap"><div class="gradelabel">SET GRADE</div><div class="' + cls + '" style="color:' + gc + '">' + esc(postSetData.gradeLetter) + "</div></div>";
+          var gLabel = postSetData.perGame ? "GAME GRADE" : "SET GRADE";
+          gradeEl = '<div class="gradewrap"><div class="gradelabel">' + gLabel + '</div><div class="' + cls + '" style="color:' + gc + '">' + esc(postSetData.gradeLetter) + "</div></div>";
           // Standout individual stat — best on a win, worst on a loss. Sits to the RIGHT of the
           // grade letter (its own column) so the wide post-set area fills out horizontally. We
           // drop the category name (Neutral/Punish/Defense); the specific stat is the interesting
@@ -338,7 +340,13 @@ function overlayDoc(boot: string): string {
         }
         // Set result line + opponent — gated together by the "setResult" toggle.
         var setResultOn = vis(s, "setResult");
-        var resEl = setResultOn ? '<div class="setresult" style="color:' + (won ? "#2ecc71" : "#ff4d4f") + '">' + (won ? "SET WON" : "SET LOST") + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>" : "";
+        // Unranked/direct entries are one GAME, and a quit-out there is neither a win nor a
+        // loss — so the wording changes and "none" states no result rather than guessing one.
+        var noRes = postSetData.result === "none";
+        var unit = postSetData.perGame ? "GAME" : "SET";
+        var resTxt = noRes ? "NO RESULT" : (won ? unit + " WON" : unit + " LOST");
+        var resCol = noRes ? "#9aa0a6" : (won ? "#2ecc71" : "#ff4d4f");
+        var resEl = setResultOn ? '<div class="setresult" style="color:' + resCol + '">' + resTxt + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>" : "";
         // Opponent char as a stock icon (the char they played this set); text name as fallback.
         var vsChar = charsHtml(postSetData.opponentCharId != null ? [postSetData.opponentCharId] : []);
         var vsTail = vsChar ? " " + vsChar : (postSetData.opponentChar ? " · " + esc(postSetData.opponentChar) : "");
@@ -843,20 +851,27 @@ function overlayDoc(boot: string): string {
       latest = s;
       syncInputStream(s);
       if (firstApply) { firstApply = false; if (s && s.lastSet) shownSetId = s.lastSet.setId; }
-      if (s && s.opponent) {
-        // a new ranked set is live — drop the post-set hold
-        if (postSet) endPostSet();
+      // A per-game entry is gated by its own toggle: it fires every couple of minutes in
+      // friendlies, which is a different proposition from once per ranked set.
+      var entryAllowed = s && s.lastSet && (!s.lastSet.perGame || vis(s, "gameGrade"));
+      if (entryAllowed && s.lastSet.setId !== shownSetId) {
+        // A new entry: a ranked set completed, or an unranked/direct GAME finished. This has to
+        // be checked FIRST — in unranked the opponent card stays up for the whole run, so the
+        // old "opponent present => drop the bridge" branch dismissed every per-game grade before
+        // it could render.
+        shownSetId = s.lastSet.setId;
+        postSet = true; postSetData = s.lastSet;
+        clearTimeout(holdTimer);
+        // Per-game holds briefly then returns to the opponent line; contextHtml shows the bridge
+        // INSTEAD of the opponent, and in unranked you are still playing that person.
+        holdTimer = setTimeout(endPostSet, s.lastSet.perGame ? PERGAME_MS : POSTSET_MS);
+      } else if (s && s.opponent && postSet && postSetData && !postSetData.perGame) {
+        // a new ranked set is live — drop the stale set bridge
+        endPostSet();
       } else if (postSet && (!s || !s.lastSet)) {
         // the app cleared the completed set (a new game/set is starting) — dismiss the bridge
         // early so the next set takes priority, even while the 3-min hold would otherwise run.
         endPostSet();
-      } else if (s && s.lastSet && s.lastSet.setId !== shownSetId) {
-        // a set just completed — hold the result + grade until the next set or POSTSET_MS.
-        // (The MMR climb still shows live in the Today's block once the rating refetches.)
-        shownSetId = s.lastSet.setId;
-        postSet = true; postSetData = s.lastSet;
-        clearTimeout(holdTimer);
-        holdTimer = setTimeout(endPostSet, POSTSET_MS);
       }
       render();
     }

@@ -189,6 +189,35 @@ terminator at index 23, so an unrelated device on the same VID/PID can never be 
 
 **Reference art:** the replaced viewer's PNGs were used briefly to measure layout and then
 **deleted** — they are not ours to ship. Nothing third-party is bundled; all shapes are CSS/SVG.
+### 3b. Per-game grade on the OBS overlay (v1.12.1)
+
+v1.11.0 gave unranked/direct a per-game grade **in the app**, but the overlay never showed one:
+everything that drives the post-set bridge sits inside `isComplete`, which is
+`isRanked && ...` in `watcher.ts`. That gate predates per-game grading and was simply never
+revisited. Streaming friendlies showed rank and inputs but never a grade.
+
+Fixed by publishing a **per-game** `lastOverlaySet` entry after every non-ranked game.
+⚠ Deliberately NOT routed through `isComplete`: that path is set-shaped — it refetches Rating
+(which friendlies never move, and a phantom refetch writes junk snapshots), writes `set_grades`,
+and assumes a win or a loss.
+
+⚠⚠ **The watcher change alone did nothing, and the real bug was in the overlay page:**
+
+```js
+if (s && s.opponent) { if (postSet) endPostSet(); }   // ran FIRST
+```
+
+In unranked the opponent card stays up for the entire run, so `s.opponent` is always truthy —
+that branch matched every time and dismissed the bridge before the branch that displays it could
+run. Correct for ranked (where `activeSet` is cleared on completion), fatal for per-game.
+`apply()` now checks for a NEW `setId` first, and only drops a bridge on opponent-present when the
+entry is a set.
+
+Other per-game differences: `OverlaySetResult.result` gained `"none"` (a quit-out outside ranked
+is neither), a `perGame` flag switches the wording to GAME / "GAME GRADE", `ratingBefore` is null,
+and the hold is **20 s** (`PERGAME_MS`) not 3 min — `contextHtml` renders the bridge INSTEAD of the
+opponent line, and you are still playing that person.
+
 ### 4. Still open
 
 - **Tie-aware scoring** — undecided. ⚠ Needs `scripts/raw_stats_v2.sqlite` (0.87 GB, gitignored,

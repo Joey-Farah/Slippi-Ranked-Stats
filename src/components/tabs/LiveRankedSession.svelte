@@ -75,6 +75,7 @@
     { key: "today",        label: "Today's W/L" },
     { key: "opponent",     label: "Opponent line" },
     { key: "grade",        label: "Post-set grade" },
+    { key: "gameGrade",    label: "Post-game grade" },
     { key: "setResult",    label: "Set result" },
     { key: "setRating",    label: "Set Rating change" },
     // Last in the row because it is the only element that depends on something outside the app
