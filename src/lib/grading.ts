@@ -406,14 +406,13 @@ function averageSetStats(games: LiveGameStats[]): Record<string, number | null> 
  * twice. Grading per game sidesteps it entirely — the stat math was never set-specific, it runs
  * on per-game parser output.
  *
- * Two set-level adjustments are deliberately off:
- *  - **No win bonus.** Over a set, +5 reads as a difficulty premium on the win. On one game it is
- *    half a letter of swing from the result alone, which wrecks the thing this view is for —
- *    comparing your games against each other inside one run.
- *  - **No comeback/closeout/blown-lead modifier**, which is defined across games of a set
- *    (`wonGame1 = null` switches it off).
+ * **The win bonus applies** (+5), as it does for a set — Joey's call 2026-10-06. Winning is the
+ * point, and a grade that reads identically whether you took the game or dropped it looks broken
+ * to the person who just played it. It is suppressible via gradeSet's `applyWinBonus` if that
+ * ever needs revisiting.
  *
- * So the letter reads as "how well you played this game", not "did you win it".
+ * The comeback/closeout/blown-lead modifier stays off: it is defined across the games of a set
+ * and has no meaning for one game (`wonGame1 = null` switches it off).
  */
 export function gradeGame(
   game: LiveGameStats,
@@ -422,7 +421,7 @@ export function gradeGame(
 ): SetGrade {
   const won = game.result === "win" || game.result === "lras_win";
   return gradeSet([game], playerChar, opponentChar, won ? "win" : "loss",
-                  won ? 1 : 0, won ? 0 : 1, null, false, false);
+                  won ? 1 : 0, won ? 0 : 1, null, false);
 }
 
 export function gradeSet(

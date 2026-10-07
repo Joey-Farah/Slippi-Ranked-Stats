@@ -805,7 +805,7 @@
             "Last Game Grade",
             lastGameReveal.featured,
             lastGameReveal.won,
-            "Scored on how you played — the win bonus doesn't apply to a single game.",
+            "Check the Grading tab for a full breakdown.",
           )}
         {/if}
 

@@ -31,15 +31,21 @@ function game(over: Record<string, any> = {}) {
 }
 
 describe("gradeGame", () => {
-  it("grades a single game without the set win bonus", async () => {
+  it("applies the win bonus to a won game, as a set does", async () => {
     const { gradeGame } = await import("./grading");
     const won = gradeGame(game({ result: "win" }), "Falco", "Fox");
     const lost = gradeGame(game({ result: "loss" }), "Falco", "Fox");
-    // Identical stats, opposite results: the letter must come from the play, not the outcome.
-    // Over a set +5 reads as a difficulty premium; on one game it is half a letter of swing.
-    expect(won.winBonus).toBe(0);
+    // Joey's call 2026-10-06: winning is the point, and identical letters win-or-lose read as
+    // broken to whoever just played the game.
+    expect(won.winBonus).toBe(5);
     expect(lost.winBonus).toBe(0);
-    expect(won.score).toBe(lost.score);
+    expect(won.score).toBeGreaterThan(lost.score);
+  });
+
+  it("still lets the win bonus be suppressed through gradeSet", async () => {
+    const { gradeSet } = await import("./grading");
+    const off = gradeSet([game()], "Falco", "Fox", "win", 1, 0, null, false, false);
+    expect(off.winBonus).toBe(0);
   });
 
   it("applies no set comeback / closeout / blown-lead modifier", async () => {
