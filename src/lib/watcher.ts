@@ -528,8 +528,12 @@ async function handleLiveGame(
   // Get current state from DB (includes the game we just inserted). For ranked this is the
   // set; for unranked/direct it's every game played against them on this connection.
   const setGames = await getGamesByMatchId(db, g.match_id);
-  const wins = setGames.filter((sg) => sg.result === "win" || sg.result === "lras_win").length;
-  const losses = setGames.length - wins;
+  // Counted via gameOutcome, NOT as setGames.length - wins: outside ranked a quit-out is no
+  // result, and subtracting would file it as a loss. The scoreboard has to agree with the
+  // session strip, which uses the same rule — it read 4–2 against the strip's 2–2.
+  const _t = tallyOutcomes(setGames);
+  const wins = _t.wins;
+  const losses = _t.losses;
   // A set ends at first-to-2 games OR the moment someone quits out (LRAS forfeits the set).
   // We only treat a quit-out as a completed, gradeable set when at least one *full* game was
   // actually played — a 0-0 instant ragequit has no real gameplay to grade.
@@ -783,8 +787,9 @@ async function recoverActiveSet(connectCode: string, db: Database): Promise<void
   for (const [matchId, gs] of sorted) {
     const latest = gs.at(-1)!;
     const mode = (isLiveMode(latest.match_type) ? latest.match_type : "ranked") as LiveMode;
-    const wins = gs.filter((g) => g.result === "win" || g.result === "lras_win").length;
-    const losses = gs.length - wins;
+    const _rt = tallyOutcomes(gs);
+    const wins = _rt.wins;
+    const losses = _rt.losses;
     // Only ranked can be "already complete" — an unranked/direct run within the recovery
     // window is still live no matter the score, since nothing ends it but walking away.
     if (mode === "ranked" && Math.max(wins, losses) >= 2) continue;

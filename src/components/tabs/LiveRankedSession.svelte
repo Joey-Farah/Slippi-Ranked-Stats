@@ -687,7 +687,11 @@
             {/if}
           </div>
         </div>
-        <div style="text-align: center">
+        <!-- Score and clock sit side by side: stacked, the clock left a column of dead space
+             beside a 30px score. The pair is centred as a unit so the score stays put when the
+             clock is absent (ranked never has one). -->
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px">
+          <div style="text-align: center">
           <div style="font-size: 30px; font-weight: 700; letter-spacing: 4px; line-height: 1">
             <span class="win-text">{$activeSet.games_won}</span>
             <span style="color: var(--muted)">–</span>
@@ -696,12 +700,13 @@
           <div style="font-size: 10px; color: var(--muted); margin-top: 2px">
             {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
           </div>
+          </div>
           <!-- Unranked/direct only: how long this connection has been going. Ranked sets end on
                their own, so there's nothing to count. Survives the 15-minute idle clear, so a
                run that goes quiet and resumes under the same match_id keeps its total. -->
           {#if runClock}
             <div class="run-clock" title="Time playing this opponent">
-              <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
                    fill="none" stroke="currentColor" stroke-width="2.4"
                    stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="9" />
@@ -968,13 +973,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    margin-top: 7px;
-    padding: 3px 9px;
+    gap: 7px;
+    padding: 6px 13px;
     border: 1px solid var(--border);
     border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 17px;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--muted);
     white-space: nowrap;
