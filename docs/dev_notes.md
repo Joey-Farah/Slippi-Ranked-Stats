@@ -218,6 +218,36 @@ is neither), a `perGame` flag switches the wording to GAME / "GAME GRADE", `rati
 and the hold is **20 s** (`PERGAME_MS`) not 3 min — `contextHtml` renders the bridge INSTEAD of the
 opponent line, and you are still playing that person.
 
+### 3c. View parity + affordances (committed, NOT yet released)
+
+**On `main`, after the v1.12.1 tag — needs its own release (v1.12.2).**
+
+- **Ranked and Unranked Grading views now match.** Same header shape, same History / By Matchup
+  split, same distribution and filters. ⚠ The ONLY intentional difference is the unit: Ranked
+  counts **sets**, Unranked counts **games**. Never sum or swap them — one unranked `match_id` is
+  an entire connection, not a best-of-three.
+- **Shared, not copied:** `src/lib/matchup-summary.ts` (pure, 7 tests) + `MatchupTable.svelte` +
+  `GradeDistribution.svelte` + `GradeFilterBar.svelte` are all used by both views.
+- ⚠ **Never derive losses by subtraction.** The old ranked matchup code did
+  `losses = entries.length - wins`, fine when every entry is a win or a loss. Outside ranked a
+  quit-out is neither, so that would file every friendly quit-out as a loss. Counted explicitly
+  now, pinned by a test.
+- **Row expansion was undiscoverable** — a small grey chevron reads as decoration, so the
+  per-stat breakdown was effectively hidden. Now a 26px accent disc + an explicit "Click any
+  set/game/matchup for its full stat breakdown" line. ⚠ Its grid column had to widen 20px → 30px
+  or the larger control overflows and shifts the row.
+- Overlay: L/R labels live in `<u>` (underlined by default — `text-decoration: none` was missed),
+  and the Z pill was 0.44em tall against a 0.4em glyph.
+
+⚠ **Release state at the time of writing:** v1.12.1's **Windows** job succeeded and its installer
+is published; the **macOS** job was still running. Confirm it finished before tagging v1.12.2, so
+two releases don't overlap.
+
+⚠ **Still owed to the website:** a screenshot of **Grading → Unranked & Direct** and a feature
+card for it in `site/index.html`. Joey asked for opponent connect codes to be replaced with fake
+ones — do it by editing pixels, not blurring: short high-contrast text often survives a blur.
+Pillow is now installed in `.venv`.
+
 ### 4. Still open
 
 - **Tie-aware scoring** — undecided. ⚠ Needs `scripts/raw_stats_v2.sqlite` (0.87 GB, gitignored,
