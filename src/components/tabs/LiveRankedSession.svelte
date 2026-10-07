@@ -22,9 +22,14 @@
     if (_gameGrades.has(key)) return _gameGrades.get(key)!;
     let out: ReturnType<typeof gradeGame> | null = null;
     try {
-      // Same gate the set path uses: a game with no frame data has all-null stats, and a
-      // non-legal stage is scored against benchmarks built entirely from legal-stage play.
-      if (g.avg_stock_duration !== null && isLegalStage(g.stage_id)) {
+      // A quit-out is not a graded game. Its stats are whatever had happened by the moment
+      // someone left — a 30-second game where you were ahead reads as a monstrous
+      // damage-per-opening and a tiny stock duration, and grading that says nothing about how
+      // anyone played. "Full game" is already defined this way in watcher.ts (hasFullGame).
+      // Plus the usual gates: no frame data = all-null stats, and a non-legal stage would be
+      // scored against benchmarks built entirely from legal-stage play.
+      const fullGame = g.result === "win" || g.result === "loss";
+      if (fullGame && g.avg_stock_duration !== null && isLegalStage(g.stage_id)) {
         out = gradeGame(
           g,
           CHARACTERS[g.player_char_id] ?? "",
@@ -216,12 +221,17 @@
   // never "complete", so without it a friendlies session produces no grade feedback at all.
   let lastGameReveal = $derived((() => {
     const games = lastMatch?.[1] ?? [];
-    const g = games.at(-1);
-    if (!g) return null;
-    const grade = gameGrade(g);
-    if (!grade) return null;
-    const won = g.result === "win" || g.result === "lras_win";
-    return { grade, won, featured: featuredCategory(grade, won), index: games.length };
+    // Walk back to the last game that actually graded. A quit-out at the end of a run would
+    // otherwise blank the card, losing the feedback for the game before it — which is the one
+    // worth reading.
+    for (let i = games.length - 1; i >= 0; i--) {
+      const g = games[i];
+      const grade = gameGrade(g);
+      if (!grade) continue;
+      const won = g.result === "win" || g.result === "lras_win";
+      return { grade, won, featured: featuredCategory(grade, won), index: i + 1 };
+    }
+    return null;
   })());
 
   // Most recent match
