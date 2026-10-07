@@ -1,3 +1,41 @@
+## What's New in v1.12.0
+
+### 📊 Grades for your unranked and direct games
+
+The Grading tab now has two views: **Ranked** and **Unranked & Direct**.
+
+Ranked is unchanged. The new side grades your friendlies — every unranked and direct game you've played, not just the ones from this session.
+
+Press **Grade** once and it reads through your replays and stores the results. It takes a while the first time and you can stop and come back to it; it picks up where it left off. After that it's instant, and future grading updates won't need to read your replays again.
+
+The same filters, sorting and opponent search from the ranked view work here too, plus a filter for games that ended with no result.
+
+Ranked rows now show your Neutral, Punish and Defense letters next to the overall grade.
+
+### 🎮 Controller inputs on the stream overlay
+
+New **Controller inputs** toggle under "Show on overlay". It shows what you're pressing, live.
+
+Three styles:
+- **Analog** — a GameCube controller
+- **Digital** — a box / B0XX layout
+- **20XX** — the flat block style
+
+Plus four sizes. It's off by default, since it needs Melee running.
+
+If you use a box controller, plug it in and the overlay reads it directly, so modifier buttons show correctly even when you press one on its own. Other controllers work too — those read from the game.
+
+One thing to know: the input display reads your controller over USB, and only one program can do that at a time. If you already run a separate input viewer, close it and this one will connect.
+
+Windows only for now.
+
+### 🔧 Also in this release
+
+- The overlay no longer shifts when a set result or grade appears.
+- Trigger and shoulder buttons are easier to read on the overlay.
+
+---
+
 ## What's New in v1.11.0
 
 Includes everything from v1.10.0, which went out earlier today.

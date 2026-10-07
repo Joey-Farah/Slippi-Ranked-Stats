@@ -1,7 +1,13 @@
-## ⚠ SESSION HANDOFF — 2026-10-07 (UNRANKED GRADING + INPUT VIEWER RESEARCH — READ FIRST)
+## ⚠ SESSION HANDOFF — 2026-10-07 (v1.12.0 — UNRANKED GRADING + OBS INPUT VIEWER — READ FIRST)
 
-> **Nothing in this section is committed or released yet.** Working tree on `main`, v1.11.0 still
-> the shipped version. 199 tests / 19 files green, `tsc` clean, `vite build` clean.
+> **Shipped as v1.12.0.** 199 JS tests / 19 files green, 4 Rust tests green, `tsc` clean,
+> `vite build` clean, `cargo` clean with no warnings.
+>
+> ⚠ Three things in here were built but never exercised in real play, so treat them as unverified:
+> **Mod X alone over USB serial** (the field flows; the pad lighting was never watched),
+> the **Lightshield / Midshield analog bands** (`0.15-0.55` / `0.55-0.97` are an ESTIMATE — unlike
+> the mod band, they were never measured on hardware, and measuring the mod band changed the
+> answer), and the **20XX skin**, which was never looked at.
 
 ### 1. Unranked & Direct grading — BUILT, in the working tree
 
