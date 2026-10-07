@@ -21,6 +21,7 @@
   import { getDb, saveSetGrade, getAllSetGrades, deleteSetGrade, updateGameFilepath, type SetGradeRow } from "../../lib/db";
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
   import GradeFilterBar, { type ResultFilter, type SortMode } from "../GradeFilterBar.svelte";
+  import GradeDistribution from "../GradeDistribution.svelte";
   import GradingMethodology from "../GradingMethodology.svelte";
 
   function rowToEntry(row: SetGradeRow): GradeHistoryEntry {
@@ -935,61 +936,10 @@
   {:else}
 
   {#if activeHistory.length > 0}
-    <!-- Distribution summary -->
+    <!-- Distribution summary. Shared with the Unranked & Direct view — see
+         GradeDistribution.svelte. Ranked counts SETS. -->
     {#if !$gradeHistoryBusy}
-      {@const graded = sortedHistory.filter((r) => r.grade !== null)}
-      {@const avgScore = graded.length > 0 ? graded.reduce((a, r) => a + r.grade!.score, 0) / graded.length : null}
-      <div class="card" style="margin-bottom: 16px">
-        <div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: center">
-          {#each ["S","A","B","C","D","F"] as letter}
-            {@const count = graded.filter((r) => r.grade?.letter === letter).length}
-            <div style="text-align: center; min-width: 40px">
-              <div style="
-                font-size: 24px; font-weight: 800; color: {gc(letter)};
-                {letter === 'S' ? `text-shadow: 0 0 8px ${gc(letter)}aa;` : ''}
-              ">{letter}</div>
-              <div style="font-size: 18px; font-weight: 600">{count}</div>
-              <div style="font-size: 12px; color: var(--muted)">
-                {graded.length > 0 ? Math.round((count / graded.length) * 100) + "%" : "—"}
-              </div>
-            </div>
-          {/each}
-          {#if graded.length > 0}
-            {@const gradeCounts = ["S","A","B","C","D","F"].map((l) => graded.filter((r) => r.grade?.letter === l).length)}
-            {@const maxCount = Math.max(...gradeCounts, 1)}
-            <div style="flex: 1; display: flex; align-items: flex-end; gap: 6px; height: 72px; padding: 0 16px; min-width: 120px">
-              {#each ["S","A","B","C","D","F"] as letter, i}
-                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%">
-                  <div style="
-                    width: 100%; max-width: 28px;
-                    height: {gradeCounts[i] > 0 ? Math.max(Math.round((gradeCounts[i] / maxCount) * 52), 3) : 0}px;
-                    background: {gc(letter)};
-                    border-radius: 3px 3px 0 0;
-                    margin-bottom: 5px;
-                    {letter === 'S' ? `box-shadow: 0 0 6px ${gc('S')}55;` : ''}
-                  "></div>
-                  <div style="font-size: 11px; font-weight: 700; color: {gc(letter)}">{letter}</div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-          {#if avgScore !== null}
-            {@const avgLetter = scoreToGrade(avgScore)}
-            <div style="margin-left: auto; text-align: right">
-              <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px">Overall average</div>
-              <div style="display: flex; align-items: baseline; gap: 8px; justify-content: flex-end">
-                <div style="
-                  font-size: 32px; font-weight: 800; line-height: 1;
-                  color: {gc(avgLetter)};
-                  {avgLetter === 'S' ? `text-shadow: 0 0 10px ${gc(avgLetter)}aa;` : ''}
-                ">{avgLetter}</div>
-                <div style="font-size: 24px; font-weight: 700; color: var(--muted)">{avgScore.toFixed(1)}</div>
-              </div>
-              <div style="font-size: 12px; color: var(--muted); margin-top: 3px">{graded.length} sets graded</div>
-            </div>
-          {/if}
-        </div>
-      </div>
+      <GradeDistribution graded={sortedHistory.filter((r) => r.grade !== null)} unit="sets" />
     {/if}
 
     <!-- Filter + sort controls. Shared with the Unranked & Direct view so the two can't
@@ -1250,6 +1200,11 @@
       {/if}
     </div>
   {:else}
+    <!-- Same distribution summary the Ranked view shows, over the filtered list.
+         ⚠ Counts GAMES, not sets — one unranked match_id is a whole connection, so the two
+         units are never interchangeable and must never be summed. -->
+    <GradeDistribution graded={unrankedGraded} unit="games" />
+
     <!-- Mode filter. Unranked and direct are different populations (direct is friendlies with
          people you know, often on non-legal stages), so being able to separate them matters more
          here than it does in ranked. -->
