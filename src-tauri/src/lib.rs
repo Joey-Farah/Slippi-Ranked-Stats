@@ -1,3 +1,5 @@
+mod dolphin;
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::new().build())
@@ -15,7 +17,13 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![wait_for_oauth_callback, show_in_folder])
+        .invoke_handler(tauri::generate_handler![
+            wait_for_oauth_callback,
+            show_in_folder,
+            dolphin::dolphin_inputs,
+            dolphin::start_dolphin_input_stream,
+            dolphin::dolphin_input_stream_port,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

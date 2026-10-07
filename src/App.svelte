@@ -10,7 +10,7 @@
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import Notes from "./components/tabs/Notes.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
   import { getDb, getGames, getSnapshots, getSeasons, pruneUnproductiveScannedFiles } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
@@ -47,7 +47,10 @@
     // did nothing until the simulation ended.
     const preview = $statsOverlayPreview;
     const payload = preview
-      ? { ...preview, layout: $statsOverlayLayout, show: $statsOverlayVisibility }
+      // Same reason as the in-app preview: a simulation snapshot must not freeze live settings.
+      ? { ...preview, layout: $statsOverlayLayout, show: $statsOverlayVisibility,
+          inputPort: $dolphinInputPort, inputSkin: $inputSkin,
+          inputScale: inputScaleRem($inputScaleId) }
       : $statsOverlayPayload;
     if (!($isPremium && $statsOverlayEnabled)) {
       _statsOverlayReady = false;
@@ -77,6 +80,31 @@
       }
     })();
   });
+  // Start the controller-input push stream only while the input viewer is actually switched on.
+  //
+  // On demand, not at launch: it binds a localhost socket and polls another process's memory, and
+  // neither should happen for the (many) users who never turn this on. Idempotent on the Rust
+  // side, so re-running this effect is free — it hands back the port it already bound.
+  //
+  // The port goes into the store, which puts it in the overlay payload, which writes it to
+  // stats-state.js — the page reads it from there. The socket is never something the page has to
+  // discover on its own.
+  $effect(() => {
+    const want = $isPremium && $statsOverlayEnabled && $statsOverlayVisibility.inputs;
+    if (!want) return;
+    (async () => {
+      try {
+        const port = await invoke<number>("start_dolphin_input_stream");
+        dolphinInputPort.set(port);
+      } catch (e) {
+        // No free port, or not Windows. The panel stays hidden; nothing else is affected.
+        dolphinInputPort.set(0);
+        console.warn("input stream unavailable", e);
+      }
+    })();
+  });
+
+  import { invoke } from "@tauri-apps/api/core";
   import { check } from "@tauri-apps/plugin-updater";
   import { relaunch } from "@tauri-apps/plugin-process";
 

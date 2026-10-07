@@ -5,6 +5,8 @@
     statsOverlayEnabled, statsOverlayExpanded, statsOverlayPayload, statsOverlayLayout,
     statsOverlayPreview, liveSetRecord, liveUnrankedRecord, setResultFromGames,
     statsOverlayVisibility, type OverlayVisibility,
+    inputSkin, INPUT_SKINS, type InputSkin, dolphinInputPort,
+    inputScaleId, INPUT_SCALES, inputScaleRem, type InputScaleId,
   } from "../../lib/store";
   import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier, isLegalStage } from "../../lib/parser";
@@ -75,6 +77,9 @@
     { key: "grade",        label: "Post-set grade" },
     { key: "setResult",    label: "Set result" },
     { key: "setRating",    label: "Set Rating change" },
+    // Last in the row because it is the only element that depends on something outside the app
+    // (Slippi Dolphin running Melee) and the only one that defaults to off.
+    { key: "inputs",       label: "Controller inputs" },
   ];
   function toggleVis(key: keyof OverlayVisibility) {
     statsOverlayVisibility.update((v) => ({ ...v, [key]: !v[key] }));
@@ -164,6 +169,24 @@
   // panel, so the preview box must grow taller when it's present or overflow:hidden clips it.
   let previewHasTransient = $derived(!!(previewPayload.opponent || previewPayload.lastSet));
 
+  // The preview box used to guess its height from hardcoded aspect-ratios, so anything that grew
+  // below the panel (the opponent line, the post-set grade, and now the input viewer) got clipped
+  // by overflow:hidden. The page measures itself and posts its real content height instead.
+  //
+  // ⚠ Grow-only, and never below the box's own width: the overlay's root font-size is 4vmin, so
+  // shrinking height under width would shrink the font, shrink the content, and oscillate.
+  let previewH = $state(0);
+  function onPreviewMsg(e: MessageEvent) {
+    const h = (e.data as any)?.__srsOverlayHeight;
+    if (typeof h === "number" && h > 40 && h < 4000) previewH = Math.ceil(h);
+  }
+  $effect(() => {
+    window.addEventListener("message", onPreviewMsg);
+    return () => window.removeEventListener("message", onPreviewMsg);
+  });
+  // Reset when the layout or skin changes so a taller box can shrink back on the next report.
+  $effect(() => { void $statsOverlayLayout; void $inputSkin; void $inputScaleId; previewH = 0; });
+
   // The in-app preview loads a baked preview.html (payload inlined, no polling) via the asset
   // protocol. A real-URL frame doesn't inherit the app's strict CSP, so its inline script runs
   // (a srcdoc iframe would be blocked by script-src 'self'); baking the payload in also avoids
@@ -177,7 +200,13 @@
     if (!$statsOverlayExpanded) return;
     // layout + visibility are re-applied from the live stores rather than taken from the
     // (possibly frozen) simulation snapshot — see the matching comment in App.svelte.
-    const payload = { ...previewPayload, layout: $statsOverlayLayout, show: $statsOverlayVisibility };
+    // ⚠ inputPort / inputSkin are re-applied from the live stores for the same reason layout
+    // and show are: previewPayload may be a SNAPSHOT taken when a simulation started, and a
+    // snapshotted setting is a setting whose toggle silently does nothing while simulating.
+    // That exact bug shipped once for all 12 visibility toggles (v1.8.13).
+    const payload = { ...previewPayload, layout: $statsOverlayLayout, show: $statsOverlayVisibility,
+                      inputPort: $dolphinInputPort, inputSkin: $inputSkin,
+                      inputScale: inputScaleRem($inputScaleId) };
     (async () => {
       try { await writeStatsOverlayPreviewFile(payload); previewVer++; }
       catch (e) { console.error("overlay preview write failed", e); }
@@ -477,6 +506,56 @@
             {/each}
           </div>
 
+          <!-- Input-viewer skin. Only shown once the viewer is on: it is meaningless otherwise,
+               and the chip row above is already long. -->
+          {#if $statsOverlayVisibility.inputs}
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">Input viewer style</div>
+            <div style="display: flex; gap: 6px; margin-bottom: 14px">
+              {#each INPUT_SKINS as { id, label }}
+                {@const sel = $inputSkin === id}
+                <button
+                  type="button"
+                  onclick={() => inputSkin.set(id as InputSkin)}
+                  aria-pressed={sel}
+                  style="
+                    padding: 5px 12px; border-radius: 6px; cursor: pointer;
+                    font-family: inherit; font-size: 11px; font-weight: 700;
+                    border: 1px solid {sel ? '#7c3aed' : 'var(--border)'};
+                    background: {sel ? '#7c3aed22' : 'var(--bg)'};
+                    color: {sel ? '#7c3aed' : 'var(--muted)'};
+                  "
+                >{label}</button>
+              {/each}
+            </div>
+            <!-- Stated in the UI rather than left to look like a bug: a modifier pressed on its
+                 own leaves the stick at neutral, which is identical to touching nothing at all,
+                 so no amount of tuning can detect it from the game's memory. -->
+            {#if $inputSkin === "digital"}
+              <div style="font-size: 11px; color: var(--muted); margin: -8px 0 14px; max-width: 420px; line-height: 1.6">
+                Mod X / Mod Y are read from stick position, so they light when held
+                <em>with a direction</em> — a modifier pressed on its own can't be detected.
+              </div>
+            {/if}
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">Input viewer size</div>
+            <div style="display: flex; gap: 6px; margin-bottom: 14px">
+              {#each INPUT_SCALES as opt}
+                {@const sel = $inputScaleId === opt.id}
+                <button
+                  type="button"
+                  onclick={() => inputScaleId.set(opt.id as InputScaleId)}
+                  aria-pressed={sel}
+                  style="
+                    padding: 5px 12px; border-radius: 6px; cursor: pointer;
+                    font-family: inherit; font-size: 11px; font-weight: 700;
+                    border: 1px solid {sel ? '#7c3aed' : 'var(--border)'};
+                    background: {sel ? '#7c3aed22' : 'var(--bg)'};
+                    color: {sel ? '#7c3aed' : 'var(--muted)'};
+                  "
+                >{opt.label}</button>
+              {/each}
+            </div>
+          {/if}
+
           <!-- Step 1: the file path -->
           <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">
             In OBS: <strong>Sources → + → Browser</strong>, check <strong>Local file</strong>, and select:
@@ -518,9 +597,11 @@
           <div style="
             position: relative; width: 100%; overflow: hidden;
             border: 1px solid var(--border); border-radius: 8px; background: #15171b;
+            {side ? '' : 'max-width: 280px; '}
             {side
               ? (previewHasTransient ? 'aspect-ratio: 1.3;' : 'aspect-ratio: 2;')
-              : 'max-width: 280px; ' + (previewHasTransient ? 'aspect-ratio: 1 / 1.5;' : 'aspect-ratio: 1 / 1.05;')}
+              : (previewHasTransient ? 'aspect-ratio: 1 / 1.5;' : 'aspect-ratio: 1 / 1.05;')}
+            {previewH > 0 ? `min-height: ${previewH + 10}px;` : ''}
           ">
             {#if previewSrc}
               <iframe

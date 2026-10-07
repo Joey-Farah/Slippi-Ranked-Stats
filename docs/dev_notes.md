@@ -1,3 +1,185 @@
+## ⚠ SESSION HANDOFF — 2026-10-07 (UNRANKED GRADING + INPUT VIEWER RESEARCH — READ FIRST)
+
+> **Nothing in this section is committed or released yet.** Working tree on `main`, v1.11.0 still
+> the shipped version. 199 tests / 19 files green, `tsc` clean, `vite build` clean.
+
+### 1. Unranked & Direct grading — BUILT, in the working tree
+
+The Grading tab now has **Ranked / Unranked & Direct** sub-tabs, and the unranked side shows real
+per-game grades. Ranked is byte-identical (the sub-tab wrapper is a pure insertion).
+
+**The structural fix: `game_stats` stores the parser's STATS, not the rendered grade.** One row
+per game, keyed on `filename` (the basename — ⚠ never `filepath`, which is absolute and moves).
+The grade is derived in memory on every read.
+
+That choice is the whole point, and the numbers are why:
+
+| | cost |
+|---|---|
+| re-score the whole corpus from stored rows | **~0.1 s** |
+| re-parse the corpus from replays | **~75 min, ~50 GB of reads** |
+| storage, 15,061 rows | **6.7 MB** (vs ~31.5 MB storing rendered breakdowns) |
+
+**⚠ The version token is now SPLIT, and this is the decision that makes grading releases cheap
+(Joey, 2026-10-07):**
+
+| stored column | compared against | on mismatch |
+|---|---|---|
+| `stats_version` | **`PARSER_STATS_VERSION`** (new, in `parser.ts`) | re-parse the replay — 75 min |
+| scoring | `GRADE_VERSION` (= `BENCHMARKS_VERSION` + `GRADING_LOGIC_VERSION`) | re-score in memory — 0.1 s |
+
+`PARSER_STATS_VERSION` is currently **1**. **Bump it ONLY when a change alters the stat numbers a
+replay produces.** ⚠ **Getting this wrong is silent** — stale stats score cleanly and look right.
+When in doubt, bump it: the cost is time, the cost of not bumping is wrong grades nobody can see
+are wrong. `scripts/test_parity.py` remains the guard on parser stat changes.
+
+Note `GRADING_LOGIC_VERSION` was deliberately **left alone at 8** so `GRADE_VERSION` is
+byte-identical and no existing ranked grade invalidates.
+
+**Scope decisions taken:** unranked + direct only (ranked per-game backfill deferred — it would
+retire the 20-min ranked regrade, but widens the blast radius of a first release); gating
+inherited unchanged from the Ranked side.
+
+**Files:** `src/lib/game-grading.ts` (batch job, scoring, stores), `src/lib/grade-queue.ts`
+(metadata gates), `game_stats` schema + CRUD in `db.ts`, `PARSER_STATS_VERSION` in `parser.ts`,
+sub-tabs + the unranked view in `GradeHistory.svelte`. Design doc:
+`docs/plans/per-game-grade-persistence.md`.
+
+**Batch-job traps already handled — don't undo them:**
+- ⚠ **The queue is built from the DATABASE, never from `filteredGames`.** Those stores apply the
+  sidebar Date Range, so a user on "Last 30 Days" would grade 30 days and be told they were done.
+  `countGameStatsQueue` exists for exactly this reason, and the button's count comes from it.
+- ⚠ Paths resolve through `replay-index.ts`, and the directory walk is **not** in a bare
+  `catch {}` — that is why the equivalent ranked fix repaired nothing the first time.
+- Resumable with no checkpoint: the queue *is* "no row at the current `stats_version`".
+- Never run it on launch or tab open — the v1.8.8 startup auto-scan already reads replays over
+  the same IPC channel.
+- A frameless replay (`avg_stock_duration === null`) is **stored anyway** and filtered at grade
+  time, so the job never re-reads it hunting for stats it does not have.
+
+### 2. Three corrections to things previously written down here
+
+1. **Joey has 15,585 non-ranked games, not ~4,900.** Verified directly in `JOEY_870.db`: 17,832
+   total = 10,666 unranked + 4,919 direct + 2,247 ranked. The old figure was the *direct* half
+   only (the v1.8.13 backfill number). Any estimate built on ~4,900 is 3× too small.
+2. **Parse + grade is ~9 ms/game, not 0.3 s.** Measured over 240 real replays through the app's
+   own `parseSlpBytes` + `gradeGame` (3.1 ms read / 5.6 parse / 0.06 grade). The ~0.3 s is what
+   the *in-app* loop pays, so there is a **~30× gap sitting between the WebView and
+   `plugin-fs`/`plugin-sql`** — not in the parser and not in the scorer. ⚠ Nobody has
+   instrumented which layer eats it. Put `console.time` around read / parse / DB write in the
+   real loop before optimising anything.
+3. **The Grading tab is NOT fully Premium**, despite what `CLAUDE.md` implies. `GradeHistory.svelte`
+   has no `PremiumGate` at all: free users already see letter grades, scores and the distribution
+   bar; `$isPremium` gates only the per-stat breakdown and the By Matchup view. Fix that line in
+   `CLAUDE.md` when convenient.
+
+### 3. OBS input viewer — BUILT (memory source), USB source designed and proven, not yet coded
+
+**Shipped shape:** a new `inputs` element on the stats overlay (default OFF — it is the only
+element needing a second process), with **three skins** and a **size** picker:
+
+| skin id | label | notes |
+|---|---|---|
+| `controller` | Analog | GameCube shape; arrangement + colours from m-overlay's default skin |
+| `digital` | Digital | box / B0XX; layout measured from a reference image |
+| `20xx` | 20XX | flat blocks, ported from m-overlay's `20xx.lua` |
+
+⚠ **The skin ids are persisted (`srs_inputSkin`); only labels/order are cosmetic.** Renaming an id
+silently resets everyone's choice.
+
+**Data source today: Dolphin's memory** (`src-tauri/src/dolphin.rs`, Windows only — macOS needs
+`task_for_pid`, ~1% of users, deliberately unsupported). Technique is m-overlay's (MIT,
+© 2020 Bkacjios):
+`CreateToolhelp32Snapshot` → `OpenProcess(VM_READ)` (**no admin needed**) → `VirtualQueryEx` scan
+→ `ReadProcessMemory`, mapping guest `0x80000000`+.
+
+⚠ **Find the arena by the GameCube DISC MAGIC** (`C2 33 9F 3D` at offset `0x1C`), not by
+m-overlay's size/type test and not by the string "GALE01". Measured on a real Slippi Dolphin: its
+largest `MEM_MAPPED` region is 28.5 MB, which is *not* a multiple of 32 MB and that test rejects;
+and "GALE01" appears 6 times in Dolphin's own game-list cache with no game booted. There are
+**four aliased arenas** and all are live — an early "only one is live" reading was an artifact of
+sampling 4 MB for 150 ms.
+Validated live: frame counter `0x80479D60` ticks **+30 in 0.5 s = exactly 60 fps**.
+Melee NTSC 1.02 controller block: base **`0x804C1FAC`**, stride **`0x44`**; `+0x00` buttons (u32,
+low half), `+0x20/+0x24` stick, `+0x28/+0x2C` c-stick, `+0x30/+0x34` analog L/R, `+0x41` plugged.
+⚠ Memory is **big-endian**; native-order reads give plausible-looking garbage, not an obvious
+failure. ⚠ `plugged` is 0 on a connected port and 255 on an empty one — backwards from its name,
+so it is exposed raw and the page treats `!= 255` as present.
+
+**Transport: Server-Sent Events on 127.0.0.1**, port 14524 upward (14523 is the Discord OAuth
+callback). SSE over WebSockets because it needs no new dependency. ⚠ This is a deliberate, scoped
+exception to the overlay's server-less design: everything else still goes through
+`stats-state.js`, and **the port is advertised through that file**, so the socket stays a detail
+of one panel. Started on demand by the toggle, never at launch.
+⚠ **Prime the first frame on connect.** "Send only on change" alone means a client connecting
+while the state is unchanged receives *nothing* and cannot tell "connected, idle" from "not
+connected". This shipped broken once.
+
+**Layout traps, all paid for once:**
+- ⚠ `#root` was `position: fixed; inset: 0`, so anything added as a sibling landed *under* it at
+  the top-left. A `#stage` wrapper now owns the viewport and both stack inside it.
+- ⚠ The viewer is **pinned to the bottom of the stage, out of flow**. In normal flow, transient
+  panel content (opponent line, post-set grade, rating change) pushed it down and let it spring
+  back — a visible jump every set. Because it is out of flow, the preview's height measurement
+  must **add** its height, not `max()` it.
+- ⚠ The preview box measures itself (`postMessage` → `__srsOverlayHeight`) but that measurement
+  **supplements** the aspect-ratio, never replaces it. Replacing it let one early short
+  measurement become the whole box height, and `overflow:hidden` clipped everything below.
+  Grow-only: root font-size is `4vmin`, so shrinking height under width oscillates.
+- ⚠ The in-app preview boots via `render()` and **never calls `apply()`**, so anything `apply()`
+  drives must be started in the preview boot too (`syncInputStream`). Otherwise a feature works
+  in OBS and is invisible in the only place it can be checked without playing.
+- ⚠ Overlay JS lives inside a **TypeScript template literal** — a backtick anywhere in it
+  (including comments) terminates the literal. Broke the build twice.
+- ⚠ Sizing is in **em** off one container font-size, never `transform: scale()` (which softens
+  text — same reason Ctrl +/− uses Chromium zoom). Width/height in em on an element with its own
+  `font-size` resolve against *that* size, so button labels live on a child.
+
+**Mod X / Mod Y inference (memory source only) — measured, not guessed.** 30 s capture of a real
+box: every MODIFIED input landed at vector magnitude **≤ 0.796**; every full one at **≥ 0.99**
+(cardinals 1.00, full diagonals 0.9906–0.9914). Band is **0.15–0.90**, sitting in that gap.
+⚠ **Judge the vector magnitude, never the individual axes.** A full diagonal is ~(0.70, 0.70):
+each axis looks "intermediate" while the magnitude is 0.99. Per-axis testing lit a mod on every
+plain diagonal.
+⚠⚠ **A modifier pressed ALONE is undetectable from memory, at any threshold** — it leaves the
+stick at neutral, byte-identical to touching nothing. This is the whole reason for the USB source.
+
+**USB source — fully proven on hardware, NOT yet implemented.**
+The controller (a Pico box running **HayBox**) is a composite device exposing the game controller
+*and* a CDC serial port **simultaneously** — no mode switching, contrary to the initial worry that
+HayBox's "B0XX input viewer" backend was exclusive with XInput.
+
+| | |
+|---|---|
+| discovery | VID/PID `0738:4726` (B0XX identity; Windows mis-attaches an Xbox 360 driver, so go by the **bus-reported** name `TinyUSB Serial`) |
+| start streaming | **assert RTS** — silent without it, this was the missing piece |
+| framing | 25 bytes: 24 ASCII `'0'`/`'1'` + `\n`, ~167/s (firmware sends 1 report per 5 clocks) |
+| button order | indices **0–19**: start, y, x, b, a, l, r, z, up, down, right, left, modX, modY, cLeft, cRight, cUp, cDown, LS, MS |
+| index 23 | **constant `1`** — `_report[23] = ASCII_BIT(true)` in HayBox's `B0XXInputViewer.cpp`; a useful fingerprint |
+| Mod X alone | **visible** — confirmed as a single-index press |
+
+⚠ **Serial is exclusive**: the user's existing B0XX Input Viewer holds the port, confirmed by an
+"Access denied" open. Using ours means closing theirs.
+⚠ **Does not replace the memory source** — it is B0XX/HayBox only, so GameCube and keyboard users
+still need memory. It is a second path, not a migration.
+⚠ **Idle captures prove nothing.** Three separate "all zeros over serial" readings were nearly
+called a failure; checking Dolphin's memory over the same window showed **zero presses there
+too**, i.e. nobody was at the controller. Always corroborate an idle result against a second
+channel before concluding.
+
+**Reference art:** the replaced viewer's PNGs were used briefly to measure layout and then
+**deleted** — they are not ours to ship. Nothing third-party is bundled; all shapes are CSS/SVG.
+### 4. Still open
+
+- **Tie-aware scoring** — undecided. ⚠ Needs `scripts/raw_stats_v2.sqlite` (0.87 GB, gitignored,
+  Windows-machine only); deleting it turns a minutes-long query into another ~20-hour rescan.
+- **Quit-out games are still averaged into SET grades** (12/1506 sets, mean +3.94, 4 letter
+  changes). Should ride along with whatever regrade comes next rather than cause its own.
+- **Ranked per-game backfill** — would make the 20-min ranked regrade sub-second.
+- **Session timer** still never validated in a real unranked session.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-10-06 (v1.11.0 — PER-GAME GRADES, QUIT-OUT = NO RESULT — READ FIRST)
 
 > **v1.11.0 shipped the same evening as v1.10.0.** Everything below about v1.10.0 still applies;

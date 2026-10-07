@@ -18,6 +18,7 @@ beforeAll(() => {
 function payload(mode: LiveMode, show: any): StatsOverlayPayload {
   return {
     tag: "Joey Dadnuts",
+    inputPort: 0, inputSkin: "controller" as const, inputScale: 2.6,
     rankName: "Master 1", rankColor: "#ff4444",
     rating: 2210.4, globalRank: 412, region: "NA",
     seasonWins: 388, seasonLosses: 351,

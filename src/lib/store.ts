@@ -153,15 +153,59 @@ export interface OverlayVisibility {
   grade: boolean;        // post-set grade letter (+ standout stat)
   setResult: boolean;    // post-set result line (SET WON/LOST · score · vs opp)
   setRating: boolean;    // post-set "THIS SET" rating change (independent of the live Rating toggle)
+  inputs: boolean;       // live controller input viewer (reads Dolphin's memory; Windows only)
 }
 export const OVERLAY_VISIBILITY_DEFAULT: OverlayVisibility = {
   tag: true, medal: true, rank: true, mmr: true, sessionDelta: true,
   global: true, season: true, today: true, opponent: true, grade: true,
   setResult: true, setRating: true,
+  // Off by default, unlike every other element. It is the only one that needs a second process
+  // (Dolphin) plus a localhost socket, so it should be a thing you turn on, not a thing that
+  // silently fails for everyone who isn't running Melee.
+  inputs: false,
 };
 export const statsOverlayVisibility = persistedMerged<OverlayVisibility>(
   "srs_statsOverlayVisibility", OVERLAY_VISIBILITY_DEFAULT
 );
+
+/** Which input-viewer layout to draw.
+ *  - "controller": GameCube controller shape, modelled on m-overlay's default skin (arrangement
+ *    and button colours taken from it; its own skin is a 3D perspective render, so this is a
+ *    faithful 2D interpretation rather than a pixel copy).
+ *  - "20xx": the flat block style from m-overlay's 20XX skin — square gates, square stick dots,
+ *    pressed fills white. Widely used, so it looks familiar on stream.
+ *  - "digital": box / B0XX style — every input is a lit pad and nothing moves.
+ *    ⚠ Directions are thresholded from the analog stick and Mod X / Mod Y are inferred from an
+ *    intermediate band, because the console never receives the box's individual buttons. */
+export type InputSkin = "controller" | "20xx" | "digital";
+// ⚠ The ids are persisted (srs_inputSkin); only labels and order are cosmetic. Renaming an id
+// would silently reset everyone's choice back to the default.
+export const INPUT_SKINS = [
+  { id: "controller", label: "Analog" },
+  { id: "digital",    label: "Digital" },
+  { id: "20xx",       label: "20XX" },
+] as const;
+export const inputSkin = persisted<InputSkin>("srs_inputSkin", "controller");
+
+/** Overall size of the input viewer, as the root font-size (in rem) of its container.
+ *  Everything inside the viewer is sized in em, so this one number scales the whole thing. */
+export const INPUT_SCALES = [
+  { id: "s",  label: "Small",  rem: 1.2 },
+  { id: "m",  label: "Medium", rem: 1.8 },
+  { id: "l",  label: "Large",  rem: 2.6 },
+  { id: "xl", label: "X-Large", rem: 3.6 },
+] as const;
+export type InputScaleId = (typeof INPUT_SCALES)[number]["id"];
+export const inputScaleId = persisted<InputScaleId>("srs_inputScale", "l");
+/** ⚠ Falls back to Large for an unknown stored id — persisted() does not validate, and the
+ *  ids are a stored string that must keep working across releases. */
+export function inputScaleRem(id: string): number {
+  return INPUT_SCALES.find((x) => x.id === id)?.rem ?? 2.6;
+}
+
+/** Port the Rust input-push stream bound to, or 0 when not started. Deliberately NOT persisted:
+ *  the port is chosen at bind time and a remembered one would be a lie after a restart. */
+export const dolphinInputPort = writable<number>(0);
 
 // Transient test/preview override (not persisted): when non-null, the app writes this to
 // the overlay instead of the live payload, so a streamer can study the overlay and
@@ -695,6 +739,14 @@ export interface StatsOverlayPayload {
   lastSet: OverlaySetResult | null;      // most recent completed set (post-set bridge)
   layout: "stacked" | "sidebyside";
   show: OverlayVisibility;               // per-element visibility toggles
+  /** Port of the local input-push stream, or 0 when it isn't running.
+   *
+   *  ⚠ The port travels in the state FILE on purpose. The overlay page has to be able to find
+   *  the socket, and the file is the one channel it is guaranteed to have — so the socket stays
+   *  a detail of one panel rather than something the page needs before it can start. */
+  inputPort: number;
+  inputSkin: InputSkin;
+  inputScale: number;
 }
 
 // Slippi `continent` enum → short region code for the overlay (e.g. NORTH_AMERICA → NA).
@@ -708,8 +760,8 @@ function regionLabel(continent: string | null | undefined): string {
 }
 
 export const statsOverlayPayload = derived(
-  [displayName, connectCode, snapshots, liveSessionStartRating, liveSetRecord, activeSet, lastOverlaySet, statsOverlayLayout, statsOverlayVisibility],
-  ([$tag, $code, $snaps, $startRating, $record, $active, $lastSet, $layout, $show]): StatsOverlayPayload => {
+  [displayName, connectCode, snapshots, liveSessionStartRating, liveSetRecord, activeSet, lastOverlaySet, statsOverlayLayout, statsOverlayVisibility, dolphinInputPort, inputSkin, inputScaleId],
+  ([$tag, $code, $snaps, $startRating, $record, $active, $lastSet, $layout, $show, $inputPort, $inputSkin, $inputScaleId]): StatsOverlayPayload => {
     const snap = $snaps.at(-1);
     const rating = snap?.rating ?? null;
     const tier = rating !== null
@@ -759,6 +811,9 @@ export const statsOverlayPayload = derived(
       lastSet: $lastSet,
       layout: $layout,
       show: $show,
+      inputPort: $inputPort,
+      inputSkin: $inputSkin,
+      inputScale: inputScaleRem($inputScaleId),
     };
   }
 );
