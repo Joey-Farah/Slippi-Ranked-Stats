@@ -309,6 +309,33 @@
 
 {:else}
 
+  <!-- DEV ONLY. Top of the tab on purpose: this drives the LIVE CARD, not the overlay, and the
+       first version sat inside the overlay setup panel behind `statsOverlayEnabled` AND
+       `statsOverlayExpanded` — invisible unless you happened to have both on. Stripped from
+       production builds by import.meta.env.DEV. -->
+  {#if IS_DEV}
+    <div class="card" style="margin-bottom: 16px; border: 1px dashed var(--accent); display: flex;
+      gap: 8px; align-items: center; flex-wrap: wrap">
+      <span style="font-size: 11px; font-weight: 700; color: var(--accent)">DEV</span>
+      <button
+        type="button"
+        onclick={devSimulateSession}
+        style="padding: 6px 11px; border-radius: 6px; cursor: pointer; font-family: inherit;
+          font-size: 12px; font-weight: 700; border: 1px solid var(--accent);
+          background: transparent; color: var(--accent);"
+      >Load last session</button>
+      <button
+        type="button"
+        onclick={devClearSession}
+        style="padding: 6px 11px; border-radius: 6px; cursor: pointer; font-family: inherit;
+          font-size: 12px; border: 1px solid var(--border); background: transparent; color: var(--muted);"
+      >Clear</button>
+      <span style="font-size: 11px; color: var(--muted)">
+        {devSimMsg || "replays a stored match into the live card — real replays, real grades"}
+      </span>
+    </div>
+  {/if}
+
   <!-- Live Stats Overlay (OBS) — always-on panel (tag / rank / MMR / global / season +
        today's session record), written to a local file OBS reads as a Browser Source. -->
   <div class="card" style="margin-bottom: 16px">
@@ -464,24 +491,6 @@
                 border: 1px solid var(--border); background: var(--bg); color: var(--text);
               "
             >Simulate set result</button>
-            {#if IS_DEV}
-              <button
-                type="button"
-                onclick={devSimulateSession}
-                style="padding: 7px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;
-                  font-size: 12px; font-weight: 700; border: 1px dashed var(--accent);
-                  background: transparent; color: var(--accent);"
-              >[dev] Load last session</button>
-              <button
-                type="button"
-                onclick={devClearSession}
-                style="padding: 7px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;
-                  font-size: 12px; border: 1px dashed var(--border); background: transparent; color: var(--muted);"
-              >[dev] Clear</button>
-              {#if devSimMsg}
-                <span style="font-size: 11px; color: var(--muted); align-self: center">{devSimMsg}</span>
-              {/if}
-            {/if}
           </div>
           <div class="muted" style="font-size: 11px; margin-top: 6px; line-height: 1.5">
             Plays the full set-end sequence on your overlay (opponent → grade → Rating change), then returns to live.
