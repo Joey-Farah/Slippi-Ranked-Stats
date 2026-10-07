@@ -22,6 +22,8 @@
   import SetGradeDisplay from "../SetGradeDisplay.svelte";
   import GradeFilterBar, { type ResultFilter, type SortMode } from "../GradeFilterBar.svelte";
   import GradeDistribution from "../GradeDistribution.svelte";
+  import { buildMatchupSummaries } from "../../lib/matchup-summary";
+  import MatchupTable from "../MatchupTable.svelte";
   import GradingMethodology from "../GradingMethodology.svelte";
 
   function rowToEntry(row: SetGradeRow): GradeHistoryEntry {
@@ -217,6 +219,13 @@
 
   let unrankedGraded = $derived(unrankedList.filter((e) => e.grade !== null));
 
+  // Same History / By Matchup split the Ranked view has. Separate state: the two views are
+  // different populations, so a matchup selected in one should not follow you into the other.
+  let unrankedViewMode = $state<"history" | "matchups">("history");
+  // Built from the FILTERED list, so narrowing to one opponent or character re-summarises
+  // against that slice — same behaviour as ranked.
+  let unrankedMatchups = $derived(buildMatchupSummaries(unrankedList));
+
   // A set counts as complete (gradeable) at first-to-2 games, OR when it ended in a
   // quit-out (LRAS forfeit) with at least one full game actually played — mirrors the
   // live watcher's completion rule so live-graded forfeit sets show + regrade here too.
@@ -296,61 +305,8 @@
     return { avgScore: avg, letter: scoreToGrade(avg) };
   }
 
-  let matchupSummaries = $derived((() => {
-    const graded = activeHistory.filter((r) => r.grade !== null);
-    const groups = new Map<string, GradeHistoryEntry[]>();
-    for (const r of graded) {
-      const k = `${r.playerChar}::${r.opponentChar}`;
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k)!.push(r);
-    }
-
-    return [...groups.entries()].map(([key, entries]) => {
-      const [playerChar, opponentChar] = key.split("::");
-      const wins = entries.filter((r) => r.result === "win").length;
-      const rawAvg = entries.reduce((s, r) => s + r.grade!.score, 0) / entries.length;
-
-      const categories = {
-        neutral: avgCategoryScores(entries, "neutral"),
-        punish:  avgCategoryScores(entries, "punish"),
-        defense: avgCategoryScores(entries, "defense"),
-      };
-
-      const allStatKeys = CATEGORY_ORDER.flatMap((c) => CATEGORY_DEFS[c].stats) as (keyof SetGrade["breakdown"])[];
-
-      const statAvgs = new Map<
-        keyof SetGrade["breakdown"],
-        { avgValue: number | null; avgScore: number | null; letter: GradeLetter | null; label: string }
-      >();
-      for (const k of allStatKeys) {
-        const first = entries[0]?.grade?.breakdown[k];
-        if (!first) continue;
-        const scores = entries.map((r) => r.grade!.breakdown[k].score).filter((s): s is number => s !== null);
-        const values = entries.map((r) => r.grade!.breakdown[k].value).filter((v): v is number => v !== null);
-        const avgSc = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
-        const avgVl = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
-        statAvgs.set(k, {
-          avgValue: avgVl,
-          avgScore: avgSc,
-          letter: avgSc !== null ? scoreToGrade(avgSc) : null,
-          label: first.label,
-        });
-      }
-
-      return {
-        key,
-        playerChar,
-        opponentChar,
-        setCount: entries.length,
-        wins,
-        losses: entries.length - wins,
-        avgScore: Math.round(rawAvg * 10) / 10,
-        avgLetter: scoreToGrade(rawAvg),
-        categories,
-        statAvgs,
-      };
-    }).sort((a, b) => b.setCount - a.setCount);
-  })());
+  // Shared with the Unranked & Direct view — see src/lib/matchup-summary.ts (pure + tested).
+  let matchupSummaries = $derived(buildMatchupSummaries(activeHistory));
 
   async function gradeAllSets(force = false) {
     // Replay lookup for rows whose stored filepath has gone stale (the folder was
@@ -811,127 +767,10 @@
     </div>
   {/if}
 
-  <!-- By Matchup view -->
+  <!-- By Matchup view. Table is shared with the Unranked & Direct view — see
+       MatchupTable.svelte; the averaging is in src/lib/matchup-summary.ts. -->
   {#if viewMode === "matchups" && $isPremium}
-    {#if matchupSummaries.length === 0}
-      <div style="text-align: center; padding: 48px 24px; color: var(--muted); font-size: 13px">
-        Grade some sets first to see matchup averages.
-      </div>
-    {:else}
-      <div class="card" style="padding: 0; overflow: hidden">
-
-        <!-- Column headers -->
-        <div style="
-          display: grid; grid-template-columns: 1fr 54px 72px 80px 48px 48px 48px 20px;
-          gap: 8px; padding: 10px 16px;
-          font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em;
-          border-bottom: 1px solid var(--border);
-        ">
-          <div>MATCHUP</div>
-          <div style="text-align: center">SETS</div>
-          <div>RECORD</div>
-          <div style="text-align: center">GRADE</div>
-          <div style="text-align: center">NEU</div>
-          <div style="text-align: center">PUN</div>
-          <div style="text-align: center">DEF</div>
-          <div></div>
-        </div>
-
-        {#each matchupSummaries as m (m.key)}
-          {@const isOpen = selectedMatchupKey === m.key}
-          <div style="border-bottom: 1px solid var(--border)">
-            <button
-              type="button"
-              onclick={() => { selectedMatchupKey = isOpen ? null : m.key; }}
-              style="
-                width: 100%; text-align: left; background: none; border: none;
-                display: grid; grid-template-columns: 1fr 54px 72px 80px 48px 48px 48px 20px;
-                align-items: center; gap: 8px; padding: 12px 16px;
-                border-left: 3px solid {isOpen ? gc(m.avgLetter) : 'transparent'};
-                background: {isOpen ? `${gc(m.avgLetter)}0d` : 'transparent'};
-                cursor: pointer; font-family: inherit; color: var(--text);
-              "
-            >
-              <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
-                {m.playerChar} <span style="color: var(--muted); font-weight: 400">vs</span> {m.opponentChar}
-              </div>
-              <div style="font-size: 13px; color: var(--muted); text-align: center">{m.setCount}</div>
-              <div style="font-size: 13px; font-weight: 600">
-                <span style="color: #2ecc71">{m.wins}W</span>
-                <span style="color: var(--muted)">–</span>
-                <span style="color: #e74c3c">{m.losses}L</span>
-              </div>
-              <div style="display: flex; flex-direction: column; align-items: center; gap: 1px">
-                <div style="
-                  font-size: 18px; font-weight: 800; line-height: 1; color: {gc(m.avgLetter)};
-                  {m.avgLetter === 'S' ? `text-shadow: 0 0 8px ${gc(m.avgLetter)}aa;` : ''}
-                ">{m.avgLetter}</div>
-                <div style="font-size: 10px; color: var(--muted)">{m.avgScore.toFixed(0)}</div>
-              </div>
-              {#each CATEGORY_ORDER as cat}
-                {@const c = m.categories[cat]}
-                <div style="
-                  font-size: 14px; font-weight: 800; text-align: center;
-                  color: {c.letter ? gc(c.letter) : 'var(--muted)'};
-                ">{c.letter ?? "—"}</div>
-              {/each}
-              <div style="font-size: 11px; color: var(--muted); text-align: right; transition: transform 0.15s; transform: rotate({isOpen ? 180 : 0}deg)">▾</div>
-            </button>
-
-            <!-- Expanded per-stat breakdown -->
-            {#if isOpen}
-              <div style="padding: 4px 16px 16px">
-                {#each CATEGORY_ORDER as catKey}
-                  {@const catDef = CATEGORY_DEFS[catKey]}
-                  {@const catAvg = m.categories[catKey]}
-                  <div style="margin-bottom: 12px">
-                    <!-- Category header -->
-                    <div style="
-                      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-                      padding: 6px 0; border-bottom: 1px solid var(--border);
-                    ">
-                      <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: var(--text)">{catDef.label.toUpperCase()}</div>
-                      {#if catAvg.letter !== null}
-                        <div style="
-                          font-size: 12px; font-weight: 700; color: {gc(catAvg.letter)};
-                          background: {gc(catAvg.letter)}1a; border-radius: 4px; padding: 1px 7px;
-                        ">{catAvg.letter}</div>
-                        <div style="font-size: 12px; color: var(--muted)">{catAvg.avgScore?.toFixed(0)}</div>
-                      {/if}
-                    </div>
-                    <!-- Stat rows -->
-                    {#each catDef.stats as statKey}
-                      {@const stat = m.statAvgs.get(statKey)}
-                      {#if stat}
-                        <div style="
-                          display: grid; grid-template-columns: 1fr 80px 48px 28px;
-                          align-items: center; gap: 10px;
-                          background: var(--bg); border-radius: 6px; padding: 8px 12px; margin-bottom: 3px;
-                        ">
-                          <div>
-                            <div style="font-size: 13px; font-weight: 600">{stat.label}</div>
-                            <div style="font-size: 12px; color: var(--muted)">{formatStatValue(statKey, stat.avgValue)}</div>
-                          </div>
-                          <div style="height: 5px; background: var(--border); border-radius: 3px; overflow: hidden">
-                            {#if stat.avgScore !== null}
-                              <div style="height: 100%; border-radius: 3px; width: {stat.avgScore}%; background: {stat.letter ? gc(stat.letter) : 'var(--muted)'}"></div>
-                            {/if}
-                          </div>
-                          <div style="font-size: 12px; color: var(--muted); text-align: right">{stat.avgScore !== null ? stat.avgScore.toFixed(0) : "—"}</div>
-                          <div style="font-size: 14px; font-weight: 700; text-align: center; color: {stat.letter ? gc(stat.letter) : 'var(--muted)'}">{stat.letter ?? "—"}</div>
-                        </div>
-                      {/if}
-                    {/each}
-                  </div>
-                {/each}
-
-              </div>
-            {/if}
-
-          </div>
-        {/each}
-      </div>
-    {/if}
+    <MatchupTable summaries={matchupSummaries} unit="SETS" />
 
   {:else}
 
@@ -960,11 +799,12 @@
     {/if}
 
     <!-- Results list with inline expansion -->
+    <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px"><span style="color:#a78bfa; font-weight:700">▾</span>Click any set for its full stat breakdown</div>
     <div class="card" style="padding: 0; overflow: hidden">
 
       <!-- Column headers -->
       <div style="
-        display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 44px 44px 44px 20px;
+        display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 44px 44px 44px 30px;
         gap: 8px; padding: 10px 16px;
         font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em;
         border-bottom: 1px solid var(--border);
@@ -994,7 +834,7 @@
             onclick={() => { selectedMatchId = selectedMatchId === r.matchId ? null : r.matchId; }}
             style="
               width: 100%; text-align: left; background: none; border: none;
-              display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 44px 44px 44px 20px;
+              display: grid; grid-template-columns: 55px 140px 1fr 80px 56px 48px 44px 44px 44px 30px;
               align-items: center; gap: 8px;
               padding: 12px 16px;
               border-left: 3px solid {isSelected ? gc(letter) : 'transparent'};
@@ -1033,7 +873,15 @@
                 color: {c?.letter ? gc(c.letter) : 'var(--muted)'};
               ">{c?.letter ?? "—"}</div>
             {/each}
-            <div style="font-size: 11px; color: var(--muted); text-align: right; transition: transform 0.15s; transform: rotate({isSelected ? 180 : 0}deg)">
+            <div style="
+              display: flex; align-items: center; justify-content: center;
+              width: 26px; height: 26px; margin-left: auto; border-radius: 50%;
+              font-size: 15px; font-weight: 800; line-height: 1;
+              background: {isSelected ? '#7c3aed' : '#7c3aed22'};
+              color: {isSelected ? '#fff' : '#a78bfa'};
+              transition: transform 0.15s, background 0.15s;
+              transform: rotate({isSelected ? 180 : 0}deg);
+            ">
               ▾
             </div>
           </button>
@@ -1086,45 +934,50 @@
 
   <!-- Unranked & Direct: per-GAME grades, scored from stored `game_stats` rows.
        Opening this tab costs only the scoring pass (~0.1s for a 15k corpus) — replays are read
-       once, by the explicit batch job below, never on open.
-       See docs/plans/per-game-grade-persistence.md. -->
+       once, by the explicit batch job, never on open.
+       Deliberately mirrors the Ranked view's structure: same header shape, same History /
+       By Matchup split, same distribution and filters. The ONLY difference is the unit — ranked
+       counts sets, this counts games — because one unranked match_id is a whole connection, so
+       the two can never be summed or swapped. -->
   <div class="card" style="margin-bottom: 16px">
-    <div class="section-title" style="margin-bottom: 6px">Unranked &amp; Direct grades</div>
-    <div style="font-size: 12px; color: var(--muted); line-height: 1.7; max-width: 700px">
-      Friendlies are graded <strong style="color: var(--text)">per game</strong>, not per set — in
-      unranked and direct play one match covers the whole connection with that opponent, so there
-      is no set to score. The win bonus is off here: these are practice games, not results.
-    </div>
-  </div>
-
-  <!-- Grade / progress bar -->
-  <div class="card" style="margin-bottom: 16px">
-    <div style="display: flex; align-items: center; gap: 26px; flex-wrap: wrap">
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap">
       <div>
-        <div style="font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.07em">
-          GRADED
-        </div>
-        <div style="font-size: 30px; font-weight: 800; line-height: 1.25; font-variant-numeric: tabular-nums">
-          {unrankedGraded.length.toLocaleString()}
-        </div>
-        <div style="font-size: 11px; color: var(--muted)">
-          {#if gameQueueCount === null}
-            games scored
-          {:else if gameQueueCount > 0}
-            {gameQueueCount.toLocaleString()} not graded yet
-          {:else}
-            everything graded
+        <div class="section-title" style="margin-bottom: 4px">Grading</div>
+        <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px">
+          Each game scored across Neutral, Punish, and Defense against community baselines.
+          Friendlies are graded <strong style="color: var(--text)">per game</strong> — one unranked
+          match covers the whole connection, so there is no set to score.
+          {#if unrankedGraded.length > 0}
+            <span style="color: var(--text)">{unrankedGraded.length.toLocaleString()} games graded.</span>
+            {#if !gameQueueCount}
+              <span style="color: #2ecc71"> Up to date.</span>
+            {/if}
           {/if}
         </div>
+        <button
+          type="button"
+          onclick={() => showMethodology = !showMethodology}
+          style="
+            display: inline-flex; align-items: center; gap: 5px;
+            background: {showMethodology ? '#7c3aed33' : '#7c3aed18'};
+            border: 1px solid {showMethodology ? '#7c3aed88' : '#7c3aed55'};
+            border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 600;
+            color: #a78bfa; font-family: inherit; cursor: pointer;
+          "
+        >
+          <span style="font-size: 13px">📖</span>
+          How Grading Works
+          <span style="font-size: 9px; transition: transform 0.15s; transform: rotate({showMethodology ? 180 : 0}deg)">▾</span>
+        </button>
       </div>
 
-      {#if $gameGradeBusy}
-        <div style="flex: 1; min-width: 240px">
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px">
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0">
+        {#if $gameGradeBusy}
+          <div style="font-size: 12px; color: var(--muted)">
             Reading replays… {$gameGradeProgress.current.toLocaleString()} of
             {$gameGradeProgress.total.toLocaleString()}
           </div>
-          <div style="height: 7px; background: var(--border); border-radius: 4px; overflow: hidden">
+          <div style="width: 180px; height: 7px; background: var(--border); border-radius: 4px; overflow: hidden">
             <div style="
               height: 100%; background: #7c3aed; border-radius: 4px;
               width: {$gameGradeProgress.total > 0
@@ -1133,36 +986,26 @@
               transition: width 0.2s;
             "></div>
           </div>
-        </div>
-        <button
-          type="button"
-          onclick={cancelGameGrading}
-          style="
-            padding: 9px 18px; font-size: 13px; font-weight: 700; font-family: inherit;
-            background: transparent; color: var(--muted);
-            border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
-            flex-shrink: 0;
-          "
-        >Stop</button>
-      {:else}
-        <div style="flex: 1; min-width: 240px; font-size: 12px; color: var(--muted); line-height: 1.7">
-          Grading reads each replay once and stores the result, so this runs as a one-off job.
-          Afterwards, benchmark and scoring changes re-grade instantly without touching a replay.
-          <!-- The honest framing of the 30x gap in dev_notes: the work is ~9ms/game, the app
-               pays ~0.3s/game, and nobody has instrumented which layer eats it yet. -->
-          Expect it to take a while on a large history; you can stop and resume any time.
-        </div>
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; flex-shrink: 0">
+          <button
+            type="button"
+            onclick={cancelGameGrading}
+            style="
+              padding: 6px 14px; font-size: 12px; font-weight: 700; font-family: inherit;
+              background: transparent; color: var(--muted);
+              border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+            "
+          >Stop</button>
+        {:else}
           <button
             type="button"
             disabled={!gameQueueCount}
             onclick={gradeUnrankedGames}
             style="
-              padding: 10px 20px; font-size: 13px; font-weight: 700; font-family: inherit;
+              padding: 9px 18px; font-size: 13px; font-weight: 700; font-family: inherit;
               background: #7c3aed; color: #fff; border: none; border-radius: 6px;
               white-space: nowrap;
               cursor: {gameQueueCount ? 'pointer' : 'default'};
-              opacity: {gameQueueCount ? 1 : 0.4};
+              opacity: {gameQueueCount ? 1 : 0.55};
             "
           >
             {#if gameQueueCount === null}
@@ -1174,10 +1017,12 @@
             {/if}
           </button>
           {#if gameQueueCount}
+            <!-- The batch reads from the database, not the sidebar Date Range, so say so: a
+                 count that ignores the active filter is otherwise just confusing. -->
             <div style="font-size: 11px; color: var(--muted)">All dates, not just the filter</div>
           {/if}
-        </div>
-      {/if}
+        {/if}
+      </div>
     </div>
 
     <!-- Read failures are surfaced, never swallowed: fewer grades than the button promised is
@@ -1190,6 +1035,9 @@
     {/if}
   </div>
 
+  {#if showMethodology}
+    <GradingMethodology />
+  {/if}
   {#if unrankedList.length === 0}
     <div style="text-align: center; padding: 48px 24px; color: var(--muted); font-size: 13px">
       {#if gameQueueCount}
@@ -1203,6 +1051,26 @@
     <!-- Same distribution summary the Ranked view shows, over the filtered list.
          ⚠ Counts GAMES, not sets — one unranked match_id is a whole connection, so the two
          units are never interchangeable and must never be summed. -->
+    <!-- History / By Matchup, mirroring the Ranked view. Premium gates the matchup view there,
+         so it gates it here too — the gating is inherited, not redesigned. -->
+    {#if $isPremium}
+      <div style="display: flex; gap: 6px; margin-bottom: 12px">
+        {#each [["history", "History"], ["matchups", "By Matchup"]] as [mode, label]}
+          <button
+            type="button"
+            onclick={() => { unrankedViewMode = mode as "history" | "matchups"; openGameKey = null; }}
+            style="
+              padding: 6px 16px; font-size: 12px; font-weight: 700; border-radius: 6px;
+              border: 1px solid {unrankedViewMode === mode ? '#7c3aed' : 'var(--border)'};
+              background: {unrankedViewMode === mode ? '#7c3aed22' : 'transparent'};
+              color: {unrankedViewMode === mode ? '#7c3aed' : 'var(--muted)'};
+              cursor: pointer; font-family: inherit;
+            "
+          >{label}</button>
+        {/each}
+      </div>
+    {/if}
+
     <GradeDistribution graded={unrankedGraded} unit="games" />
 
     <!-- Mode filter. Unranked and direct are different populations (direct is friendlies with
@@ -1247,101 +1115,118 @@
       codeListId="unranked-opp-codes"
     />
 
-    <div class="card" style="padding: 0; overflow: hidden">
-      <!-- Column headers -->
-      <div style="
-        display: grid; grid-template-columns: 58px 1fr 1.1fr 46px 76px 44px 44px 44px 20px;
-        gap: 8px; padding: 10px 16px;
-        font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em;
-        border-bottom: 1px solid var(--border);
-      ">
-        <div>DATE</div>
-        <div>OPPONENT</div>
-        <div>MATCHUP</div>
-        <div style="text-align: center">W/L</div>
-        <div style="text-align: center">GRADE</div>
-        <div style="text-align: center">NEU</div>
-        <div style="text-align: center">PUN</div>
-        <div style="text-align: center">DEF</div>
-        <div></div>
-      </div>
-
-      {#each unrankedList.slice(0, 400) as e (e.filename)}
-        {@const isOpen = openGameKey === e.filename}
-        {@const d = new Date(e.timestamp)}
-        {@const won = e.result === "win" || e.result === "lras_win"}
-        <div style="border-bottom: 1px solid var(--border)">
-          <button
-            type="button"
-            disabled={e.grade === null}
-            onclick={() => { openGameKey = isOpen ? null : e.filename; }}
-            style="
-              width: 100%; text-align: left; background: none; border: none;
-              display: grid; grid-template-columns: 58px 1fr 1.1fr 46px 76px 44px 44px 44px 20px;
-              align-items: center; gap: 8px; padding: 11px 16px;
-              border-left: 3px solid {isOpen && e.grade ? gc(e.grade.letter) : 'transparent'};
-              background: {isOpen && e.grade ? `${gc(e.grade.letter)}0d` : 'transparent'};
-              cursor: {e.grade ? 'pointer' : 'default'};
-              font-family: inherit; color: var(--text);
-            "
-          >
-            <div style="font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums">
-              {d.getMonth() + 1}/{d.getDate()}
-            </div>
-            <div style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
-              {e.opponentCode || "—"}
-              {#if e.matchType === "direct"}
-                <span style="font-size: 10px; color: var(--muted); font-weight: 700"> DIRECT</span>
-              {/if}
-            </div>
-            <div style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
-              {e.playerChar} <span style="color: var(--muted)">vs</span> {e.opponentChar}
-            </div>
-            <!-- A quit-out outside ranked is "no result", not a loss (see outcome.ts) — so this
-                 column has three states, and blank is a real one. -->
-            <div style="text-align: center; font-size: 13px; font-weight: 700; color: {
-              e.result === 'win' ? '#2ecc71' : e.result === 'loss' ? '#e74c3c' : 'var(--muted)'
-            }">
-              {e.result === "win" ? "W" : e.result === "loss" ? "L" : "—"}
-            </div>
-            {#if e.grade}
-              <div style="display: flex; flex-direction: column; align-items: center; gap: 1px">
-                <div style="
-                  font-size: 18px; font-weight: 800; line-height: 1; color: {gc(e.grade.letter)};
-                  {e.grade.letter === 'S' ? `text-shadow: 0 0 8px ${gc(e.grade.letter)}aa;` : ''}
-                ">{e.grade.letter}</div>
-                <div style="font-size: 10px; color: var(--muted)">{e.grade.score.toFixed(0)}</div>
-              </div>
-              {#each CATEGORY_ORDER as cat}
-                {@const c = e.grade.categories[cat]}
-                <div style="
-                  font-size: 14px; font-weight: 800; text-align: center;
-                  color: {c.letter ? gc(c.letter) : 'var(--muted)'};
-                ">{c.letter ?? "—"}</div>
-              {/each}
-              <div style="font-size: 11px; color: var(--muted); text-align: right; transition: transform 0.15s; transform: rotate({isOpen ? 180 : 0}deg)">▾</div>
-            {:else}
-              <div style="text-align: center; font-size: 11px; color: var(--muted)">—</div>
-              <div style="grid-column: span 3; font-size: 11px; color: var(--muted); text-align: center">
-                no frame data
-              </div>
-              <div></div>
-            {/if}
-          </button>
-
-          {#if isOpen && e.grade}
-            <div style="padding: 4px 16px 16px">
-              <SetGradeDisplay grade={e.grade} detailed={$isPremium} />
-            </div>
-          {/if}
+    <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px"><span style="color:#a78bfa; font-weight:700">▾</span>Click any game for its full stat breakdown</div>
+    {#if unrankedViewMode === "matchups" && $isPremium}
+      <MatchupTable
+        summaries={unrankedMatchups}
+        unit="GAMES"
+        emptyText="Grade some games first to see matchup averages."
+      />
+    {:else}
+      <div class="card" style="padding: 0; overflow: hidden">
+        <!-- Column headers -->
+        <div style="
+          display: grid; grid-template-columns: 58px 1fr 1.1fr 46px 76px 44px 44px 44px 30px;
+          gap: 8px; padding: 10px 16px;
+          font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em;
+          border-bottom: 1px solid var(--border);
+        ">
+          <div>DATE</div>
+          <div>OPPONENT</div>
+          <div>MATCHUP</div>
+          <div style="text-align: center">W/L</div>
+          <div style="text-align: center">GRADE</div>
+          <div style="text-align: center">NEU</div>
+          <div style="text-align: center">PUN</div>
+          <div style="text-align: center">DEF</div>
+          <div></div>
         </div>
-      {/each}
-    </div>
 
-    {#if unrankedList.length > 400}
-      <div style="text-align: center; padding: 14px; font-size: 12px; color: var(--muted)">
-        Showing the 400 most recent of {unrankedList.length.toLocaleString()}.
+        {#each unrankedList.slice(0, 400) as e (e.filename)}
+          {@const isOpen = openGameKey === e.filename}
+          {@const d = new Date(e.timestamp)}
+          {@const won = e.result === "win" || e.result === "lras_win"}
+          <div style="border-bottom: 1px solid var(--border)">
+            <button
+              type="button"
+              disabled={e.grade === null}
+              onclick={() => { openGameKey = isOpen ? null : e.filename; }}
+              style="
+                width: 100%; text-align: left; background: none; border: none;
+                display: grid; grid-template-columns: 58px 1fr 1.1fr 46px 76px 44px 44px 44px 30px;
+                align-items: center; gap: 8px; padding: 11px 16px;
+                border-left: 3px solid {isOpen && e.grade ? gc(e.grade.letter) : 'transparent'};
+                background: {isOpen && e.grade ? `${gc(e.grade.letter)}0d` : 'transparent'};
+                cursor: {e.grade ? 'pointer' : 'default'};
+                font-family: inherit; color: var(--text);
+              "
+            >
+              <div style="font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums">
+                {d.getMonth() + 1}/{d.getDate()}
+              </div>
+              <div style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+                {e.opponentCode || "—"}
+                {#if e.matchType === "direct"}
+                  <span style="font-size: 10px; color: var(--muted); font-weight: 700"> DIRECT</span>
+                {/if}
+              </div>
+              <div style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+                {e.playerChar} <span style="color: var(--muted)">vs</span> {e.opponentChar}
+              </div>
+              <!-- A quit-out outside ranked is "no result", not a loss (see outcome.ts) — so this
+                   column has three states, and blank is a real one. -->
+              <div style="text-align: center; font-size: 13px; font-weight: 700; color: {
+                e.result === 'win' ? '#2ecc71' : e.result === 'loss' ? '#e74c3c' : 'var(--muted)'
+              }">
+                {e.result === "win" ? "W" : e.result === "loss" ? "L" : "—"}
+              </div>
+              {#if e.grade}
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 1px">
+                  <div style="
+                    font-size: 18px; font-weight: 800; line-height: 1; color: {gc(e.grade.letter)};
+                    {e.grade.letter === 'S' ? `text-shadow: 0 0 8px ${gc(e.grade.letter)}aa;` : ''}
+                  ">{e.grade.letter}</div>
+                  <div style="font-size: 10px; color: var(--muted)">{e.grade.score.toFixed(0)}</div>
+                </div>
+                {#each CATEGORY_ORDER as cat}
+                  {@const c = e.grade.categories[cat]}
+                  <div style="
+                    font-size: 14px; font-weight: 800; text-align: center;
+                    color: {c.letter ? gc(c.letter) : 'var(--muted)'};
+                  ">{c.letter ?? "—"}</div>
+                {/each}
+                <div style="
+              display: flex; align-items: center; justify-content: center;
+              width: 26px; height: 26px; margin-left: auto; border-radius: 50%;
+              font-size: 15px; font-weight: 800; line-height: 1;
+              background: {isOpen ? '#7c3aed' : '#7c3aed22'};
+              color: {isOpen ? '#fff' : '#a78bfa'};
+              transition: transform 0.15s, background 0.15s;
+              transform: rotate({isOpen ? 180 : 0}deg);
+            ">▾</div>
+              {:else}
+                <div style="text-align: center; font-size: 11px; color: var(--muted)">—</div>
+                <div style="grid-column: span 3; font-size: 11px; color: var(--muted); text-align: center">
+                  no frame data
+                </div>
+                <div></div>
+              {/if}
+            </button>
+
+            {#if isOpen && e.grade}
+              <div style="padding: 4px 16px 16px">
+                <SetGradeDisplay grade={e.grade} detailed={$isPremium} />
+              </div>
+            {/if}
+          </div>
+        {/each}
       </div>
+
+      {#if unrankedList.length > 400}
+        <div style="text-align: center; padding: 14px; font-size: 12px; color: var(--muted)">
+          Showing the 400 most recent of {unrankedList.length.toLocaleString()}.
+        </div>
+      {/if}
     {/if}
   {/if}
 {/if}<!-- end ranked / unranked sub-tab -->
