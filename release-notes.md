@@ -1,3 +1,27 @@
+## What's New in v1.12.2
+
+### 📊 Unranked & Direct grading now matches Ranked
+
+The Unranked & Direct view has the same **History** and **By Matchup** split the Ranked view
+does. By Matchup averages your grade for each character pairing, so you can see which matchups
+you're actually playing well.
+
+It counts games rather than sets — one unranked match covers the whole connection, so there's
+no set to score.
+
+### 👆 Grade breakdowns are easier to find
+
+Clicking a row opens its full per-stat breakdown. That wasn't obvious before — the arrow was
+small and grey. It's a proper button now, and there's a line above each list saying what
+clicking does.
+
+### 🔧 Also in this release
+
+- The L and R labels on the overlay's box controller no longer have an underline under them.
+- The Z button has a little more room inside its border.
+
+---
+
 ## What's New in v1.12.1
 
 Includes everything from v1.12.0, which went out earlier today — see below.

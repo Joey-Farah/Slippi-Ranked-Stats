@@ -218,9 +218,9 @@ is neither), a `perGame` flag switches the wording to GAME / "GAME GRADE", `rati
 and the hold is **20 s** (`PERGAME_MS`) not 3 min — `contextHtml` renders the bridge INSTEAD of the
 opponent line, and you are still playing that person.
 
-### 3c. View parity + affordances (committed, NOT yet released)
+### 3c. View parity + affordances (v1.12.2)
 
-**On `main`, after the v1.12.1 tag — needs its own release (v1.12.2).**
+**Released in v1.12.2.**
 
 - **Ranked and Unranked Grading views now match.** Same header shape, same History / By Matchup
   split, same distribution and filters. ⚠ The ONLY intentional difference is the unit: Ranked
