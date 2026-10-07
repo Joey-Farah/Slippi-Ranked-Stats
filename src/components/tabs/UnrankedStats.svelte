@@ -1,5 +1,6 @@
 <script lang="ts">
   import { unrankedGames, directGames, isPremium } from "../../lib/store";
+  import { gameOutcome } from "../../lib/outcome";
   import { CHARACTERS, STAGES } from "../../lib/parser";
   import BarChart from "../charts/BarChart.svelte";
   import PremiumGate from "../PremiumGate.svelte";
@@ -39,9 +40,12 @@
   // ── Summary (respects the your-character filter) ────────────────────────────
 
   let totalGames = $derived(baseGames.length);
-  let wins = $derived(baseGames.filter((g) => g.result === "win" || g.result === "lras_win").length);
-  let losses = $derived(totalGames - wins);
-  let winPct = $derived(totalGames > 0 ? (wins / totalGames) * 100 : 0);
+  // Counted, NOT derived as total − wins: a quit-out outside ranked has no result, and
+  // subtracting would quietly file every one of them as a loss.
+  let wins = $derived(baseGames.filter((g) => gameOutcome(g.result, g.match_type) === "win").length);
+  let losses = $derived(baseGames.filter((g) => gameOutcome(g.result, g.match_type) === "loss").length);
+  let decided = $derived(wins + losses);
+  let winPct = $derived(decided > 0 ? (wins / decided) * 100 : 0);
 
   // ── Chart stats (respect char filter) ─────────────────────────────────────
 
@@ -51,9 +55,11 @@
   let oppCharStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
     for (const g of filtered) {
+      const o = gameOutcome(g.result, g.match_type);
+      if (o === "none") continue;          // quit-out: no result to chart
       const e = m.get(g.opponent_char_id) ?? { wins: 0, total: 0 };
       e.total++;
-      if (g.result === "win" || g.result === "lras_win") e.wins++;
+      if (o === "win") e.wins++;
       m.set(g.opponent_char_id, e);
     }
     const rows = [...m.entries()].map(([id, v]) => ({
@@ -75,9 +81,11 @@
   let myCharStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
     for (const g of baseGames) {
+      const o = gameOutcome(g.result, g.match_type);
+      if (o === "none") continue;          // quit-out: no result to chart
       const e = m.get(g.player_char_id) ?? { wins: 0, total: 0 };
       e.total++;
-      if (g.result === "win" || g.result === "lras_win") e.wins++;
+      if (o === "win") e.wins++;
       m.set(g.player_char_id, e);
     }
     return [...m.entries()]
@@ -94,8 +102,9 @@
     const m = new Map<number, { wins: number; losses: number }>();
     for (const g of baseGames) {
       const e = m.get(g.stage_id) ?? { wins: 0, losses: 0 };
-      if (g.result === "win" || g.result === "lras_win") e.wins++;
-      else e.losses++;
+      const o = gameOutcome(g.result, g.match_type);
+      if (o === "win") e.wins++;
+      else if (o === "loss") e.losses++;
       m.set(g.stage_id, e);
     }
     return [...m.entries()]
@@ -116,8 +125,9 @@
     const m = new Map<string, { wins: number; losses: number }>();
     for (const g of baseGames) {
       const e = m.get(g.opponent_code) ?? { wins: 0, losses: 0 };
-      if (g.result === "win" || g.result === "lras_win") e.wins++;
-      else e.losses++;
+      const o = gameOutcome(g.result, g.match_type);
+      if (o === "win") e.wins++;
+      else if (o === "loss") e.losses++;
       m.set(g.opponent_code, e);
     }
     return [...m.entries()]

@@ -35,6 +35,7 @@
 
 import type { LiveGameStats } from "./store";
 import { BENCHMARKS, BENCHMARKS_VERSION, type StatThresholds } from "./grade-benchmarks";
+import { gameOutcome } from "./outcome";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -406,10 +407,10 @@ function averageSetStats(games: LiveGameStats[]): Record<string, number | null> 
  * twice. Grading per game sidesteps it entirely — the stat math was never set-specific, it runs
  * on per-game parser output.
  *
- * **The win bonus applies** (+5), as it does for a set — Joey's call 2026-10-06. Winning is the
- * point, and a grade that reads identically whether you took the game or dropped it looks broken
- * to the person who just played it. It is suppressible via gradeSet's `applyWinBonus` if that
- * ever needs revisiting.
+ * **The win bonus (+5) applies in RANKED only** — Joey's call 2026-10-06. In ranked, winning is
+ * the point and a grade that ignores the result looks broken. In unranked and direct it is not:
+ * people quit out mid-game constantly, so "did you win this one" is a much weaker signal there,
+ * and the games are for practice rather than a result.
  *
  * The comeback/closeout/blown-lead modifier stays off: it is defined across the games of a set
  * and has no meaning for one game (`wonGame1 = null` switches it off).
@@ -419,9 +420,10 @@ export function gradeGame(
   playerChar: string,
   opponentChar: string,
 ): SetGrade {
-  const won = game.result === "win" || game.result === "lras_win";
+  const won = gameOutcome(game.result, game.match_type) === "win";
+  const ranked = game.match_type === "ranked";
   return gradeSet([game], playerChar, opponentChar, won ? "win" : "loss",
-                  won ? 1 : 0, won ? 0 : 1, null, false);
+                  won ? 1 : 0, won ? 0 : 1, null, false, ranked);
 }
 
 export function gradeSet(

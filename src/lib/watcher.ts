@@ -3,6 +3,7 @@ import { parseSlpHeader, type SlpHeaderInfo } from "./slp_parser";
 import { get } from "svelte/store";
 import type Database from "@tauri-apps/plugin-sql";
 import { parseSlpFile, getRankTier, isLegalStage, type ParsedGameRow } from "./parser";
+import { tallyOutcomes } from "./outcome";
 import {
   insertGame,
   getGames,
@@ -730,11 +731,9 @@ async function computeAllTimeRecord(
   let allTimeLosses = 0;
 
   if (mode !== "ranked") {
-    for (const g of gamesVsOpp) {
-      if (g.result === "win" || g.result === "lras_win") allTimeWins++;
-      else allTimeLosses++;
-    }
-    return { allTimeWins, allTimeLosses, unit: "games" };
+    // Quit-outs don't count either way outside ranked — see gameOutcome.
+    const t = tallyOutcomes(gamesVsOpp);
+    return { allTimeWins: t.wins, allTimeLosses: t.losses, unit: "games" };
   }
 
   const byMatch = new Map<string, GameRow[]>();

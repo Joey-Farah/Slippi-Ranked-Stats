@@ -31,15 +31,34 @@ function game(over: Record<string, any> = {}) {
 }
 
 describe("gradeGame", () => {
-  it("applies the win bonus to a won game, as a set does", async () => {
+  it("applies the win bonus in ranked, where the result is the point", async () => {
     const { gradeGame } = await import("./grading");
-    const won = gradeGame(game({ result: "win" }), "Falco", "Fox");
-    const lost = gradeGame(game({ result: "loss" }), "Falco", "Fox");
-    // Joey's call 2026-10-06: winning is the point, and identical letters win-or-lose read as
-    // broken to whoever just played the game.
+    const won  = gradeGame(game({ result: "win",  match_type: "ranked" }), "Falco", "Fox");
+    const lost = gradeGame(game({ result: "loss", match_type: "ranked" }), "Falco", "Fox");
     expect(won.winBonus).toBe(5);
     expect(lost.winBonus).toBe(0);
     expect(won.score).toBeGreaterThan(lost.score);
+  });
+
+  it("gives no win bonus in unranked or direct", async () => {
+    const { gradeGame } = await import("./grading");
+    // Friendlies are practice, and people quit out of them constantly, so "did you win this
+    // one" is a much weaker signal than it is in ranked.
+    for (const m of ["unranked", "direct"]) {
+      const won  = gradeGame(game({ result: "win",  match_type: m }), "Falco", "Fox");
+      const lost = gradeGame(game({ result: "loss", match_type: m }), "Falco", "Fox");
+      expect(won.winBonus).toBe(0);
+      expect(won.score).toBe(lost.score);
+    }
+  });
+
+  it("treats an unranked quit-out as no result, so it gets no win bonus", async () => {
+    const { gradeGame } = await import("./grading");
+    const q = gradeGame(game({ result: "lras_win", match_type: "unranked" }), "Falco", "Fox");
+    expect(q.winBonus).toBe(0);
+    // ...while a ranked forfeit still is a win
+    const r = gradeGame(game({ result: "lras_win", match_type: "ranked" }), "Falco", "Fox");
+    expect(r.winBonus).toBe(5);
   });
 
   it("still lets the win bonus be suppressed through gradeSet", async () => {

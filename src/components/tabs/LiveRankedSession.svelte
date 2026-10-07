@@ -11,6 +11,7 @@
   import { RANK_MEDAL_SVGS } from "../../lib/rank-medals";
   import { gradeColor, gradeGame, featuredCategory, type FeaturedGrade } from "../../lib/grading";
   import { elapsedMs, formatElapsed } from "../../lib/session-timer";
+  import { gameOutcome } from "../../lib/outcome";
   import { simulateLiveSession, clearLiveSimulation } from "../../lib/dev-session-sim";
 
   // A quit-out shorter than this is a stub, not a game: 45 s at 60 fps. Above it, the game is
@@ -236,8 +237,11 @@
       const g = games[i];
       const grade = gameGrade(g);
       if (!grade) continue;
-      const won = g.result === "win" || g.result === "lras_win";
-      return { grade, won, featured: featuredCategory(grade, won), index: i + 1 };
+      const o = gameOutcome(g.result, g.match_type);
+      // A quit-out outside ranked has no result, so there is no win to key BEST/WORST off.
+      // Fall back to whether the player was ahead on stocks when it stopped.
+      const won = o === "none" ? g.kills > g.deaths : o === "win";
+      return { grade, won, featured: featuredCategory(grade, won), index: i + 1, outcome: o };
     }
     return null;
   })());
@@ -819,7 +823,7 @@
                in progress. Grade the game that just finished instead. -->
           {@render gradeRevealCard(
             lastGameReveal.grade.letter,
-            `Game ${lastGameReveal.index} · ${lastGameReveal.won ? "Win" : "Loss"} vs ${allGames[0].opponent_code}`,
+            `Game ${lastGameReveal.index} · ${lastGameReveal.outcome === "win" ? "Win" : lastGameReveal.outcome === "loss" ? "Loss" : "No result"} vs ${allGames[0].opponent_code}`,
             "Last Game Grade",
             lastGameReveal.featured,
             lastGameReveal.won,
@@ -854,9 +858,9 @@
                8px/6px spacing that block dominated the tab. -->
           <div class="game-rows">
             {#each allGames as g, i}
-              {@const isWin = g.result === "win" || g.result === "lras_win"}
+              {@const outcome = gameOutcome(g.result, g.match_type)}
               {@const gg = gameGrade(g)}
-              <div class="game-grid game-row" style="border-left-color: {isWin ? '#2ecc71' : '#e74c3c'}">
+              <div class="game-grid game-row" style="border-left-color: {outcome === 'win' ? '#2ecc71' : outcome === 'loss' ? '#e74c3c' : 'var(--border)'}">
                 <div style="font-size: 11px; color: var(--muted)">G{i + 1}</div>
                 <div style="font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
                   {STAGES[g.stage_id] ?? `Stage ${g.stage_id}`}

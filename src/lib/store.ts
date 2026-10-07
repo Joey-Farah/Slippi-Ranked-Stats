@@ -2,6 +2,7 @@ import { writable, derived } from "svelte/store";
 import type { GameRow, SnapshotRow, SeasonRow } from "./db";
 import type { SetGrade } from "./grading";
 import { getRankTier, CHARACTERS, isLegalStage } from "./parser";
+import { tallyOutcomes } from "./outcome";
 import { internalToExternal } from "./char-icons";
 
 // ── Persistent settings (auto-saved to localStorage) ───────────────────────
@@ -651,13 +652,10 @@ export const liveSetRecord = derived(liveGameStats, ($stats) => {
 // Unranked + direct record for this watcher session, counted in games (the only honest unit —
 // these modes have no sets). Kept separate from liveSetRecord so the two are never summed.
 export const liveUnrankedRecord = derived(liveGameStats, ($stats) => {
-  let wins = 0, losses = 0;
-  for (const g of $stats) {
-    if (g.match_type === "ranked") continue;
-    if (g.result === "win" || g.result === "lras_win") wins++;
-    else losses++;
-  }
-  return { wins, losses, total: wins + losses };
+  // Quit-outs are excluded entirely (gameOutcome): outside ranked, leaving a game is how people
+  // get back to character select, not a forfeit — counting them made a 2–2 session read 4–2.
+  const t = tallyOutcomes($stats.filter((g) => g.match_type !== "ranked"));
+  return { wins: t.wins, losses: t.losses, total: t.total, noResult: t.noResult };
 });
 
 // ── Derived: stream-overlay live-stats payload ─────────────────────────────
