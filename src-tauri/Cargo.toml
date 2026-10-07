@@ -34,6 +34,10 @@ serde_json = "1"
 # Windows-only by design: macOS needs task_for_pid, which requires entitlements or root, and Mac
 # is ~1% of installs — those users simply don't get the toggle.
 [target.'cfg(windows)'.dependencies]
+# Box-controller input over USB serial (see src/boxx.rs). default-features = false drops the
+# libudev feature, which is Linux-only and would otherwise demand libudev-dev on that platform
+# for a feature that is Windows-only anyway.
+serialport = { version = "4", default-features = false }
 windows = { version = "0.58", features = [
   "Win32_Foundation",
   "Win32_System_Diagnostics_ToolHelp",

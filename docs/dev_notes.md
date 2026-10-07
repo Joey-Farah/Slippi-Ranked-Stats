@@ -144,7 +144,7 @@ plain diagonal.
 ⚠⚠ **A modifier pressed ALONE is undetectable from memory, at any threshold** — it leaves the
 stick at neutral, byte-identical to touching nothing. This is the whole reason for the USB source.
 
-**USB source — fully proven on hardware, NOT yet implemented.**
+**USB source — BUILT and working (`src-tauri/src/boxx.rs`).**
 The controller (a Pico box running **HayBox**) is a composite device exposing the game controller
 *and* a CDC serial port **simultaneously** — no mode switching, contrary to the initial worry that
 HayBox's "B0XX input viewer" backend was exclusive with XInput.
@@ -162,10 +162,24 @@ HayBox's "B0XX input viewer" backend was exclusive with XInput.
 "Access denied" open. Using ours means closing theirs.
 ⚠ **Does not replace the memory source** — it is B0XX/HayBox only, so GameCube and keyboard users
 still need memory. It is a second path, not a migration.
+⚠ **BOTH DTR and RTS must be asserted.** b0xx-viewer-rs only documents RTS, so that is all the
+first implementation set — and the port then opens cleanly while every single read times out,
+which is indistinguishable from the feature not working. DTR is the USB-CDC "host is listening"
+signal. This cost an hour.
+⚠ **A read timeout is NOT fatal.** It just means no report arrived in the window. Returning on it
+(the first version did) kills the connection on the first quiet moment and the source never
+produces anything. Do not clear the line buffer on a timeout either — one can land mid-report.
 ⚠ **Idle captures prove nothing.** Three separate "all zeros over serial" readings were nearly
 called a failure; checking Dolphin's memory over the same window showed **zero presses there
 too**, i.e. nobody was at the controller. Always corroborate an idle result against a second
 channel before concluding.
+
+**How the two sources combine:** `boxx.rs` runs its own thread and publishes an optional
+`digital` field on the existing snapshot. The Digital skin prefers it when present and falls back
+to analog inference otherwise, so no box (or another viewer holding the port) simply means the
+field is absent and nothing regresses. ⚠ `BoxState::parse` requires the firmware's constant
+terminator at index 23, so an unrelated device on the same VID/PID can never be decoded as
+"all buttons released".
 
 **Reference art:** the replaced viewer's PNGs were used briefly to measure layout and then
 **deleted** — they are not ours to ship. Nothing third-party is bundled; all shapes are CSS/SVG.

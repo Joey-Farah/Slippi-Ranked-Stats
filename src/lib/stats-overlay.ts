@@ -519,25 +519,25 @@ function overlayDoc(boot: string): string {
     // of width, up from the reference's 6.91%, with the gap between the two hands compressed so
     // the extra size costs no spill.
     var DIG = [
-      { lbl: "L",     s: "bit", m: 0x0040, x: 5.1, y: 27.4, w: 1.02 },
-      { d: "left",    s: "jx-", x: 15.6, y: 19.6, w: 1.02 },
-      { d: "down",    s: "jy-", x: 27.1, y: 19.6, w: 1.02 },
-      { d: "right",   s: "jx+", x: 37.6, y: 27.4, w: 1.02 },
-      { lbl: "mod<br>X", s: "modx", x: 29.2, y: 58.2, w: 1.02, small: true },
-      { lbl: "mod<br>Y", s: "mody", x: 39.9, y: 71.1, w: 1.02, small: true },
-      { lbl: "R",     s: "bit", m: 0x0020, x: 60.9, y: 17.4, w: 1.02 },
-      { lbl: "Y",     s: "bit", m: 0x0800, x: 71.8, y: 9.5, w: 1.02 },
-      { lbl: "LS",    s: "ls", x: 84.0, y: 9.5, w: 1.02 },
-      { lbl: "MS",    s: "ms", x: 94.9, y: 17.4, w: 1.02 },
-      { lbl: "B",     s: "bit", m: 0x0200, x: 60.9, y: 39.7, w: 1.02, c: "d-b" },
-      { lbl: "X",     s: "bit", m: 0x0400, x: 71.8, y: 31.9, w: 1.02 },
-      { lbl: "Z",     s: "bit", m: 0x0010, x: 84.0, y: 31.9, w: 1.02, c: "d-z" },
-      { d: "up",      s: "jy+", x: 94.9, y: 39.7, w: 1.02 },
-      { d: "up",      s: "cy+", x: 70.0, y: 55.8, w: 1.02, c: "d-c" },
-      { d: "left",    s: "cx-", x: 59.9, y: 68.1, w: 1.02, c: "d-c" },
-      { d: "right",   s: "cx+", x: 80.1, y: 68.1, w: 1.02, c: "d-c" },
-      { lbl: "A",     s: "bit", m: 0x0100, x: 70.0, y: 79.3, w: 1.12, c: "d-a" },
-      { d: "down",    s: "cy-", x: 59.9, y: 90.5, w: 1.02, c: "d-c" }
+      { lbl: "L",     s: "bit", m: 0x0040, x: 5.1, y: 27.4, w: 1.02, dk: "l" },
+      { d: "left",    s: "jx-", x: 15.6, y: 19.6, w: 1.02, dk: "left" },
+      { d: "down",    s: "jy-", x: 27.1, y: 19.6, w: 1.02, dk: "down" },
+      { d: "right",   s: "jx+", x: 37.6, y: 27.4, w: 1.02, dk: "right" },
+      { lbl: "mod<br>X", s: "modx", x: 29.2, y: 58.2, w: 1.02, dk: "mod_x", small: true },
+      { lbl: "mod<br>Y", s: "mody", x: 39.9, y: 71.1, w: 1.02, dk: "mod_y", small: true },
+      { lbl: "R",     s: "bit", m: 0x0020, x: 60.9, y: 17.4, w: 1.02, dk: "r" },
+      { lbl: "Y",     s: "bit", m: 0x0800, x: 71.8, y: 9.5, w: 1.02, dk: "y" },
+      { lbl: "LS",    s: "ls", x: 84.0, y: 9.5, w: 1.02, dk: "ls" },
+      { lbl: "MS",    s: "ms", x: 94.9, y: 17.4, w: 1.02, dk: "ms" },
+      { lbl: "B",     s: "bit", m: 0x0200, x: 60.9, y: 39.7, w: 1.02, dk: "b", c: "d-b" },
+      { lbl: "X",     s: "bit", m: 0x0400, x: 71.8, y: 31.9, w: 1.02, dk: "x" },
+      { lbl: "Z",     s: "bit", m: 0x0010, x: 84.0, y: 31.9, w: 1.02, dk: "z", c: "d-z" },
+      { d: "up",      s: "jy+", x: 94.9, y: 39.7, w: 1.02, dk: "up" },
+      { d: "up",      s: "cy+", x: 70.0, y: 55.8, w: 1.02, dk: "c_up", c: "d-c" },
+      { d: "left",    s: "cx-", x: 59.9, y: 68.1, w: 1.02, dk: "c_left", c: "d-c" },
+      { d: "right",   s: "cx+", x: 80.1, y: 68.1, w: 1.02, dk: "c_right", c: "d-c" },
+      { lbl: "A",     s: "bit", m: 0x0100, x: 70.0, y: 79.3, w: 1.12, dk: "a", c: "d-a" },
+      { d: "down",    s: "cy-", x: 59.9, y: 90.5, w: 1.02, dk: "c_down", c: "d-c" }
     ];
 
     function modded(c) {
@@ -548,7 +548,11 @@ function overlayDoc(boot: string): string {
     function trig(c) { return Math.max(c.trigger_l, c.trigger_r); }
     function clicked(c) { return (c.buttons & (L_BIT | R_BIT)) !== 0; }
 
-    function digOn(d, c) {
+    function digOn(d, c, dig) {
+      // ⚠ When a box controller is reachable over its own USB serial, these are REAL button
+      // states and must win outright. Everything below is inference from the analog stick, and
+      // one case — a modifier with no direction — it cannot represent at all.
+      if (dig && d.dk && Object.prototype.hasOwnProperty.call(dig, d.dk)) return !!dig[d.dk];
       var ax = Math.abs(c.joy_x), ay = Math.abs(c.joy_y);
       switch (d.s) {
         case "bit":  return (c.buttons & d.m) !== 0;
@@ -698,7 +702,7 @@ function overlayDoc(boot: string): string {
         for (var d = 0; d < DIG.length; d++) {
           var de = e.btn[d];
           if (!de) continue;
-          var don = digOn(DIG[d], c);
+          var don = digOn(DIG[d], c, snap.digital);
           if (don !== e.on[d]) { e.on[d] = don; de.classList.toggle("on", don); }
         }
         return;

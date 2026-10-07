@@ -46,6 +46,13 @@ pub struct ControllerState {
 
 #[derive(Serialize, Clone, Debug)]
 pub struct DolphinSnapshot {
+    /// Real button state from the controller's own USB serial, when a box controller is
+    /// connected and no other viewer holds the port.
+    ///
+    /// ⚠ Present means "trust this over the analog inference". A modifier pressed alone shows up
+    /// here and cannot show up in `controllers` at all, because it leaves the stick at neutral.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub digital: Option<crate::boxx::BoxState>,
     /// Six-character disc game ID, e.g. "GALE01". Lets the frontend say *which* game is booted
     /// rather than only that something is.
     pub game_id: String,
@@ -257,6 +264,7 @@ mod imp {
         // return confident nonsense.
         if game_id != "GALE01" {
             return Ok(Some(DolphinSnapshot {
+                digital: crate::boxx::latest_box(),
                 game_id,
                 controllers: Vec::new(),
             }));
@@ -286,6 +294,7 @@ mod imp {
         }
 
         Ok(Some(DolphinSnapshot {
+            digital: crate::boxx::latest_box(),
             game_id,
             controllers,
         }))
@@ -405,6 +414,8 @@ pub async fn start_dolphin_input_stream() -> Result<u16, String> {
     }
 
     spawn_poller();
+    // Starts looking for a box controller. Harmless and idempotent when none is connected.
+    crate::boxx::start_box_reader();
 
     tauri::async_runtime::spawn(async move {
         loop {
