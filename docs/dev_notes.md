@@ -1,12 +1,44 @@
-# Dev Notes
+## ⚠ SESSION HANDOFF — 2026-10-06 (v1.11.0 — PER-GAME GRADES, QUIT-OUT = NO RESULT — READ FIRST)
 
-Working notes for in-progress features. Not part of the user-facing docs.
-Update this file as features land or context changes — it's the
-hand-off mechanism between work sessions and across machines.
+> **v1.11.0 shipped the same evening as v1.10.0.** Everything below about v1.10.0 still applies;
+> its release-notes section was FOLDED INTO the v1.11.0 section (the workflow publishes only the
+> newest one) and **rewritten** — Joey: the original opener was "way too dramatic and you're gonna
+> scare people". **Release notes should say what changed in short, plain terms and skip the
+> sweeping analysis.** Keep that style.
+>
+> **What v1.11.0 adds:**
+> - **Per-game grades** (`gradeGame` in `grading.ts`, Grade column + reveal card on the Live
+>   Session tab). Grading per GAME is what unblocked unranked/direct after two stalled attempts:
+>   one unranked `match_id` is the whole connection (up to 62 games), so "what is a set?" has no
+>   answer, while a game is well defined in every mode and the stat math was never set-specific.
+> - **Quit-outs are "no result" outside ranked** (`src/lib/outcome.ts`: `gameOutcome` /
+>   `tallyOutcomes`). Quitting friendlies is how people get back to character select, not a
+>   forfeit — it made a real 2–2 session read 4–2. Ranked keeps forfeit semantics.
+>   ⚠ Two traps found while wiring it: `UnrankedStats` derived `losses = total - wins` (which
+>   would file every quit-out as a loss) and the watcher's NOW PLAYING scoreboard did the same,
+>   so the card showed 4–2 against the strip's 2–2. **Never derive losses by subtraction.**
+> - **Win bonus is RANKED-ONLY** for per-game grades. Joey's call: friendlies are practice.
+> - **A quit-out is still graded if it ran ≥ 45 s** (`QUIT_OUT_MIN_FRAMES`). Measured: two real
+>   quit-outs ran 2.70/2.72 min against a 2.47-min median for full games, and they are frequent
+>   (2 of 6 in one session) — excluding them all gutted the feature in the mode it is for.
+> - **Chart drag-to-zoom + `dateFilteredSnapshots`** (see the v1.10.0 notes below for the gotchas).
+> - **`[dev] Load last session`** (`src/lib/dev-session-sim.ts`, `import.meta.env.DEV` only,
+>   verified absent from production bundles): replays a stored match through the live stores so
+>   the live card can be tested without playing. This is why the session timer sat unreleased for
+>   two months — there was no way to see it at a desk.
+>
+> **⏸ NEXT: Ranked / Unranked tabs in the Grading tab.** Agreed with Joey for the NEXT release,
+> deliberately not rushed into this one. ⚠ **The blocker is structural: `games` stores metadata
+> only (13 columns, no stats)** — per-game stats are re-derived from the `.slp` on every regrade,
+> which is why a regrade takes ~20 min. Ranked works because finished grades persist in
+> `set_grades`. An unranked view over ~4,900 games therefore needs **per-game grade persistence +
+> a batch job with progress**, i.e. the thing CLAUDE.md says to discuss before building. Do not
+> compute on tab open (~0.3 s/game = minutes of spinner).
+>
+> **Also still open:** tie-aware scoring (below), and quit-out games are still averaged into
+> SET grades (measured: 12/1506 sets, mean +3.94 pts, 4 letter changes — fold into the next
+> grading change rather than forcing its own regrade).
 
----
-
-## ⚠ SESSION HANDOFF — 2026-10-06 (v1.10.0 — PARITY FIXES + RESCAN + REPLAY-PATH SELF-HEAL + CHART ZOOM — READ FIRST)
 
 > **State: v1.10.0 prepared this session — version bumped in `package.json`,
 > `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` (+ both lockfiles), `release-notes.md`

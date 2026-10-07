@@ -1,40 +1,58 @@
-## What's New in v1.10.0
+## What's New in v1.11.0
 
-### 📈 Your grades were being scored against bad numbers
+Includes everything from v1.10.0, which went out earlier today.
 
-Your set grades are percentiles — your stats compared against a pool of real ranked games. That pool had five defects in how it was measured, and this release rebuilds it from scratch after a full rescan of **2.1 million games**.
+### 🎯 Grades for every game, not just ranked sets
 
-The biggest one: **Damage per Opening counted the opponent's last stock twice in every game you won.** The comparison pool was inflated, so winning made you look worse at punishing than you were. It affected every character and every matchup.
+Unranked and direct games now get a grade. The Live Session tab shows a letter next to each game as you play, plus a card for the game you just finished with your best category on a win and your weakest on a loss — the same thing a completed ranked set shows.
 
-The others: kills, deaths and Openings per Kill were thrown away entirely for one player in any game not played on ports 1 and 2; every Ice Climbers statistic was read from the wrong frames once Nana died; games where nobody lost a stock were left out of the Average Stock Duration pool; and tech chase stopped looking one frame early.
+Grading per game is what made this possible. In friendlies there's no "set" to grade: one connection with someone can run 50 games.
 
-**What this means for your grades:** Punish scores go up — about **4 points on average**, and across a test of 1,346 real sets, 159 of them improved by a whole letter and none got worse. Neutral and Defense barely move. Every stored grade regrades automatically the first time you open this version.
+A couple of details:
+- Games shorter than 45 seconds that ended in a quit-out aren't graded — there isn't enough in them to measure.
+- Unranked and direct grades don't include the win bonus that ranked grades get. Friendlies are practice.
 
-Three more defects were fixed in the app's own stat tracking: anything that started during the pre-game countdown was scored as a failure, respawn defense counted a hit landing after the window as a failure, and an Ice Climbers death with no respawn went unnoticed.
+### 🚪 Quit-outs no longer count as wins in friendlies
 
-### 🔍 Drag across the rating chart to zoom in
+Quitting out of an unranked or direct game usually just means going back to character select. It was being counted as a forfeit win, so a 2–2 session could show as 4–2.
 
-The Rating Over Time chart is hard to read across a long history — a bad week disappears into the line. **Drag sideways across the chart** and it zooms to that stretch, with the rating axis rescaling to fit so you can actually see the shape of it. A **Reset zoom** button puts it back.
-
-### 📅 Longer date ranges
-
-The sidebar date filter was All Time, 90 days or 30 days. It now also has **180 days, 1 year and 2 years** — and the rating chart finally honours it, which it never used to. Previously the rating line showed your whole history while the win-rate chart beside it followed the filter, with nothing telling you they disagreed.
-
-### 🗂️ Moving your replays no longer wipes your grade history
-
-If you reorganise your replays folder — moving files into subfolders, renaming a parent folder — the app used to lose track of them, because it remembered the exact path of every file. Nothing looked wrong until the grading changed, at which point every affected set silently lost its grade.
-
-The app now finds a replay that has moved and remembers its new home. **If this already happened to you, those grades come back on their own** the next time grades are recalculated. On the machine where this was found, it had quietly eaten 16% of the grade history.
+Those games now count as neither a win nor a loss, in your session record, your all-time record against someone, and the Unranked & Direct Stats tab. Ranked is unchanged — a quit-out there is a real forfeit.
 
 ### ⏱️ A clock for unranked and direct sessions
 
-Unranked and direct runs have no end — you keep playing the same person until someone leaves — so there was no way to tell how long you'd been at it. The Live Session tab now shows a running clock for the current opponent. Ranked doesn't have one, because a ranked set is three games and ends by itself.
+Unranked and direct runs have no end, so there was no way to tell how long you'd been playing someone. There's now a running clock on the Live Session tab. Ranked doesn't have one — a ranked set is three games and ends on its own.
 
-Stepping away and coming back keeps the clock running, since you never actually parted ways.
+Stepping away and coming back keeps the clock running.
+
+---
+
+## From v1.10.0
+
+### 📊 Rebuilt grading benchmarks
+
+Your grades are percentiles — your stats compared against a pool of real ranked games. Five measuring errors were found in how that pool was built, so it's been rebuilt from a fresh scan of 2.1 million games.
+
+The main one: Damage per Opening counted the opponent's last stock twice in games you won, which made winning look worse than it was. Also fixed: kills and deaths were dropped for one player in games not on ports 1 and 2, Ice Climbers stats were read from the wrong frames after Nana died, games where nobody lost a stock were left out of stock duration, and tech chase stopped a frame early.
+
+**What changes for you:** Punish scores go up, roughly 4 points on average. Neutral and Defense stay about the same. Grades update automatically the first time you open the app.
+
+Three smaller fixes went into the app's own stat tracking: anything starting during the pre-game countdown was scored as a failure, respawn defense counted a late hit as a failure, and an Ice Climbers death with no respawn was missed.
+
+### 🔍 Drag across the rating chart to zoom
+
+Drag sideways across the Rating Over Time chart to zoom into that stretch. The rating axis rescales to fit. A **Reset zoom** button puts it back.
+
+### 📅 Longer date ranges
+
+The sidebar date filter adds **180 days, 1 year and 2 years**, and the rating chart now follows it — previously it always showed your whole history.
+
+### 🗂️ Moving your replays no longer loses your grades
+
+The app remembered the exact path of every replay, so reorganising your replays folder meant it lost track of them, and grades for those sets disappeared the next time grading changed. It now finds a replay that has moved. **If this happened to you, those grades come back on their own.**
 
 ### 🎛️ Live Session tidy-up
 
-The session figures at the top of the Live Session tab were a run-on line of labels and numbers. Labels now sit above their values with a divider between each, and the numbers no longer shift sideways as they tick.
+Session figures at the top of the Live Session tab now have labels above their values instead of running together on one line.
 
 ---
 
