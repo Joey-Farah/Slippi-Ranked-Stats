@@ -397,6 +397,34 @@ function averageSetStats(games: LiveGameStats[]): Record<string, number | null> 
  *                     (LRAS). Suppresses the set-comeback bonus — losing game 1 and
  *                     then having the opponent forfeit is not a comeback you earned.
  */
+/**
+ * Grade a SINGLE game, for the per-game column on the Live Session tab.
+ *
+ * A game is the one unit that is well defined in every mode. Unranked and direct play has no
+ * set: one `match_id` is the entire connection with that opponent, verified at up to 62 games,
+ * so "what counts as a set in friendlies?" has no answer and is what stalled grading those modes
+ * twice. Grading per game sidesteps it entirely — the stat math was never set-specific, it runs
+ * on per-game parser output.
+ *
+ * Two set-level adjustments are deliberately off:
+ *  - **No win bonus.** Over a set, +5 reads as a difficulty premium on the win. On one game it is
+ *    half a letter of swing from the result alone, which wrecks the thing this view is for —
+ *    comparing your games against each other inside one run.
+ *  - **No comeback/closeout/blown-lead modifier**, which is defined across games of a set
+ *    (`wonGame1 = null` switches it off).
+ *
+ * So the letter reads as "how well you played this game", not "did you win it".
+ */
+export function gradeGame(
+  game: LiveGameStats,
+  playerChar: string,
+  opponentChar: string,
+): SetGrade {
+  const won = game.result === "win" || game.result === "lras_win";
+  return gradeSet([game], playerChar, opponentChar, won ? "win" : "loss",
+                  won ? 1 : 0, won ? 0 : 1, null, false, false);
+}
+
 export function gradeSet(
   games: LiveGameStats[],
   playerChar: string,
@@ -406,6 +434,7 @@ export function gradeSet(
   losses: number,
   wonGame1: boolean | null = null,
   forfeitWin: boolean = false,
+  applyWinBonus: boolean = true,
 ): SetGrade {
   // ── Three-tier benchmark lookup ────────────────────────────────────────────
   // matchup (player × opp) → player char → _overall
@@ -493,7 +522,7 @@ export function gradeSet(
 
   // +5 for a win — winning a set demonstrates adaptability and reads even when
   // raw metrics don't fully capture it.
-  const winBonus = setResult === "win" ? 5 : 0;
+  const winBonus = applyWinBonus && setResult === "win" ? 5 : 0;
 
   // Set-level comeback / closeout / blown-lead modifier, keyed on (Game 1 result
   // × set result). Layered on top of the win bonus as a difficulty premium, not a

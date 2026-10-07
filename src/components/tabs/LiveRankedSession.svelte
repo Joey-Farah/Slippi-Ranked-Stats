@@ -7,10 +7,33 @@
     statsOverlayVisibility, type OverlayVisibility,
   } from "../../lib/store";
   import { get } from "svelte/store";
-  import { CHARACTERS, STAGES, getRankTier } from "../../lib/parser";
+  import { CHARACTERS, STAGES, getRankTier, isLegalStage } from "../../lib/parser";
   import { RANK_MEDAL_SVGS } from "../../lib/rank-medals";
-  import { gradeColor } from "../../lib/grading";
+  import { gradeColor, gradeGame } from "../../lib/grading";
   import { elapsedMs, formatElapsed } from "../../lib/session-timer";
+
+  // Per-game grade, cached by match_id+index. Grading is pure and cheap, but the live card
+  // re-renders on every clock tick, and an unranked run can stack 60+ rows — regrading all of
+  // them each second would be wasted work for a value that never changes once the game is over.
+  const _gameGrades = new Map<string, ReturnType<typeof gradeGame> | null>();
+  function gameGrade(g: LiveGameStats) {
+    const key = `${g.match_id}#${g.timestamp}#${g.stage_id}`;
+    if (_gameGrades.has(key)) return _gameGrades.get(key)!;
+    let out: ReturnType<typeof gradeGame> | null = null;
+    try {
+      // Same gate the set path uses: a game with no frame data has all-null stats, and a
+      // non-legal stage is scored against benchmarks built entirely from legal-stage play.
+      if (g.avg_stock_duration !== null && isLegalStage(g.stage_id)) {
+        out = gradeGame(
+          g,
+          CHARACTERS[g.player_char_id] ?? "",
+          CHARACTERS[g.opponent_char_id] ?? "",
+        );
+      }
+    } catch { out = null; }
+    _gameGrades.set(key, out);
+    return out;
+  }
   import { ensureStatsOverlayFiles, statsOverlayHtmlPath, statsOverlayPreviewPath, writeStatsOverlayPreviewFile } from "../../lib/stats-overlay";
   import { pingTelemetry } from "../../lib/telemetry";
   import { convertFileSrc } from "@tauri-apps/api/core";
@@ -700,6 +723,7 @@
             <div>Opn/Kill</div>
             <div>Neutral</div>
             <div>Dmg/Opn</div>
+            <div style="text-align:center">Grade</div>
             <div style="text-align:right">Time</div>
           </div>
 
@@ -709,6 +733,7 @@
           <div class="game-rows">
             {#each allGames as g, i}
               {@const isWin = g.result === "win" || g.result === "lras_win"}
+              {@const gg = gameGrade(g)}
               <div class="game-grid game-row" style="border-left-color: {isWin ? '#2ecc71' : '#e74c3c'}">
                 <div style="font-size: 11px; color: var(--muted)">G{i + 1}</div>
                 <div style="font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
@@ -720,6 +745,17 @@
                 <div style="font-size: 11px">{fmtRatio(g.openings_per_kill)}</div>
                 <div style="font-size: 11px">{fmtPct(g.neutral_win_ratio)}</div>
                 <div style="font-size: 11px">{fmtRatio(g.damage_per_opening)}</div>
+                <div style="text-align:center">
+                  {#if gg}
+                    <span
+                      title="{gg.score.toFixed(0)}/100 — how you played this game (the win bonus and
+                             set comeback/closeout modifiers don't apply to a single game)"
+                      style="font-size:12px; font-weight:700; color:{gradeColor(gg.letter)}"
+                    >{gg.letter}</span>
+                  {:else}
+                    <span style="font-size:11px; color:var(--muted)">—</span>
+                  {/if}
+                </div>
                 <div style="font-size: 11px; color: var(--muted); text-align: right">
                   {fmtDuration(g.duration_frames)}
                 </div>
@@ -848,7 +884,7 @@
 
   .game-grid {
     display: grid;
-    grid-template-columns: 26px minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) minmax(0, 0.7fr);
+    grid-template-columns: 26px minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) 44px minmax(0, 0.7fr);
     gap: 8px;
   }
 
