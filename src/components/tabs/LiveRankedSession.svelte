@@ -13,6 +13,10 @@
   import { elapsedMs, formatElapsed } from "../../lib/session-timer";
   import { simulateLiveSession, clearLiveSimulation } from "../../lib/dev-session-sim";
 
+  // A quit-out shorter than this is a stub, not a game: 45 s at 60 fps. Above it, the game is
+  // graded like any other (see gameGrade).
+  const QUIT_OUT_MIN_FRAMES = 45 * 60;
+
   // Per-game grade, cached by match_id+index. Grading is pure and cheap, but the live card
   // re-renders on every clock tick, and an unranked run can stack 60+ rows — regrading all of
   // them each second would be wasted work for a value that never changes once the game is over.
@@ -22,14 +26,18 @@
     if (_gameGrades.has(key)) return _gameGrades.get(key)!;
     let out: ReturnType<typeof gradeGame> | null = null;
     try {
-      // A quit-out is not a graded game. Its stats are whatever had happened by the moment
-      // someone left — a 30-second game where you were ahead reads as a monstrous
-      // damage-per-opening and a tiny stock duration, and grading that says nothing about how
-      // anyone played. "Full game" is already defined this way in watcher.ts (hasFullGame).
+      // A quit-out only disqualifies a game if it ended EARLY. Measured on a real unranked
+      // session: two quit-outs ran 2.70 and 2.72 minutes against a 2.47-minute median for full
+      // games — people quit out to go back to character select, not only to rage out, so most
+      // of them contain a whole game's worth of play and are worth grading. What is not worth
+      // grading is a stub: someone leaving in the first few seconds leaves stats that are noise
+      // (a single opening becomes the whole damage-per-opening average).
+      // Joey's threshold, 2026-10-06: 45 seconds.
       // Plus the usual gates: no frame data = all-null stats, and a non-legal stage would be
       // scored against benchmarks built entirely from legal-stage play.
-      const fullGame = g.result === "win" || g.result === "loss";
-      if (fullGame && g.avg_stock_duration !== null && isLegalStage(g.stage_id)) {
+      const quitOut = g.result === "lras_win" || g.result === "lras_loss";
+      const tooShort = quitOut && (g.duration_frames ?? 0) < QUIT_OUT_MIN_FRAMES;
+      if (!tooShort && g.avg_stock_duration !== null && isLegalStage(g.stage_id)) {
         out = gradeGame(
           g,
           CHARACTERS[g.player_char_id] ?? "",
