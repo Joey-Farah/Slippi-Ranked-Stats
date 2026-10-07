@@ -785,6 +785,30 @@
           {/if}
         </div>
 
+        <!-- Above the list, not below it: the list grows all run (50+ games on one unranked
+             connection), so a card underneath gets pushed off screen exactly as the run gets
+             long enough for the feedback to be worth reading. -->
+        {#if complete && $lastSetGrade}
+          {@render gradeRevealCard(
+            $lastSetGrade.letter,
+            `vs ${allGames[0].opponent_code} · ${$lastSetGrade.setResult === "win" ? "Win" : "Loss"} ${$lastSetGrade.wins}–${$lastSetGrade.losses}`,
+            "Last Set Grade",
+            featuredCategory($lastSetGrade, $lastSetGrade.setResult === "win"),
+            $lastSetGrade.setResult === "win",
+          )}
+        {:else if lastGameReveal}
+          <!-- No completed set: an unranked/direct run has no end, and a ranked set may still be
+               in progress. Grade the game that just finished instead. -->
+          {@render gradeRevealCard(
+            lastGameReveal.grade.letter,
+            `Game ${lastGameReveal.index} · ${lastGameReveal.won ? "Win" : "Loss"} vs ${allGames[0].opponent_code}`,
+            "Last Game Grade",
+            lastGameReveal.featured,
+            lastGameReveal.won,
+            "Scored on how you played — the win bonus doesn't apply to a single game.",
+          )}
+        {/if}
+
         <!-- Every game of the match, scrollable. An unranked/direct run can reach 50+ games on
              one connection, so the list is capped at a share of the window height: a tall window
              stretches to show more rows, a short one gets a scrollbar. Ranked sets are 2–3 games
@@ -793,7 +817,7 @@
           class="game-list"
           bind:this={gamesEl}
           onscroll={onGamesScroll}
-          style="margin-bottom: {complete ? '12px' : '0'}"
+          style="margin-bottom: 0"
         >
           <!-- Column headers — sticky so they survive scrolling a long run -->
           <div class="game-grid game-head">
@@ -847,26 +871,6 @@
       </div>
 
       <!-- Post-set grade reveal — hides automatically when a new set starts -->
-      {#if complete && $lastSetGrade}
-        {@render gradeRevealCard(
-          $lastSetGrade.letter,
-          `vs ${allGames[0].opponent_code} · ${$lastSetGrade.setResult === "win" ? "Win" : "Loss"} ${$lastSetGrade.wins}–${$lastSetGrade.losses}`,
-          "Last Set Grade",
-          featuredCategory($lastSetGrade, $lastSetGrade.setResult === "win"),
-          $lastSetGrade.setResult === "win",
-        )}
-      {:else if lastGameReveal}
-        <!-- No completed set: an unranked/direct run has no end, and a ranked set is still in
-             progress. Grade the game that just finished instead. -->
-        {@render gradeRevealCard(
-          lastGameReveal.grade.letter,
-          `Game ${lastGameReveal.index} · ${lastGameReveal.won ? "Win" : "Loss"} vs ${allGames[0].opponent_code}`,
-          "Last Game Grade",
-          lastGameReveal.featured,
-          lastGameReveal.won,
-          "Scored on how you played — the win bonus doesn't apply to a single game.",
-        )}
-      {/if}
     {/if}
 
   {/if}
