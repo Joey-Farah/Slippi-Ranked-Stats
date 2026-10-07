@@ -198,7 +198,7 @@ function overlayDoc(boot: string): string {
     .itrig > i { position: absolute; left: 0; top: 0; height: 100%; width: 0;
       background: currentColor; opacity: 0.3; will-change: width; }
     .itrig > u { position: relative; font-size: 0.3em; font-weight: 800; font-style: normal;
-      color: currentColor; opacity: 0.75; line-height: 1; }
+      text-decoration: none; color: currentColor; opacity: 0.75; line-height: 1; }
     .itrig.on { background: currentColor; }
     .itrig.on > i { opacity: 0; }
     .itrig.on > u { color: #0a0a0a; opacity: 1; }
@@ -590,7 +590,7 @@ function overlayDoc(boot: string): string {
       { k: "B", m: 0x0200, c: "b-b", x: 61, y: 78, w: 0.95, h: 0.95, r: "50%" },
       { k: "X", m: 0x0400, c: "b-x", x: 94, y: 47, w: 0.72, h: 1.2,  r: "0.36em" },
       { k: "Y", m: 0x0800, c: "b-y", x: 70, y: 24, w: 1.2,  h: 0.72, r: "0.36em" },
-      { k: "Z", m: 0x0010, c: "b-z", x: 87, y: 9,  w: 1.35, h: 0.44, r: "0.22em" }
+      { k: "Z", m: 0x0010, c: "b-z", x: 87, y: 11, w: 1.35, h: 0.62, r: "0.31em" }
     ];
     // Digital L/R (the click at the bottom of the trigger) ride on the analog bars.
     var L_BIT = 0x0040, R_BIT = 0x0020;
