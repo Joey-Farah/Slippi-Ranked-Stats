@@ -159,8 +159,7 @@ function overlayDoc(boot: string): string {
     /* ONE knob for the whole viewer. Everything inside is in em, so changing this font-size
        rescales the layout properly (real reflow, crisp text) instead of transform: scale(),
        which scales rendered output and softens text. JS overrides it from the saved setting. */
-    .inputs { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-      font-size: 1.6rem; background: rgba(0, 0, 0, 0.5);
+    .inputs { font-size: 1.6rem; margin-bottom: 0.25rem; background: rgba(0, 0, 0, 0.5);
       border-radius: 0.3em; padding: 0.3em 0.4em; }
     .inputs[hidden] { display: none; }
 
@@ -261,8 +260,8 @@ function overlayDoc(boot: string): string {
 </head>
 <body>
   <div id="stage">
-    <div id="root"></div>
     <div id="inputs" class="inputs" hidden></div>
+    <div id="root"></div>
   </div>
   <script>
     var POLL_MS = 500;
@@ -420,7 +419,9 @@ function overlayDoc(boot: string): string {
       // Transient area at the BOTTOM — opponent line during a set, grade + result + this-set
       // rating after. The appear-then-leave content stays below everything that's always on screen.
       var ctx = contextHtml(s, false);
-      if (ctx) h += '<div class="divider"></div>' + ctx;
+      if (ctx) {
+        h += '<div class="divider"></div>' + ctx;
+      }
       h += "</div>";
       return h;
     }
@@ -453,7 +454,9 @@ function overlayDoc(boot: string): string {
       h += "</div>";
       // Transient area below — fills in during a set (opponent) and after (grade + result).
       var ctx = contextHtml(s, true);
-      if (ctx) h += '<div class="divider"></div><div class="transient">' + ctx + "</div>";
+      if (ctx) {
+        h += '<div class="divider"></div><div class="transient">' + ctx + "</div>";
+      }
       h += "</div>";
       return h;
     }
@@ -791,10 +794,10 @@ function overlayDoc(boot: string): string {
       try {
         var r = document.getElementById("root").getBoundingClientRect();
         var inp = document.getElementById("inputs");
-        // The viewer is bottom-pinned and out of flow, so its height has to be ADDED to the
-        // panel's rather than max()'d with it — otherwise the box reserves no room for it.
+        // The viewer is back in normal flow under the panel, so its bottom edge already accounts
+        // for the panel above it — max(), not add, or the box reserves double its height.
         var h = r.bottom;
-        if (inp && !inp.hidden) h += inp.getBoundingClientRect().height + 6;
+        if (inp && !inp.hidden) h = Math.max(h, inp.getBoundingClientRect().bottom);
         h = Math.ceil(h);
         if (h > 0 && Math.abs(h - lastPostedH) > 2) {
           lastPostedH = h;
