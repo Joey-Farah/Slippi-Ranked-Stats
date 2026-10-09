@@ -24,6 +24,7 @@ approved.
 | 6 | **A declined renewal ends Premium.** If Stripe's automatic retry later charges the card, Premium returns at the next renewal on its own. | Joey: no payment, no access. |
 | 7 | **The Discord/Patreon route stays permanently**, next to the card option. | It pulls people into the community. The card route is for people who'd rather skip all that. |
 | 8 | **Stripe Managed Payments** (Stripe is merchant of record). | Plain Stripe would make Joey the seller, owing EU/UK VAT from the first sale there. Managed Payments collects and files it in 80+ countries for ~3.5% extra (~14¢ on $5). Paddle is the fallback if Stripe's eligibility review says no. |
+| 9 | **Sign in first, then pay.** The app sends a code, then "Subscribe" opens Stripe Checkout with that email prefilled and locked; Premium switches on in the app within seconds of paying. | The code proves the email before any money moves, so nobody pays for a subscription the app can't find. |
 
 ## Premises (attack these)
 
@@ -59,5 +60,4 @@ approved.
 ## Still open
 
 - Does the 1-Device limit apply to Discord-route users too?
-- Purchase flow order: sign in then pay, or pay then sign in?
 - Lifetime price (non-blocking).
