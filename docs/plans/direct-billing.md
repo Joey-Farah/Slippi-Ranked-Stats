@@ -1,5 +1,5 @@
 ---
-status: grilling in progress, NOT implemented (started 2026-10-09)
+status: grill done 2026-10-09; build plan awaiting approval, NOT implemented
 date: 2026-10-09
 ---
 
@@ -25,6 +25,7 @@ approved.
 | 7 | **The Discord/Patreon route stays permanently**, next to the card option. | It pulls people into the community. The card route is for people who'd rather skip all that. |
 | 8 | **Stripe Managed Payments** (Stripe is merchant of record). | Plain Stripe would make Joey the seller, owing EU/UK VAT from the first sale there. Managed Payments collects and files it in 80+ countries for ~3.5% extra (~14¢ on $5). Paddle is the fallback if Stripe's eligibility review says no. |
 | 9 | **Sign in first, then pay.** The app sends a code, then "Subscribe" opens Stripe Checkout with that email prefilled and locked; Premium switches on in the app within seconds of paying. | The code proves the email before any money moves, so nobody pays for a subscription the app can't find. |
+| 10 | **The Discord/Patreon/Ko-fi route is out of scope** — untouched, no device limit. The app is Premium if EITHER the existing Discord check OR a valid Pass says so; the two never interact. | Joey: keep it separate. Sharing on that route means handing over a Discord password, so a limit would stop little and would change things for existing patrons. |
 
 ## Premises (attack these)
 
@@ -34,11 +35,8 @@ approved.
 - **That server is a Cloudflare Worker, not Vercel.** Vercel's free Hobby plan doesn't allow
   commercial use, which is why The Lombardi Project removed its Stripe checkout in Sept 2026.
   `srs-discord-check`, telemetry and feedback already run on Workers.
-- **Both routes end in the same Pass.** The server decides Premium from either Stripe or the
-  Discord role; the app only ever handles a Pass. For Discord users, the server checks the role
-  with the bot token by user id, so the app stops refreshing Discord OAuth tokens. That
-  refresh is the code behind the open "re-check every launch" report (see `dev_notes.md`,
-  2026-10-09 banner).
+- ~~Both routes end in the same Pass.~~ Dropped 2026-10-09 by decision 10. The Discord
+  route's every-launch re-check bug stays its own ticket (`dev_notes.md`, 2026-10-09 banner).
 - **The Pass is stored by the app's Rust side, in a file, not in webview localStorage.** That
   storage is the prime suspect in the open persistence report.
 - Email sending via **Resend** (free tier), the provider The Lombardi Project's docs had planned.
@@ -59,5 +57,4 @@ approved.
 
 ## Still open
 
-- Does the 1-Device limit apply to Discord-route users too?
 - Lifetime price (non-blocking).
