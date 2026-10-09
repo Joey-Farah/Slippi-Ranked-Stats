@@ -28,6 +28,27 @@ a bigger comeback.
 Holding a positive **Stock margin** rather than giving it back from its best point in a
 **Game**, and closing out a **Set** lead rather than blowing it. The mirror of **Comeback**.
 
+**Premium**:
+The paid tier of the app. Unlocks the per-stat grade breakdown, By Matchup grading, the
+Live Session tab and the stream overlay.
+_Avoid_: patron, pro.
+
+**Subscription**:
+A recurring $5/month card payment through Stripe that grants **Premium** only while it is
+paid up; a declined renewal ends it. Planned 2026-10-09 as a permanent second route alongside
+the Patreon/Ko-fi → Discord-role route, for people who'd rather not join the Discord.
+_Avoid_: membership, tier.
+
+**Device**:
+The one computer an account's **Premium** is active on. Each account has exactly one; signing
+in on another computer moves **Premium** there and signs the old one out.
+_Avoid_: machine, install, seat.
+
+**Pass**:
+The short-lived, server-signed proof that a **Device** has **Premium**. The app renews it
+automatically in the background; the user never sees it.
+_Avoid_: license, token, key.
+
 ## Relationships
 
 - A **Set** contains one to three **Games** (best-of-3, first to 2 wins).
