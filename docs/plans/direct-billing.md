@@ -23,6 +23,7 @@ approved.
 | 5b | **7 days of grace** past Pass expiry while the server can't be reached, plus an **hourly automated test renewal that alerts Joey on Discord**. | Without grace, lockouts start within hours of an outage: anyone who hasn't opened the app in 3+ days already has an expired Pass. 7 days covers once-a-week players. |
 | 6 | **A declined renewal ends Premium.** If Stripe's automatic retry later charges the card, Premium returns at the next renewal on its own. | Joey: no payment, no access. |
 | 7 | **The Discord/Patreon route stays permanently**, next to the card option. | It pulls people into the community. The card route is for people who'd rather skip all that. |
+| 8 | **Stripe Managed Payments** (Stripe is merchant of record). | Plain Stripe would make Joey the seller, owing EU/UK VAT from the first sale there. Managed Payments collects and files it in 80+ countries for ~3.5% extra (~14¢ on $5). Paddle is the fallback if Stripe's eligibility review says no. |
 
 ## Premises (attack these)
 
@@ -41,9 +42,22 @@ approved.
   storage is the prime suspect in the open persistence report.
 - Email sending via **Resend** (free tier), the provider The Lombardi Project's docs had planned.
 
+## Managed Payments facts (from `stripe docs`, 2026-10-09)
+
+- **Eligible:** US-based businesses; software is a supported category. Access is gated on a
+  Stripe eligibility review. The product needs an eligible digital-goods tax code.
+- **Works with Checkout Sessions and Payment Links**, and subscriptions via Billing. Not with
+  Elements, so checkout is always a Stripe-hosted page in the browser.
+- **Customers see "Sold through Link"** at checkout and `LINK.COM* <descriptor>` on their statement.
+- **Stripe sends receipts, invoices and subscription emails**, and customers cancel or update
+  their card on link.com. We build no billing-management UI and send only sign-in codes.
+- Stripe handles disputes and transaction support; if it asks for input and gets none in 48h it
+  may refund on its own. ⚠ Keep the support email in the Stripe dashboard current.
+- The fee isn't on the docs pages; the ~3.5% surcharge comes from third-party comparisons.
+  Confirm it on the dashboard.
+
 ## Still open
 
-- Payment provider / tax handling (who is merchant of record).
 - Does the 1-Device limit apply to Discord-route users too?
 - Purchase flow order: sign in then pay, or pay then sign in?
 - Lifetime price (non-blocking).
