@@ -1,3 +1,53 @@
+## ⚠ SESSION HANDOFF — 2026-10-09 (WEBSITE TEXT PASS + PREMIUM-PERSISTENCE REPORT BANKED — READ FIRST)
+
+### 1. Website — text pass shipped, screenshots still owed
+
+Shipped to `site/index.html` (auto-deploys from `main`):
+- Hero HUD numbers now match the v1.10.0 benchmark: **2,128,194** samples (`replay_count` in
+  `grade_baselines.json`, the same field the old 2,129,888 came from) and **567** matchups
+  (`by_matchup` entries in `grade-benchmarks.ts`). ⚠ Re-check both after any benchmark rebuild.
+- Copy covers friendlies: the headline is now "...your Slippi *Ranked* sets — and your
+  friendlies.", and the sub and HUD heading say "every ranked set and friendly".
+- A new middle row of feature cards: **Friendlies graded too**, **Live opponent scouting**
+  (Premium) and **Stream overlay** (Premium). The overlay card exists to fill the 3-column grid, since
+  two cards would leave an empty cell.
+
+⚠ **Still owed: two screenshots, which must be taken on the Windows machine** (this MacBook has no
+`.slp` replays):
+- **Grading → Unranked & Direct**, post-parity layout (see section 3 of the 2026-10-07 banner).
+- **Live Session tab**: `npm run tauri dev` → Live Session → `[dev] Load last session` fills it
+  without playing.
+Replace opponent connect codes with fake ones by editing pixels, not blurring. Pair the shots by
+**aspect ratio** in the showcase (wide with wide, portrait with portrait, `.shot-row.triple` for 3-up).
+
+### 2. Premium not persisting across launches — reported, NOT reproduced, still OPEN
+
+Joey relayed that a couple of users must re-check or re-link Discord **every time they open the
+app** to get Premium. Waiting on details from the user. Findings so far:
+- **The Discord refresh grant works.** A bogus `refresh_token` returns `400 invalid_grant`, not
+  `401 invalid_client`, so the 2026-06-16 Public Client fix is live. ⚠ That rules out the June
+  weekly re-link cause.
+- **The deployed `srs-discord-check` worker matches `workers/discord-check/index.js`**
+  (`{"premium":false,"reason":"auth_invalid"}` for a bogus token).
+- **App code only clears Premium on a definitive worker answer** (`auth_invalid` after a failed
+  refresh, `no_role`, `not_in_guild`). All state is in small localStorage keys, so there is
+  nothing to throttle localStorage commits.
+- **The question that splits it:** on reopen, does the sidebar show **Connect Discord** (token
+  wiped — if the connect code and replay folder ALSO reset, the webview's localStorage isn't
+  persisting, and Discord isn't the cause) or **"\<name\> — Not a patron"** that Re-check fixes
+  (the worker is returning a wrong answer)? Also ask for their OS and app version.
+- Minor, real, but can't cause an every-launch failure: `refreshDiscordToken` clears the refresh
+  token on ANY 4xx, including a 429 and the `invalid_grant` a concurrent refresh gets (launch
+  retry loop + a Re-check click). That would cause a weekly re-link at worst.
+
+### 3. NEXT: grill on in-app Premium checks + direct billing
+
+Joey wants to plan replacing the Discord-role check with our own entitlement check and charging
+directly in the app. Start the grill once the website ticket is closed. Per `CLAUDE.md`, discuss
+before building anything that touches premium gating.
+
+---
+
 ## ⚠ SESSION HANDOFF — 2026-10-07 (v1.12.0 — UNRANKED GRADING + OBS INPUT VIEWER — READ FIRST)
 
 > **Shipped as v1.12.0.** 199 JS tests / 19 files green, 4 Rust tests green, `tsc` clean,
@@ -243,7 +293,7 @@ opponent line, and you are still playing that person.
 both platforms first, so v1.12.2's release notes are its own section only — they do NOT fold
 v1.12.1's forward, unlike v1.12.1 which folded in v1.12.0.
 
-⚠ **STILL OWED TO THE WEBSITE — not done, despite appearances.** `b5c6aa5` refreshed
+⚠ **[2026-10-09: card + copy SHIPPED; screenshots still owed — see the 2026-10-09 banner]** **STILL OWED TO THE WEBSITE — not done, despite appearances.** `b5c6aa5` refreshed
 `site/screenshots/overlay-preview.png` and dropped the ranked-only framing, which makes the live
 site *look* updated. It is not: there is still **no Grading → Unranked & Direct screenshot and no
 feature card** for it in `site/index.html` (grep it for "unranked" — the only hit is the word
