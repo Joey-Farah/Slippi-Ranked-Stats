@@ -40,11 +40,35 @@ app** to get Premium. Waiting on details from the user. Findings so far:
   token on ANY 4xx, including a 429 and the `invalid_grant` a concurrent refresh gets (launch
   retry loop + a Re-check click). That would cause a weekly re-link at worst.
 
-### 3. NEXT: grill on in-app Premium checks + direct billing
+### 3. Card billing: grill DONE, plan APPROVED, build STARTED on branch `feat/card-billing`
 
-Joey wants to plan replacing the Discord-role check with our own entitlement check and charging
-directly in the app. Start the grill once the website ticket is closed. Per `CLAUDE.md`, discuss
-before building anything that touches premium gating.
+**Pick up here on the other machine.** Everything is in **`docs/plans/direct-billing.md`**:
+decisions #1–10 from the grill, the facts from Stripe's Managed Payments docs, and the approved
+build plan (premises, architecture, 8 slices). Terms are in `CONTEXT.md` (**Premium, Subscription,
+Device, Pass**). In one line: $5/month through Stripe **Managed Payments**, sign in with an emailed
+code first, one Device (newest wins), a 3-day Pass that renews itself, 7 days of grace when our
+server can't be reached, and a declined card ends Premium. **The Discord/Patreon/Ko-fi route is
+untouched and out of scope** (Joey: keep it separate).
+
+**Where the build stands:** `git switch feat/card-billing`. The only commit there is the
+`workers/billing/` package scaffold (test tooling, no worker code). **NEXT: Slice 1, the sign-in
+round trip.** Write the worker's `/auth/start` + `/auth/verify` tests first (Miniflare + D1).
+- ⚠ `npm install` in `workers/billing` needs **`--legacy-peer-deps`**. Without it, npm 10.9.8
+  fails with "Cannot read properties of null (reading 'edgesOut')".
+- `@cloudflare/vitest-pool-workers` is pinned to **0.22.0**, the last release older than two
+  weeks at the time; it bundles wrangler 4.124.0, which is also what the package pins.
+- ⚠ **Keep the card UI behind a dev-only flag until slice 8.** `main` gets released from, so a
+  half-built purchase flow must not be able to reach users.
+- **Not releasing yet** (Joey, 2026-10-09). No version bump, no tag.
+
+**Joey's setup tasks** (needed before slice 1 can be demoed end to end; Claude never handles the
+secrets, Joey runs `! npx wrangler secret put …`): activate Managed Payments + accept its terms in the
+Stripe dashboard; create the $5/month product with an eligible software tax code (test mode is
+enough to start); make a Resend account and verify a sending subdomain of slippirankedstats.com
+(⚠ leave the grey-cloud `@`/`www` DNS records alone); and a private Discord channel webhook for the
+hourly alert.
+
+Stripe docs feedback was offered and NOT approved, so it wasn't sent.
 
 ---
 
