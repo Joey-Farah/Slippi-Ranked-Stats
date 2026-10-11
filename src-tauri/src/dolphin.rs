@@ -238,6 +238,36 @@ mod imp {
         }
     }
 
+    /// Does this block actually look like Melee's controller struct?
+    ///
+    /// ⚠ Consulted ONLY for a disc that isn't GALE01. Melee mods — training-mode hacks and the
+    /// like — are built on NTSC 1.02 and keep this layout, so rejecting them on the game ID left
+    /// the input viewer dead on exactly the solo-practice ISOs it is most useful for. Measured
+    /// 2026-10-11 against a mod reporting `GTME01`: the viewer went blank on the ISO swap and
+    /// came back on the swap to vanilla.
+    ///
+    /// The address table is still a guess for an unknown disc, so the DATA has to vouch for
+    /// itself. Melee clamps both sticks into the unit circle and both triggers to [0,1], and
+    /// only the low 13 button bits exist. Unrelated memory fails several of those at once.
+    /// Bounds are slightly loose: the point is to reject garbage, not to re-clamp Melee.
+    pub(super) fn looks_like_melee(blk: &[u8]) -> bool {
+        for off in [OFF_JOY_X, OFF_JOY_Y, OFF_C_X, OFF_C_Y] {
+            let v = be_f32(blk, off);
+            if !v.is_finite() || !(-1.05..=1.05).contains(&v) {
+                return false;
+            }
+        }
+        for off in [OFF_TRIG_L, OFF_TRIG_R] {
+            let v = be_f32(blk, off);
+            if !v.is_finite() || !(-0.01..=1.05).contains(&v) {
+                return false;
+            }
+        }
+        // D-pad, Z, R, L, A, B, X, Y, Start. Anything above 0x1000 is not a GameCube button.
+        const BUTTON_MASK: u16 = 0x1FFF;
+        be_u16(blk, OFF_BUTTONS + 2) & !BUTTON_MASK == 0
+    }
+
     fn be_u16(b: &[u8], off: usize) -> u16 {
         match b.get(off..off + 2) {
             Some(s) => u16::from_be_bytes([s[0], s[1]]),
@@ -261,14 +291,9 @@ mod imp {
         };
 
         // The address table below is Melee NTSC 1.02 only; reading it for another game would
-        // return confident nonsense.
-        if game_id != "GALE01" {
-            return Ok(Some(DolphinSnapshot {
-                digital: crate::boxx::latest_box(),
-                game_id,
-                controllers: Vec::new(),
-            }));
-        }
+        // return confident nonsense. Vanilla is known-good and trusted outright; anything else
+        // has to prove the layout still fits (see `looks_like_melee`).
+        let trusted = game_id == "GALE01";
 
         let mut controllers = Vec::with_capacity(4);
         for port in 0u8..4 {
@@ -279,6 +304,9 @@ mod imp {
             let Some(blk) = read_bytes(proc.0, host, CONTROLLER_STRIDE as usize) else {
                 continue;
             };
+            if !trusted && !looks_like_melee(&blk) {
+                continue;
+            }
             controllers.push(ControllerState {
                 port,
                 // Low half of the 32-bit button word holds the physical bits.
@@ -497,4 +525,136 @@ pub async fn start_dolphin_input_stream() -> Result<u16, String> {
 #[tauri::command]
 pub fn dolphin_input_stream_port() -> u16 {
     PORT.load(Ordering::SeqCst)
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::imp::looks_like_melee;
+    use super::*;
+
+    /// Build a controller block the way Melee lays one out: big-endian, 0x44 bytes.
+    fn block(buttons: u16, axes: [f32; 4], trig: [f32; 2]) -> Vec<u8> {
+        let mut b = vec![0u8; CONTROLLER_STRIDE as usize];
+        b[OFF_BUTTONS + 2..OFF_BUTTONS + 4].copy_from_slice(&buttons.to_be_bytes());
+        for (i, off) in [OFF_JOY_X, OFF_JOY_Y, OFF_C_X, OFF_C_Y].iter().enumerate() {
+            b[*off..*off + 4].copy_from_slice(&axes[i].to_be_bytes());
+        }
+        for (i, off) in [OFF_TRIG_L, OFF_TRIG_R].iter().enumerate() {
+            b[*off..*off + 4].copy_from_slice(&trig[i].to_be_bytes());
+        }
+        b
+    }
+
+    #[test]
+    fn accepts_a_real_looking_melee_block() {
+        // Full tilt on both sticks and a bottomed-out trigger is still in range.
+        assert!(looks_like_melee(&block(0x0100, [1.0, -1.0, 0.0, 0.5], [1.0, 0.0])));
+        assert!(looks_like_melee(&block(0x0000, [0.0, 0.0, 0.0, 0.0], [0.0, 0.0])));
+        assert!(looks_like_melee(&block(0x1000, [-0.7, 0.7, -0.5, 0.5], [0.3, 0.9])));
+    }
+
+    #[test]
+    fn rejects_sticks_outside_the_unit_circle() {
+        // The single most likely garbage signature: whatever float happens to live there.
+        assert!(!looks_like_melee(&block(0, [12.5, 0.0, 0.0, 0.0], [0.0, 0.0])));
+        assert!(!looks_like_melee(&block(0, [0.0, -40000.0, 0.0, 0.0], [0.0, 0.0])));
+    }
+
+    #[test]
+    fn rejects_non_finite_floats() {
+        assert!(!looks_like_melee(&block(0, [f32::NAN, 0.0, 0.0, 0.0], [0.0, 0.0])));
+        assert!(!looks_like_melee(&block(0, [0.0, f32::INFINITY, 0.0, 0.0], [0.0, 0.0])));
+    }
+
+    #[test]
+    fn rejects_triggers_outside_zero_to_one() {
+        // Triggers are one-sided, so a negative value is garbage even though a stick's is not.
+        assert!(!looks_like_melee(&block(0, [0.0; 4], [-1.0, 0.0])));
+        assert!(!looks_like_melee(&block(0, [0.0; 4], [0.0, 3.5])));
+    }
+
+    #[test]
+    fn rejects_buttons_that_are_not_gamecube_buttons() {
+        assert!(!looks_like_melee(&block(0x8000, [0.0; 4], [0.0, 0.0])));
+        assert!(!looks_like_melee(&block(0x2000, [0.0; 4], [0.0, 0.0])));
+    }
+
+    /// Poll for 15 s and report whether ANY port's values ever move.
+    ///
+    /// A single snapshot cannot tell "nothing is being pressed" apart from "the address table
+    /// does not fit this disc" - both read as zeros. Movement is the only proof the struct is
+    /// the live one.
+    ///
+    /// `cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture live_watch`
+    #[test]
+    #[ignore = "needs Dolphin running; diagnostic only"]
+    fn live_watch_for_movement() {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        let mut seen: [std::collections::BTreeSet<String>; 4] = Default::default();
+        let mut game = String::new();
+        let mut samples = 0u32;
+        while start.elapsed() < Duration::from_secs(15) {
+            if let Ok(Some(s)) = super::read_dolphin_inputs() {
+                game = s.game_id.clone();
+                samples += 1;
+                for c in &s.controllers {
+                    if (c.port as usize) < 4 {
+                        seen[c.port as usize].insert(format!(
+                            "btn={:#06x} joy=({:+.2},{:+.2}) c=({:+.2},{:+.2}) trig=({:.2},{:.2})",
+                            c.buttons, c.joy_x, c.joy_y, c.c_x, c.c_y, c.trigger_l, c.trigger_r
+                        ));
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        println!("game_id {game}, {samples} samples over 15s");
+        let mut moved = false;
+        for (port, states) in seen.iter().enumerate() {
+            println!("  port {port}: {} distinct state(s)", states.len());
+            if states.len() > 1 {
+                moved = true;
+                for st in states.iter().take(6) {
+                    println!("      {st}");
+                }
+            }
+        }
+        println!(
+            "{}",
+            if moved {
+                "RESULT: values moved -> the struct is live and correctly located"
+            } else {
+                "RESULT: nothing moved -> either no input was given, or this disc does not use this layout"
+            }
+        );
+    }
+
+    /// Read whatever Dolphin is running RIGHT NOW and print it. Read-only, so it is safe to run
+    /// alongside the app — it binds no port and writes nothing.
+    ///
+    /// `cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture live_dolphin`
+    #[test]
+    #[ignore = "needs Dolphin running; diagnostic only"]
+    fn live_dolphin_diagnostic() {
+        match super::read_dolphin_inputs() {
+            Err(e) => println!("read failed: {e}"),
+            Ok(None) => println!("no Dolphin process / no game booted"),
+            Ok(Some(s)) => {
+                println!("game_id   : {}", s.game_id);
+                println!("box (usb) : {}", if s.digital.is_some() { "connected" } else { "none" });
+                println!("ports read: {}", s.controllers.len());
+                for c in &s.controllers {
+                    println!(
+                        "  port {} plugged={:<3} buttons={:#06x} joy=({:+.3},{:+.3}) c=({:+.3},{:+.3}) trig=({:.3},{:.3})",
+                        c.port, c.plugged, c.buttons, c.joy_x, c.joy_y, c.c_x, c.c_y,
+                        c.trigger_l, c.trigger_r
+                    );
+                }
+                if s.controllers.is_empty() {
+                    println!("  -> no port passed validation for this disc");
+                }
+            }
+        }
+    }
 }

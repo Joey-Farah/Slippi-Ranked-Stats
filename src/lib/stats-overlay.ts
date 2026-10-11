@@ -700,10 +700,27 @@ function overlayDoc(boot: string): string {
 
     function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
+    // Nothing pressed, every axis centred. Drawn whenever there is no controller to read.
+    //
+    // ⚠ Hiding was the first behaviour and it is worse: the overlay REFLOWS the moment Melee
+    // starts, so everything below the viewer jumps mid-stream. An unlit controller holds the
+    // layout and reads as "not playing yet", which is what it is.
+    var NEUTRAL = {
+      port: 0, buttons: 0, joy_x: 0, joy_y: 0, c_x: 0, c_y: 0,
+      trigger_l: 0, trigger_r: 0, plugged: 0
+    };
+
     function drawInputs(snap, skin) {
-      if (!snap || !snap.controllers) { inputsEl.hidden = true; return; }
-      var c = pickPort(snap.controllers);
-      if (!c) { inputsEl.hidden = true; return; }
+      if (!snap) { inputsEl.hidden = true; return; }
+      // ⚠ An EMPTY controller list is not "nothing to draw". A box controller reports every
+      // digital button over its own USB serial, and digOn() takes those in preference to anything
+      // inferred from memory - so the digital skin needs NOTHING from Dolphin. The memory read
+      // comes back empty for any disc that isn't GALE01, which is every Melee mod, and hiding on
+      // that threw the box's own data away and left the viewer permanently blank.
+      //
+      // Falling back to NEUTRAL is what a missing game already does, so the analog skins draw an
+      // idle controller here rather than vanishing - same reasoning, same result.
+      var c = pickPort(snap.controllers) || NEUTRAL;
       buildInputDom(skin);
       inputsEl.style.fontSize = (iScale || 1.6) + "rem";
       if (inputsEl.hidden) { inputsEl.hidden = false; scheduleSize(); }
@@ -748,15 +765,6 @@ function overlayDoc(boot: string): string {
       }
     }
 
-    // No game to read: draw the chosen skin with nothing pressed rather than hiding it.
-    //
-    // ⚠ Hiding was the first behaviour and it is worse: the overlay REFLOWS the moment Melee
-    // starts, so everything below the viewer jumps mid-stream. An unlit controller holds the
-    // layout and reads as "not playing yet", which is what it is.
-    var NEUTRAL = {
-      port: 0, buttons: 0, joy_x: 0, joy_y: 0, c_x: 0, c_y: 0,
-      trigger_l: 0, trigger_r: 0, plugged: 0
-    };
     function idleInputs() {
       drawInputs({ game_id: "", controllers: [NEUTRAL] }, iCurSkin);
     }
