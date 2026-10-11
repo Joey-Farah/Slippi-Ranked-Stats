@@ -49,6 +49,11 @@ class FakeEventSource {
   constructor(public url: string) {
     FakeEventSource.last = this;
   }
+  /** Read the latest instance through a call, so TS does not narrow `last` to the `null` it
+   *  was reset to - the page assigns it from inside `window.eval`, which TS cannot see. */
+  static take(): FakeEventSource | null {
+    return FakeEventSource.last;
+  }
   close() {
     this.closed = true;
   }
@@ -83,7 +88,7 @@ async function mountOverlay(skin = "digital") {
 
   const inputsEl = document.getElementById("inputs")!;
   expect(inputsEl, "the page should have an #inputs host").toBeTruthy();
-  const src = FakeEventSource.last;
+  const src = FakeEventSource.take();
   expect(src, "the page should have opened an input stream").toBeTruthy();
   return { inputsEl, src: src! };
 }
@@ -166,7 +171,7 @@ describe("input viewer in a real DOM", () => {
     FakeEventSource.last = null;
     for (const body of scripts) (window as any).eval(body);
 
-    expect(FakeEventSource.last, "no stream should be opened when inputs are hidden").toBeNull();
+    expect(FakeEventSource.take(), "no stream should be opened when inputs are hidden").toBeNull();
     expect((document.getElementById("inputs") as HTMLElement).hidden).toBe(true);
   });
 });

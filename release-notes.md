@@ -1,3 +1,18 @@
+## What's New in v1.12.3
+
+Includes everything from v1.12.2, which went out a few days ago — see below.
+
+### 🎮 Controller inputs now work on any Melee build
+
+The input viewer only appeared on a standard Melee ISO. On anything else — a training-mode
+build, or any modded ISO — it stayed blank, whichever style you had picked.
+
+It works on all of them now, analog and box styles alike.
+
+If you use a box controller it also shows your inputs with **no game running at all** — the
+overlay reads your controller directly over USB, so it works sitting in the menu, or with
+Dolphin closed entirely. Handy for warming up.
+
 ## What's New in v1.12.2
 
 ### 📊 Unranked & Direct grading now matches Ranked

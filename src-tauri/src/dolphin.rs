@@ -384,6 +384,21 @@ fn get_latest() -> Option<String> {
 
 /// Poll Dolphin on a dedicated OS thread.
 ///
+/// A frame carrying ONLY the box controller, for when no game can be read.
+///
+/// `None` when there is no box either — then there genuinely is nothing to show, and the page
+/// falls back to an idle controller rather than freezing on the last input.
+fn box_only_frame() -> Option<String> {
+    let digital = crate::boxx::latest_box()?;
+    serde_json::to_string(&DolphinSnapshot {
+        digital: Some(digital),
+        // No disc is booted, so there is no ID to report. The page does not gate on this.
+        game_id: String::new(),
+        controllers: Vec::new(),
+    })
+    .ok()
+}
+
 /// ⚠ Deliberately a plain thread, not an async task: the Win32 reads are blocking, and the
 /// process handle lives entirely inside this thread so it is never shared across threads.
 fn spawn_poller() {
@@ -392,10 +407,14 @@ fn spawn_poller() {
         loop {
             match read_dolphin_inputs() {
                 Ok(Some(snap)) => set_latest(serde_json::to_string(&snap).ok()),
-                // Dolphin closed or no game booted — publish nothing rather than a stale frame,
-                // so the overlay hides the panel instead of freezing on the last input.
-                Ok(None) => set_latest(None),
-                Err(_) => set_latest(None),
+                // ⚠ Dolphin having nothing to say is NOT a reason to drop the box. It is read
+                // over its own USB serial and owes Dolphin nothing, so solo practice at the game
+                // list — or with Dolphin closed outright — still has real inputs to show.
+                // Publishing nothing here threw them away and left the viewer visibly dead.
+                //
+                // Stale frames are not a risk: boxx clears its state to None the moment the
+                // port drops, so this goes quiet on its own when the controller is unplugged.
+                _ => set_latest(box_only_frame()),
             }
             std::thread::sleep(period);
         }
@@ -577,6 +596,31 @@ mod tests {
     fn rejects_buttons_that_are_not_gamecube_buttons() {
         assert!(!looks_like_melee(&block(0x8000, [0.0; 4], [0.0, 0.0])));
         assert!(!looks_like_melee(&block(0x2000, [0.0; 4], [0.0, 0.0])));
+    }
+
+    #[test]
+    fn a_box_only_frame_carries_the_buttons_and_no_controllers() {
+        // What the poller publishes when Dolphin has nothing: the page must still receive the
+        // box's real states, or solo practice shows a dead viewer.
+        let snap = super::DolphinSnapshot {
+            digital: Some(crate::boxx::BoxState { a: true, mod_x: true, ..Default::default() }),
+            game_id: String::new(),
+            controllers: Vec::new(),
+        };
+        let json = serde_json::to_string(&snap).expect("snapshot should serialise");
+        assert!(json.contains("\"digital\""), "box state must reach the page: {json}");
+        assert!(json.contains("\"a\":true"));
+        assert!(json.contains("\"mod_x\":true"));
+        assert!(json.contains("\"controllers\":[]"));
+        assert!(json.contains("\"game_id\":\"\""));
+    }
+
+    #[test]
+    fn no_box_means_no_frame() {
+        // No game AND no box is the one case with genuinely nothing to show. The poller must
+        // publish nothing then, so the page falls back to an idle controller rather than
+        // freezing on whatever was last pressed.
+        assert!(super::box_only_frame().is_none());
     }
 
     /// Poll for 15 s and report whether ANY port's values ever move.

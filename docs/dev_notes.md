@@ -1,3 +1,63 @@
+## ⚠ SESSION HANDOFF — 2026-10-11 (v1.12.3 — INPUT VIEWER WORKS ON ANY MELEE BUILD — READ FIRST)
+
+### Input viewer was blank on every non-vanilla ISO (FIXED, v1.12.3)
+
+Reported live: the viewer never appeared, and swapping the ISO in Dolphin turned it off and back
+on. **Two defects stacked, and either alone was enough to blank it.**
+
+1. **The page threw the box controller's data away.** `drawInputs` opened with
+   `if (!c) { hidden = true; return; }`, `c` being a port from Dolphin's memory. But `digOn()`
+   takes the box's USB states in preference to anything inferred, and **all 19 digital buttons
+   have a `dk` key**, so the digital skin needs *nothing* from Dolphin. The gate ran before the
+   skin was even consulted, which is why the analog skin vanished too. Now
+   `pickPort(snap.controllers) || NEUTRAL`.
+2. **`dolphin.rs` refused any disc but GALE01.** Right instinct (the table is NTSC 1.02 only),
+   wrong remedy — Melee mods are built on 1.02 and keep the layout. Vanilla is still trusted
+   outright; any other disc must pass `looks_like_melee()`: both sticks within the unit circle,
+   both triggers in [0,1], no button bits above `0x1000`.
+
+⚠ **Verified against the real mod, not argued from first principles.** Joey's build reports
+**`GTME01`**. Before: 0 ports. After: 4 ports, and `live_watch_for_movement` recorded **81
+distinct port-0 states over 250 samples** while inputs were given — movement is the only thing
+that separates "correct address" from "plausible-looking zeros". Vanilla re-checked, unchanged.
+
+**Two ignored diagnostics now exist for this** (read-only, safe beside the running app):
+`cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture live_dolphin`
+`cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture live_watch`
+
+### The overlay page's JavaScript is now actually tested
+
+⚠ The long-standing trap — the page is a **TypeScript template literal**, so `tsc` and
+`vite build` never read a line of it — is what let this ship. Two files close it:
+
+- `src/lib/overlay-inputs.test.ts` — pulls the real shipped functions back out of the rendered
+  page, and **compiles the whole inline script with `new Function`** (compiles without running =
+  a syntax check). Confirmed to fail on an injected stray quote.
+- `src/lib/overlay-inputs-dom.test.ts` — mounts the real page in **happy-dom** (new
+  devDependency), stubs `EventSource`, and pushes frames shaped exactly as `dolphin.rs`
+  serialises them. Pins the actual promise: **the viewer appears whatever disc is booted.**
+  Covers GALE01, GTME01, an unknown disc, no disc, the analog skin, a lone modifier, a real
+  controller from memory, and the toggle off. **Reverting the fix fails 8 of its 10.**
+
+⚠ Prefer the DOM test for anything about *rendering*. The source-text assertions in the first
+file are brittle by nature and only pin that a line still exists.
+
+### The box no longer needs a game booted (same release)
+
+`spawn_poller` used to do `Ok(None) => set_latest(None)` whenever Dolphin was closed or sitting
+at the game list, so the page got `"null"` and the box's live data was discarded — the viewer
+appeared but sat dead, in exactly the solo-practice case the USB path was built for. It now
+falls back to `box_only_frame()`: the box's states with `controllers: []` and an empty
+`game_id`.
+
+⚠ **No stale-frame risk, and that is load-bearing.** `boxx` sets its state to `None` on port
+drop or read error (three call sites), so this goes quiet by itself when the controller is
+unplugged rather than freezing on the last input. If that ever changes, this needs its own
+timeout.
+
+⚠ The page does **not** gate on `game_id`, which is what makes the empty string safe — pinned
+by the `"(none)"` disc case in `overlay-inputs-dom.test.ts`.
+
 ## ⚠ SESSION HANDOFF — 2026-10-09 (WEBSITE TEXT PASS + PREMIUM-PERSISTENCE REPORT BANKED — READ FIRST)
 
 ### 1. Website — text pass shipped, screenshots still owed
