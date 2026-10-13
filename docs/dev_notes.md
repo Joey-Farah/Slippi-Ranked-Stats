@@ -987,6 +987,20 @@ The windows are plain day counts (`1y` = 365, `2y` = 730), matching how `30d`/`9
 
 ---
 
+## ▶ BANKED IDEA — "Session Wrapped" shareable card (2026-10-12, NOT started)
+
+Joey wants this on file — **no action planned yet.** After a ranked session, offer a button to
+download/copy a small Spotify-Wrapped-style image of the session's high-level stats, built to be
+dropped into a Discord or posted on social media.
+
+Open questions for when it's picked up: which stats make the cut (set record, net Rating, best
+grade, most-played matchup?), where the button lives (Ranked Sessions tab / end of Live Session),
+whether it's Premium, and how to render the image (offscreen canvas vs. DOM-to-PNG). Net Rating
+is only available for ~16/137 sessions (`sessionRatingDelta()` validation, v1.8.14), so the card
+must look complete without it.
+
+---
+
 ## ▶ BANKED IDEA — Opponent-adjusted grading, à la Lucky Stats OPK+/DEF+/NEU+ (2026-09-25, NOT started)
 
 Joey wants this on file to think about later — **no action planned.** Source: Lucky 7s announced
