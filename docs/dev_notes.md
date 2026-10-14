@@ -1,3 +1,44 @@
+## ⚠ SESSION HANDOFF — 2026-10-14 (CARD BILLING SLICE 1: SIGN-IN — CODE DONE, STAGING DEMO PENDING)
+
+Branch **`feat/card-billing`** (`main` merged in, so it also carries the untested overlay work
+from 10-13). Slice 1 of `docs/plans/direct-billing.md` is built: email → emailed code → "Signed in
+as x", surviving a restart. Worker 23 tests (`cd workers/billing && npm test`), app suite green,
+`tsc` clean, verified end to end against `wrangler dev`. **Dev builds only**: the sidebar panel
+(`CardAccountPanel.svelte`) and the launch load are behind `import.meta.env.DEV`, verified absent
+from a production `vite build`. Nothing touches `isPremium` yet (slice 2).
+
+⚠ **The verify contract changed from the plan after a fresh-context review:** `/auth/start`
+returns a random `challenge`, and `/auth/verify` takes `{challenge, code, deviceId}`, not the
+email. Without it, anyone who knew a player's email could burn that code's 5 tries or retire it
+by asking for a new one. Other review fixes: rate limits are checked *inside* the INSERT (100
+parallel requests used to send 15 codes against a limit of 5), a 10/day per-email cap, IPv6
+limited per /64, display-name/multi-recipient addresses refused, and **`sessions` replaced
+`devices`**, so a new sign-in marks the old session `replaced_at` instead of overwriting it.
+Slice 4 needs that to answer `device_replaced` rather than `signed_out`.
+
+**To demo it (Windows, needs Joey's Cloudflare login; no Resend needed yet):**
+1. `cd workers\billing` → `npm install --legacy-peer-deps` → `npx wrangler login` if needed.
+2. `npx wrangler d1 create srs-billing-staging` → paste the printed id over the zeros under
+   `[[env.staging.d1_databases]]` in `wrangler.toml` and commit it (D1 ids aren't secrets).
+3. `npx wrangler d1 migrations apply srs-billing-staging --remote --env staging`
+4. `npm run deploy:staging` → must land on `https://srs-billing-staging.joeyfarah.workers.dev`
+   (`BILLING_URL` in `card-premium.ts`).
+5. Leave `npx wrangler tail --env staging` running: staging has no `RESEND_API_KEY`, so codes
+   are logged as `[staging] sign-in code for <email>: 123456` (`ALLOW_LOGGED_CODES`, staging only;
+   a test pins that production's config doesn't set it).
+6. Repo root: `npm run tauri dev` → sidebar → **DEV · CARD PREMIUM** → email → code from the
+   tail → "Signed in as …". Quit and relaunch → still signed in. Sign out → relaunch → signed out.
+
+**Open / deferred, none blocking:**
+- `login_codes` rows are never deleted; purge old ones from the slice-6 cron.
+- Sign-out is local only: the server-side session stays live until the next sign-in replaces
+  it. Harmless now; revisit with renewals (slice 2/4).
+- Resend's free tier (100 emails/day) is a shared bottleneck: the per-IP limit slows a flood but
+  can't stop a distributed one from exhausting it and blocking sign-in for everyone that day.
+- The plan's pure `decide()` reducer isn't built: slice 1 has no renew/grace logic to put in it.
+  It arrives with renewals.
+- The production `[[d1_databases]]` id is also still zeros (slice 8).
+
 ## ⚠ SESSION HANDOFF — 2026-10-13 (OVERLAY FIT + PERSISTENT PER-GAME GRADES — BANKED, UNTESTED LIVE)
 
 Code done, 222/222 tests pass, **not yet tested in OBS / a real game**. Details in the CLAUDE.md "Banked on `main`" bullet dated 2026-10-13. Next: Joey tests live (stacked + side, each skin/size, a ranked set and an unranked run), then fold into a release with a version bump + release notes.
