@@ -99,3 +99,27 @@ describe("a code stops working", () => {
     expect(await verify(code)).toEqual({ status: 400, body: { error: "code_expired" } });
   });
 });
+
+describe("asking for codes is rate-limited", () => {
+  const RATE_LIMITED = { status: 429, body: { error: "rate_limited" } };
+
+  it("to 5 an hour per email, without sending the 6th", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2026, 9, 14, 12, 0, 0) });
+    for (let i = 0; i < 5; i++) {
+      expect((await post("/auth/start", { email: EMAIL }, `198.51.100.${i}`)).status).toBe(200);
+    }
+    expect(await post("/auth/start", { email: EMAIL }, "198.51.100.99")).toEqual(RATE_LIMITED);
+    expect(sent).toHaveLength(5);
+
+    vi.setSystemTime(Date.UTC(2026, 9, 14, 13, 0, 1));
+    expect((await post("/auth/start", { email: EMAIL })).status).toBe(200);
+  });
+
+  it("to 20 an hour per IP address", async () => {
+    for (let i = 0; i < 20; i++) {
+      expect((await post("/auth/start", { email: `p${i}@example.com` })).status).toBe(200);
+    }
+    expect(await post("/auth/start", { email: "p20@example.com" })).toEqual(RATE_LIMITED);
+    expect((await post("/auth/start", { email: "p20@example.com" }, "192.0.2.1")).status).toBe(200);
+  });
+});

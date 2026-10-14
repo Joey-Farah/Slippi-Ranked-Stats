@@ -5,17 +5,36 @@ import { json } from "./http";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+const RATE_WINDOW_MS = 60 * 60 * 1000;
+const CODES_PER_EMAIL = 5;
+const CODES_PER_IP = 20;
 
 export async function startSignIn(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
   const email = normalizeEmail(body?.email);
   if (!email) return json({ error: "bad_request" }, 400);
 
+  // The same limit applies whether or not the account exists, so this reveals nothing about
+  // who has signed up. Soft: two simultaneous requests can both squeak under it, which is fine.
+  const ip = clientIp(request);
+  const now = Date.now();
+  const since = now - RATE_WINDOW_MS;
+  const recent = await env.DB.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM login_codes WHERE email = ? AND created_at > ?) AS by_email,
+       (SELECT COUNT(*) FROM login_codes WHERE ip = ? AND created_at > ?) AS by_ip`,
+  )
+    .bind(email, since, ip, since)
+    .first<{ by_email: number; by_ip: number }>();
+  if (recent!.by_email >= CODES_PER_EMAIL || recent!.by_ip >= CODES_PER_IP) {
+    return json({ error: "rate_limited" }, 429);
+  }
+
   const code = randomCode();
   await env.DB.prepare(
     "INSERT INTO login_codes (email, ip, code_hash, created_at) VALUES (?, ?, ?, ?)",
   )
-    .bind(email, clientIp(request), await sha256(`${email}:${code}`), Date.now())
+    .bind(email, ip, await sha256(`${email}:${code}`), now)
     .run();
 
   await sendSignInCode(env, email, code);
