@@ -18,6 +18,7 @@
   import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { refreshNotes } from "./lib/notes";
+  import { initCardPremium } from "./lib/card-premium";
   import { scrollAffordance } from "./lib/tab-scroll";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
@@ -147,6 +148,10 @@
     // render them the instant an opponent is detected, whether or not that tab was ever
     // visited. The table is tiny; this is one small query at launch.
     refreshNotes().catch(() => {});
+
+    // Card Premium (docs/plans/direct-billing.md) is dev-only until it's finished; this is
+    // statically false in a production build, so the call is dropped there.
+    if (import.meta.env.DEV) initCardPremium().catch((e) => console.error("card premium:", e));
 
     try {
       const update = await check();

@@ -18,8 +18,12 @@
   import { scanDirectory, cancelScan } from "../lib/parser";
   import { fetchRatingSnapshot } from "../lib/api";
   import { insertSnapshot, insertSeason, getGames, getSnapshots, getSeasons, clearScannedFiles } from "../lib/db";
+  import CardAccountPanel from "./CardAccountPanel.svelte";
 
   let isVerifying = $state(false);
+
+  // Statically false in a production build, so the card panel below is dropped by the bundler.
+  const IS_DEV = import.meta.env.DEV;
 
   // Feedback form
   const FEEDBACK_WORKER_URL = "https://srs-feedback.joeyfarah.workers.dev";
@@ -496,6 +500,12 @@
           </div>
         </div>
       </div>
+    {/if}
+
+    <!-- DEV ONLY: the card route (docs/plans/direct-billing.md). Outside the Discord branches
+         above because the two routes are independent. Dropped from production builds. -->
+    {#if IS_DEV}
+      <CardAccountPanel />
     {/if}
   </div>
 
