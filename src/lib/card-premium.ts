@@ -2,8 +2,8 @@
 // Plan and decisions: docs/plans/direct-billing.md. Terms (Premium, Subscription, Device, Pass):
 // CONTEXT.md.
 //
-// The email is the account. Signing in is an emailed 6-digit code, which the worker trades for
-// a session tied to this install's device id. Both are kept in account.db (see db.ts), not in
+// The email is the account. Signing in is an emailed 6-digit code, bound to a challenge only
+// this app holds, which the worker trades for a session tied to this install's device id. Both are kept in account.db (see db.ts), not in
 // localStorage, so they survive whatever has been wiping the Discord route's tokens.
 //
 // ⚠ Dev builds only until slice 8 of the plan: every entry point is behind import.meta.env.DEV.
@@ -28,6 +28,7 @@ export type SignInFailure =
   | "code_expired"
   | "rate_limited"
   | "email_failed"
+  | "storage" // account.db couldn't be read or written
   | "unreachable";
 
 export class SignInError extends Error {
@@ -47,51 +48,78 @@ interface Stored {
 const _account = writable<CardAccount>({ kind: "signed_out" });
 export const cardAccount: Readable<CardAccount> = { subscribe: _account.subscribe };
 
-let stored: Stored = { deviceId: "", email: null, session: null };
-/** The email a code was just sent to. Memory only: a restart mid-sign-in starts over. */
-let pendingEmail: string | null = null;
+/** null until account.db has been read. */
+let stored: Stored | null = null;
+/** The code just sent. Memory only: a restart mid-sign-in starts over. */
+let pending: { email: string; challenge: string } | null = null;
 
 export async function initCardPremium(): Promise<void> {
-  const fromDisk = parseStored(await loadCardState());
-  stored = fromDisk ?? { deviceId: crypto.randomUUID(), email: null, session: null };
-  if (!fromDisk) await saveCardState(JSON.stringify(stored));
+  await load();
   publish();
 }
 
 export async function startSignIn(email: string): Promise<void> {
-  const reply = await call("/auth/start", { email });
-  if (reply.ok !== true) throw new SignInError("unreachable");
-  pendingEmail = email.trim();
+  await load(); // a load that failed at launch gets another chance here
+  const reply = await call("/auth/start", { email }, START_FAILURES);
+  if (reply.ok !== true || typeof reply.challenge !== "string") {
+    throw new SignInError("unreachable");
+  }
+  pending = { email: email.trim(), challenge: reply.challenge };
   publish();
 }
 
 export async function confirmCode(code: string): Promise<void> {
-  if (!pendingEmail) throw new SignInError("code_expired");
-  const reply = await call("/auth/verify", {
-    email: pendingEmail,
-    code: code.trim(),
-    deviceId: stored.deviceId,
-  });
+  if (!pending) throw new SignInError("code_expired");
+  const device = await load();
+  const reply = await call(
+    "/auth/verify",
+    { challenge: pending.challenge, code: code.trim(), deviceId: device.deviceId },
+    VERIFY_FAILURES
+  );
   if (typeof reply.session !== "string" || typeof reply.email !== "string") {
     throw new SignInError("unreachable");
   }
-  stored = { ...stored, email: reply.email, session: reply.session };
-  await saveCardState(JSON.stringify(stored));
-  pendingEmail = null;
+  // The worker has already made this the account's Device, so this run is signed in even if
+  // saving it fails; the failure only means the next launch won't remember it.
+  stored = { ...device, email: reply.email, session: reply.session };
+  pending = null;
   publish();
+  await persist();
 }
 
 /** Also abandons a sign-in that's waiting for its code. The device id is kept. */
 export async function signOut(): Promise<void> {
-  pendingEmail = null;
-  stored = { ...stored, email: null, session: null };
-  await saveCardState(JSON.stringify(stored));
+  pending = null;
+  if (stored) stored = { ...stored, email: null, session: null };
   publish();
+  if (stored) await persist();
+}
+
+async function load(): Promise<Stored> {
+  if (stored) return stored;
+  let text: string | null;
+  try {
+    text = await loadCardState();
+  } catch {
+    throw new SignInError("storage");
+  }
+  const fromDisk = parseStored(text);
+  stored = fromDisk ?? { deviceId: crypto.randomUUID(), email: null, session: null };
+  if (!fromDisk) await persist();
+  return stored;
+}
+
+async function persist(): Promise<void> {
+  try {
+    await saveCardState(JSON.stringify(stored));
+  } catch {
+    throw new SignInError("storage");
+  }
 }
 
 function publish(): void {
-  if (pendingEmail) _account.set({ kind: "code_sent", email: pendingEmail });
-  else if (stored.session && stored.email) _account.set({ kind: "signed_in", email: stored.email });
+  if (pending) _account.set({ kind: "code_sent", email: pending.email });
+  else if (stored?.session && stored.email) _account.set({ kind: "signed_in", email: stored.email });
   else _account.set({ kind: "signed_out" });
 }
 
@@ -110,12 +138,17 @@ function parseStored(text: string | null): Stored | null {
   }
 }
 
-const WORKER_FAILURES: Record<string, SignInFailure> = {
+const START_FAILURES: Record<string, SignInFailure> = {
   bad_request: "bad_email",
-  wrong_code: "wrong_code",
-  code_expired: "code_expired",
   rate_limited: "rate_limited",
   email_failed: "email_failed",
+};
+
+// bad_request here can only mean a mangled challenge or device id; starting over fixes both.
+const VERIFY_FAILURES: Record<string, SignInFailure> = {
+  wrong_code: "wrong_code",
+  code_expired: "code_expired",
+  bad_request: "code_expired",
 };
 
 /**
@@ -123,7 +156,11 @@ const WORKER_FAILURES: Record<string, SignInFailure> = {
  * the body's `error` code. The HTTP status is never read: callers recognise success by its
  * shape, and anything else (network error, timeout, an HTML error page) is "unreachable".
  */
-async function call(path: string, body: object): Promise<Record<string, unknown>> {
+async function call(
+  path: string,
+  body: object,
+  failures: Record<string, SignInFailure>
+): Promise<Record<string, unknown>> {
   let reply: unknown;
   try {
     const res = await fetch(BILLING_URL + path, {
@@ -140,6 +177,8 @@ async function call(path: string, body: object): Promise<Record<string, unknown>
     throw new SignInError("unreachable");
   }
   const r = reply as Record<string, unknown>;
-  if (typeof r.error === "string") throw new SignInError(WORKER_FAILURES[r.error] ?? "unreachable");
+  if (typeof r.error === "string") {
+    throw new SignInError(Object.hasOwn(failures, r.error) ? failures[r.error] : "unreachable");
+  }
   return r;
 }

@@ -17,6 +17,7 @@
     code_expired: "That code has expired. Send a new one.",
     rate_limited: "Too many codes sent. Try again in an hour.",
     email_failed: "Couldn't send the email. Try again in a minute.",
+    storage: "Couldn't read or save your sign-in on this computer. Restarting the app may fix it.",
     unreachable: "Couldn't reach the server. Check your connection and try again.",
   };
 

@@ -6,8 +6,11 @@ import { get } from "svelte/store";
 // "restart" is a fresh import of the module against the same disk.
 const h = vi.hoisted(() => ({
   disk: null as string | null,
+  /** How many upcoming reads / writes of account.db should throw. */
+  loadFailures: 0,
+  saveFailures: 0,
   requests: [] as { path: string; body: any }[],
-  server: (_path: string, _body: any): Response | Promise<Response> =>
+  server: (_path: string, _body: any, _signal?: AbortSignal): Response | Promise<Response> =>
     Response.json({ error: "not_found" }, { status: 404 }),
 }));
 
@@ -16,13 +19,19 @@ vi.mock("@tauri-apps/plugin-http", () => ({
     const path = new URL(url).pathname;
     const body = JSON.parse(String(init.body));
     h.requests.push({ path, body });
-    return h.server(path, body);
+    return h.server(path, body, init.signal ?? undefined);
   },
 }));
 
 vi.mock("./db", () => ({
-  loadCardState: async () => h.disk,
-  saveCardState: async (state: string) => void (h.disk = state),
+  loadCardState: async () => {
+    if (h.loadFailures-- > 0) throw new Error("database is locked");
+    return h.disk;
+  },
+  saveCardState: async (state: string) => {
+    if (h.saveFailures-- > 0) throw new Error("disk full");
+    h.disk = state;
+  },
 }));
 
 type CardModule = typeof import("./card-premium");
@@ -31,18 +40,21 @@ type CardModule = typeof import("./card-premium");
 async function launch(): Promise<CardModule> {
   vi.resetModules();
   const m = await import("./card-premium");
-  await m.initCardPremium();
+  await m.initCardPremium().catch(() => {}); // App.svelte swallows a failed load the same way
   return m;
 }
 
 const SESSION = "s".repeat(43);
 
-/** A worker that accepts code 123456 for any email. */
+const CHALLENGE = "c".repeat(43);
+
+/** A worker that hands out CHALLENGE and accepts code 123456 with it. */
 function happyServer(path: string, body: any): Response {
-  if (path === "/auth/start") return Response.json({ ok: true });
+  if (path === "/auth/start") return Response.json({ ok: true, challenge: CHALLENGE });
   if (path === "/auth/verify") {
+    if (body.challenge !== CHALLENGE) return Response.json({ error: "code_expired" }, { status: 400 });
     return body.code === "123456"
-      ? Response.json({ session: SESSION, email: body.email.trim().toLowerCase() })
+      ? Response.json({ session: SESSION, email: "player@example.com" })
       : Response.json({ error: "wrong_code" }, { status: 400 });
   }
   return Response.json({ error: "not_found" }, { status: 404 });
@@ -50,6 +62,8 @@ function happyServer(path: string, body: any): Response {
 
 beforeEach(() => {
   h.disk = null;
+  h.loadFailures = 0;
+  h.saveFailures = 0;
   h.requests = [];
   h.server = happyServer;
 });
@@ -68,6 +82,16 @@ describe("signing in", () => {
 
     await m.confirmCode("123456");
     expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
+  });
+
+  it("proves the code with the challenge /auth/start gave it, not the email", async () => {
+    const m = await launch();
+    await m.startSignIn("player@example.com");
+    await m.confirmCode("123456");
+    expect(h.requests.at(-1)).toEqual({
+      path: "/auth/verify",
+      body: { challenge: CHALLENGE, code: "123456", deviceId: expect.any(String) },
+    });
   });
 
   it("is still signed in after a restart", async () => {
@@ -106,13 +130,8 @@ describe("when a step fails", () => {
     expect(get(m.cardAccount)).toEqual({ kind: "code_sent", email: "player@example.com" });
   });
 
-  it("passes the worker's definite answers through", async () => {
-    const answers = {
-      bad_request: "bad_email",
-      code_expired: "code_expired",
-      rate_limited: "rate_limited",
-      email_failed: "email_failed",
-    };
+  it("passes the worker's definite answers to sending a code through", async () => {
+    const answers = { bad_request: "bad_email", rate_limited: "rate_limited", email_failed: "email_failed" };
     const m = await launch();
     for (const [error, reason] of Object.entries(answers)) {
       h.server = () => Response.json({ error }, { status: 400 });
@@ -121,13 +140,26 @@ describe("when a step fails", () => {
     expect(get(m.cardAccount)).toEqual({ kind: "signed_out" });
   });
 
+  it("passes the worker's definite answers to a code through", async () => {
+    // bad_request here can only mean the challenge or device id was mangled: start over.
+    const answers = { wrong_code: "wrong_code", code_expired: "code_expired", bad_request: "code_expired" };
+    const m = await codeSent();
+    for (const [error, reason] of Object.entries(answers)) {
+      h.server = () => Response.json({ error }, { status: 400 });
+      await expect(m.confirmCode("123456")).rejects.toMatchObject({ reason });
+    }
+  });
+
   it("treats anything that isn't a definite answer as unreachable", async () => {
     const replies: (() => Response | Promise<Response>)[] = [
       () => Promise.reject(new TypeError("network down")),
       () => new Response("<html>502 Bad Gateway</html>", { status: 502 }),
       () => Response.json({ message: "upstream" }, { status: 503 }),
       () => Response.json({ error: "something_new" }, { status: 400 }),
+      () => Response.json({ error: "constructor" }, { status: 400 }),
       () => Response.json(["not", "an", "object"]),
+      // 200s missing what makes them a success: no challenge, no session.
+      () => Response.json({ ok: true }),
     ];
     const m = await codeSent();
     for (const reply of replies) {
@@ -137,12 +169,47 @@ describe("when a step fails", () => {
       });
       await expect(m.confirmCode("123456")).rejects.toMatchObject({ reason: "unreachable" });
     }
-    // A 200 that doesn't carry a session can't sign anyone in.
-    h.server = () => Response.json({ ok: true });
-    await expect(m.confirmCode("123456")).rejects.toMatchObject({ reason: "unreachable" });
-
     expect(get(m.cardAccount)).toEqual({ kind: "code_sent", email: "player@example.com" });
     expect(h.disk).not.toContain("session\":\"");
+  });
+
+  it("gives up on a server that never answers", async () => {
+    const timedOut = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(timedOut.signal);
+    h.server = (_path, _body, signal) =>
+      new Promise((_, reject) => signal?.addEventListener("abort", () => reject(signal.reason)));
+
+    const m = await launch();
+    const pending = m.startSignIn("player@example.com");
+    await vi.waitFor(() => expect(timeout).toHaveBeenCalled());
+    timedOut.abort(new DOMException("timed out", "TimeoutError"));
+    await expect(pending).rejects.toMatchObject({ reason: "unreachable" });
+    timeout.mockRestore();
+  });
+});
+
+describe("when account.db misbehaves", () => {
+  it("retries a load that failed at launch instead of signing in without a device id", async () => {
+    h.loadFailures = 1;
+    const m = await launch();
+    await m.startSignIn("player@example.com");
+    await m.confirmCode("123456");
+    expect(h.requests.at(-1)!.body.deviceId).toMatch(/^\S{16,}$/);
+  });
+
+  it("says so when it can't be read at all", async () => {
+    h.loadFailures = 99;
+    const m = await launch();
+    await expect(m.startSignIn("player@example.com")).rejects.toMatchObject({ reason: "storage" });
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it("keeps a sign-in the server accepted for this run when it can't be saved", async () => {
+    const m = await launch();
+    await m.startSignIn("player@example.com");
+    h.saveFailures = 1;
+    await expect(m.confirmCode("123456")).rejects.toMatchObject({ reason: "storage" });
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
   });
 });
 
