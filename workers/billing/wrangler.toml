@@ -1,0 +1,33 @@
+name = "srs-billing"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# Production. Secrets (never commit them):
+#   npx wrangler secret put RESEND_API_KEY
+[vars]
+EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "srs-billing"
+# Replace with the id printed by `npx wrangler d1 create srs-billing`.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Staging: what the dev build talks to. Deploy with `npm run deploy:staging`.
+# Until Resend is set up it has no RESEND_API_KEY, so sign-in codes go to the worker's log
+# instead of an inbox (read them with `npx wrangler tail --env staging`). Production never sets
+# ALLOW_LOGGED_CODES, so a missing key there is an error rather than a silent log.
+[env.staging]
+name = "srs-billing-staging"
+
+[env.staging.vars]
+EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
+ALLOW_LOGGED_CODES = "1"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "srs-billing-staging"
+# Replace with the id printed by `npx wrangler d1 create srs-billing-staging`.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
