@@ -31,13 +31,23 @@ export async function startSignIn(request: Request, env: Env): Promise<Response>
   }
 
   const code = randomCode();
-  await env.DB.prepare(
+  const inserted = await env.DB.prepare(
     "INSERT INTO login_codes (email, ip, code_hash, created_at) VALUES (?, ?, ?, ?)",
   )
     .bind(email, ip, await sha256(`${email}:${code}`), now)
     .run();
 
-  await sendSignInCode(env, email, code);
+  try {
+    await sendSignInCode(env, email, code);
+  } catch (err) {
+    console.error("sign-in email failed:", err);
+    // Nobody received this code, so it shouldn't use up a rate-limit slot: an email outage
+    // would otherwise lock players out for an hour after it ends.
+    await env.DB.prepare("DELETE FROM login_codes WHERE id = ?")
+      .bind(inserted.meta.last_row_id)
+      .run();
+    return json({ error: "email_failed" }, 502);
+  }
   return json({ ok: true });
 }
 

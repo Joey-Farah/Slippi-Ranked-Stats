@@ -1,5 +1,6 @@
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import worker from "../src/index";
 
 // Every email the worker hands to Resend, captured instead of sent.
 let sent: { to: string; text: string }[] = [];
@@ -50,6 +51,89 @@ describe("sign-in round trip", () => {
     expect(verify.status).toBe(200);
     expect(verify.body.email).toBe(EMAIL);
     expect(verify.body.session).toMatch(/^[\w-]{40,}$/);
+  });
+});
+
+describe("the email address", () => {
+  it("is matched regardless of case and surrounding spaces", async () => {
+    await post("/auth/start", { email: "  Player@Example.COM " });
+    const verify = await post("/auth/verify", {
+      email: "player@example.com",
+      code: codeSentTo(EMAIL),
+      deviceId: DEVICE,
+    });
+    expect(verify.status).toBe(200);
+    expect(verify.body.email).toBe(EMAIL);
+  });
+
+  it("is rejected when it isn't one, and nothing is sent", async () => {
+    for (const email of ["", "player", "player@", "@example.com", "a b@example.com", 42, null]) {
+      expect(await post("/auth/start", { email })).toEqual({
+        status: 400,
+        body: { error: "bad_request" },
+      });
+    }
+    expect(sent).toHaveLength(0);
+  });
+});
+
+describe("when the email can't be sent", () => {
+  it("says so, and the failed try doesn't count against the rate limit", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("upstream down", { status: 500 }));
+    expect(await post("/auth/start", { email: EMAIL })).toEqual({
+      status: 502,
+      body: { error: "email_failed" },
+    });
+
+    for (let i = 0; i < 5; i++) {
+      expect((await post("/auth/start", { email: EMAIL })).status).toBe(200);
+    }
+  });
+});
+
+describe("with no Resend key", () => {
+  async function startWith(vars: Partial<Env>) {
+    const res = await worker.fetch(
+      new Request("https://billing.test/auth/start", {
+        method: "POST",
+        body: JSON.stringify({ email: EMAIL }),
+      }),
+      { ...env, RESEND_API_KEY: undefined, ...vars },
+    );
+    return { status: res.status, body: await res.json() };
+  }
+
+  it("staging writes the code to its log instead", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(await startWith({ ALLOW_LOGGED_CODES: "1" })).toEqual({
+      status: 200,
+      body: { ok: true },
+    });
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/player@example\.com: \d{6}$/));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("production fails rather than logging codes", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await startWith({ ALLOW_LOGGED_CODES: undefined })).toEqual({
+      status: 502,
+      body: { error: "email_failed" },
+    });
+    expect(log).not.toHaveBeenCalled();
+  });
+});
+
+describe("signing in again", () => {
+  it("issues a fresh session for the same account", async () => {
+    async function signIn(deviceId: string) {
+      await post("/auth/start", { email: EMAIL });
+      return post("/auth/verify", { email: EMAIL, code: codeSentTo(EMAIL), deviceId });
+    }
+    const first = await signIn("device-a");
+    const second = await signIn("device-b");
+    expect(second.status).toBe(200);
+    expect(second.body.session).not.toBe(first.body.session);
   });
 });
 
