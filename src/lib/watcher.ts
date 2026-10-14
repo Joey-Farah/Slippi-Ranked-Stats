@@ -42,6 +42,7 @@ import { CHARACTERS } from "./parser";
 import { syncOpponentTag } from "./notes";
 import { gradeSet, gradeGame, featuredCategory, GRADE_VERSION } from "./grading";
 import { saveSetGrade } from "./db";
+import { gradeSkipReason } from "./grade-queue";
 import { pingTelemetry } from "./telemetry";
 
 let _unwatchers: UnwatchFn[] = [];
@@ -258,15 +259,9 @@ export async function startWatcher(
     const isModify = "modify" in event.type;
     if (!isCreate && !isModify) return;
     if (slpPaths.length === 0) return;
-    // A brand-new .slp while no set is live means the next set is starting. If a just-completed
-    // set's grade is still showing on the overlay (within its 3-min post-set hold), clear it now
-    // so the new set takes priority — the hold otherwise stays put for the full duration, and the
-    // new opponent line won't arrive until this game finishes and parses. The (activeSet === null
-    // && lastOverlaySet !== null) guard pins this to exactly the "between sets, grade still up"
-    // window, so it never fires for games 2/3 of an ongoing set.
-    if (isCreate && get(activeSet) === null && get(lastOverlaySet) !== null) {
-      lastOverlaySet.set(null);
-    }
+    // ⚠ The overlay's last grade is deliberately NOT cleared when a new game starts: it stays up
+    // until a newer grade replaces it (Joey, 2026-10-13). The page draws it beside the new
+    // opponent line rather than instead of it, so it no longer competes with the next set.
     for (const filepath of slpPaths) {
       // A brand-new file means a game just STARTED. Peek at its Game Start block right away so
       // the opponent card appears now rather than after the game ends — the normal parse below
@@ -545,22 +540,23 @@ async function handleLiveGame(
   // stale opponent once the players part ways. Re-armed on every game in the run.
   if (!isRanked) armIdleClear(g.match_id);
 
-  // Outside ranked there is no set to complete, so the overlay's post-set bridge never fired and
-  // friendlies showed no grade on stream — even though v1.11.0 computes one and shows it in the
-  // app. Publish a per-GAME entry instead, after every game.
+  // Per-GAME grade for the overlay after every game, in every mode — the same grade the Live
+  // Session tab shows in its Grade column. Ranked included: games 1 and 2 of a set get their own
+  // grade, and the game that ENDS a set is skipped here because the set grade below replaces it.
   //
   // ⚠ Deliberately NOT routed through the isComplete path: that one is set-shaped. It refetches
   // Rating (which friendlies never move, and a phantom refetch writes junk snapshots — see
   // scheduleSnapshotFetch), writes set_grades, and assumes a win or a loss. None of that holds
-  // for one unranked game.
-  if (!isRanked) {
+  // for one game.
+  if (!isComplete) {
     try {
       const stats = get(liveGameStats).find(
         (x) => x.match_id === g.match_id && x.timestamp === g.timestamp
       );
-      // avg_stock_duration === null means the replay held no frames; non-legal stages aren't
-      // benchmarked. Both are "no grade", not "grade of zero".
-      if (stats && stats.avg_stock_duration !== null && isLegalStage(stats.stage_id)) {
+      // avg_stock_duration === null means the replay held no frames; gradeSkipReason drops
+      // non-legal stages and stub quit-outs. All are "no grade", not "grade of zero" — and the
+      // same gates as the Live Session tab's Grade column, so the two can't disagree.
+      if (stats && stats.avg_stock_duration !== null && gradeSkipReason(stats) === null) {
         const playerCharName   = CHARACTERS[g.player_char_id]   ?? "Unknown";
         const opponentCharName = CHARACTERS[g.opponent_char_id] ?? "Unknown";
         const grade = gradeGame(stats, playerCharName, opponentCharName);
@@ -571,14 +567,13 @@ async function handleLiveGame(
           lastOverlaySet.set({
             setId: Date.now(),
             result: outcome,
-            // The run's running game tally, not a set score — these are games, never summed
-            // with sets.
+            // Ranked: the set score so far. Unranked/direct: the run's running game tally.
             wins,
             losses,
             opponentCode: g.opponent_code,
             opponentChar: opponentCharName,
             opponentCharId: internalToExternal(g.opponent_char_id),
-            // null: friendlies don't move Rating, so there is no change to show.
+            // null: one game never moves Rating (a ranked set moves it once, at the end).
             ratingBefore: null,
             gradeLetter: grade.letter,
             perGame: true,

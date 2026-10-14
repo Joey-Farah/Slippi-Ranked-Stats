@@ -1,3 +1,67 @@
+## ⚠ SESSION HANDOFF — 2026-10-13 (OVERLAY FIT + PERSISTENT PER-GAME GRADES — BANKED, UNTESTED LIVE)
+
+Code done, 222/222 tests pass, **not yet tested in OBS / a real game**. Details in the CLAUDE.md "Banked on `main`" bullet dated 2026-10-13. Next: Joey tests live (stacked + side, each skin/size, a ranked set and an unranked run), then fold into a release with a version bump + release notes.
+
+## ⚠ SESSION HANDOFF — 2026-10-11 (v1.12.3 — INPUT VIEWER WORKS ON ANY MELEE BUILD — READ FIRST)
+
+### Input viewer was blank on every non-vanilla ISO (FIXED, v1.12.3)
+
+Reported live: the viewer never appeared, and swapping the ISO in Dolphin turned it off and back
+on. **Two defects stacked, and either alone was enough to blank it.**
+
+1. **The page threw the box controller's data away.** `drawInputs` opened with
+   `if (!c) { hidden = true; return; }`, `c` being a port from Dolphin's memory. But `digOn()`
+   takes the box's USB states in preference to anything inferred, and **all 19 digital buttons
+   have a `dk` key**, so the digital skin needs *nothing* from Dolphin. The gate ran before the
+   skin was even consulted, which is why the analog skin vanished too. Now
+   `pickPort(snap.controllers) || NEUTRAL`.
+2. **`dolphin.rs` refused any disc but GALE01.** Right instinct (the table is NTSC 1.02 only),
+   wrong remedy — Melee mods are built on 1.02 and keep the layout. Vanilla is still trusted
+   outright; any other disc must pass `looks_like_melee()`: both sticks within the unit circle,
+   both triggers in [0,1], no button bits above `0x1000`.
+
+⚠ **Verified against the real mod, not argued from first principles.** Joey's build reports
+**`GTME01`**. Before: 0 ports. After: 4 ports, and `live_watch_for_movement` recorded **81
+distinct port-0 states over 250 samples** while inputs were given — movement is the only thing
+that separates "correct address" from "plausible-looking zeros". Vanilla re-checked, unchanged.
+
+**Two ignored diagnostics now exist for this** (read-only, safe beside the running app):
+`cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture live_dolphin`
+`cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture live_watch`
+
+### The overlay page's JavaScript is now actually tested
+
+⚠ The long-standing trap — the page is a **TypeScript template literal**, so `tsc` and
+`vite build` never read a line of it — is what let this ship. Two files close it:
+
+- `src/lib/overlay-inputs.test.ts` — pulls the real shipped functions back out of the rendered
+  page, and **compiles the whole inline script with `new Function`** (compiles without running =
+  a syntax check). Confirmed to fail on an injected stray quote.
+- `src/lib/overlay-inputs-dom.test.ts` — mounts the real page in **happy-dom** (new
+  devDependency), stubs `EventSource`, and pushes frames shaped exactly as `dolphin.rs`
+  serialises them. Pins the actual promise: **the viewer appears whatever disc is booted.**
+  Covers GALE01, GTME01, an unknown disc, no disc, the analog skin, a lone modifier, a real
+  controller from memory, and the toggle off. **Reverting the fix fails 8 of its 10.**
+
+⚠ Prefer the DOM test for anything about *rendering*. The source-text assertions in the first
+file are brittle by nature and only pin that a line still exists.
+
+### The box no longer needs a game booted (same release)
+
+`spawn_poller` used to do `Ok(None) => set_latest(None)` whenever Dolphin was closed or sitting
+at the game list, so the page got `"null"` and the box's live data was discarded — the viewer
+appeared but sat dead, in exactly the solo-practice case the USB path was built for. It now
+falls back to `box_only_frame()`: the box's states with `controllers: []` and an empty
+`game_id`.
+
+⚠ **No stale-frame risk, and that is load-bearing.** `boxx` sets its state to `None` on port
+drop or read error (three call sites), so this goes quiet by itself when the controller is
+unplugged rather than freezing on the last input. If that ever changes, this needs its own
+timeout.
+
+⚠ The page does **not** gate on `game_id`, which is what makes the empty string safe — pinned
+by the `"(none)"` disc case in `overlay-inputs-dom.test.ts`.
+
 ## ⚠ SESSION HANDOFF — 2026-10-09 (WEBSITE TEXT PASS + PREMIUM-PERSISTENCE REPORT BANKED — READ FIRST)
 
 ### 1. Website — text pass shipped, screenshots still owed
@@ -40,11 +104,35 @@ app** to get Premium. Waiting on details from the user. Findings so far:
   token on ANY 4xx, including a 429 and the `invalid_grant` a concurrent refresh gets (launch
   retry loop + a Re-check click). That would cause a weekly re-link at worst.
 
-### 3. NEXT: grill on in-app Premium checks + direct billing
+### 3. Card billing: grill DONE, plan APPROVED, build STARTED on branch `feat/card-billing`
 
-Joey wants to plan replacing the Discord-role check with our own entitlement check and charging
-directly in the app. Start the grill once the website ticket is closed. Per `CLAUDE.md`, discuss
-before building anything that touches premium gating.
+**Pick up here on the other machine.** Everything is in **`docs/plans/direct-billing.md`**:
+decisions #1–10 from the grill, the facts from Stripe's Managed Payments docs, and the approved
+build plan (premises, architecture, 8 slices). Terms are in `CONTEXT.md` (**Premium, Subscription,
+Device, Pass**). In one line: $5/month through Stripe **Managed Payments**, sign in with an emailed
+code first, one Device (newest wins), a 3-day Pass that renews itself, 7 days of grace when our
+server can't be reached, and a declined card ends Premium. **The Discord/Patreon/Ko-fi route is
+untouched and out of scope** (Joey: keep it separate).
+
+**Where the build stands:** `git switch feat/card-billing`. The only commit there is the
+`workers/billing/` package scaffold (test tooling, no worker code). **NEXT: Slice 1, the sign-in
+round trip.** Write the worker's `/auth/start` + `/auth/verify` tests first (Miniflare + D1).
+- ⚠ `npm install` in `workers/billing` needs **`--legacy-peer-deps`**. Without it, npm 10.9.8
+  fails with "Cannot read properties of null (reading 'edgesOut')".
+- `@cloudflare/vitest-pool-workers` is pinned to **0.22.0**, the last release older than two
+  weeks at the time; it bundles wrangler 4.124.0, which is also what the package pins.
+- ⚠ **Keep the card UI behind a dev-only flag until slice 8.** `main` gets released from, so a
+  half-built purchase flow must not be able to reach users.
+- **Not releasing yet** (Joey, 2026-10-09). No version bump, no tag.
+
+**Joey's setup tasks** (needed before slice 1 can be demoed end to end; Claude never handles the
+secrets, Joey runs `! npx wrangler secret put …`): activate Managed Payments + accept its terms in the
+Stripe dashboard; create the $5/month product with an eligible software tax code (test mode is
+enough to start); make a Resend account and verify a sending subdomain of slippirankedstats.com
+(⚠ leave the grey-cloud `@`/`www` DNS records alone); and a private Discord channel webhook for the
+hourly alert.
+
+Stripe docs feedback was offered and NOT approved, so it wasn't sent.
 
 ---
 
@@ -900,6 +988,20 @@ anywhere else is the bug the table exists to prevent.
 
 The windows are plain day counts (`1y` = 365, `2y` = 730), matching how `30d`/`90d` already worked
 — not calendar-month arithmetic, so "Last Year" is 365 days rather than the same date last year.
+
+---
+
+## ▶ BANKED IDEA — "Session Wrapped" shareable card (2026-10-12, NOT started)
+
+Joey wants this on file — **no action planned yet.** After a ranked session, offer a button to
+download/copy a small Spotify-Wrapped-style image of the session's high-level stats, built to be
+dropped into a Discord or posted on social media.
+
+Open questions for when it's picked up: which stats make the cut (set record, net Rating, best
+grade, most-played matchup?), where the button lives (Ranked Sessions tab / end of Live Session),
+whether it's Premium, and how to render the image (offscreen canvas vs. DOM-to-PNG). Net Rating
+is only available for ~16/137 sessions (`sessionRatingDelta()` validation, v1.8.14), so the card
+must look complete without it.
 
 ---
 
