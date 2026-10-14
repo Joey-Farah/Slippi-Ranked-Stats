@@ -59,7 +59,8 @@ export async function initCardPremium(): Promise<void> {
 }
 
 export async function startSignIn(email: string): Promise<void> {
-  await call("/auth/start", { email });
+  const reply = await call("/auth/start", { email });
+  if (reply.ok !== true) throw new SignInError("unreachable");
   pendingEmail = email.trim();
   publish();
 }
@@ -118,13 +119,11 @@ const WORKER_FAILURES: Record<string, SignInFailure> = {
 };
 
 /**
- * POST to the worker. Resolves with the body of a success; rejects with a SignInError.
- * The failure comes from the body's `error` code, never from the HTTP status, and anything
- * that isn't a recognisable answer (network error, timeout, an HTML error page) is
- * "unreachable".
+ * POST to the worker. Resolves with the reply's body; rejects with a SignInError taken from
+ * the body's `error` code. The HTTP status is never read: callers recognise success by its
+ * shape, and anything else (network error, timeout, an HTML error page) is "unreachable".
  */
 async function call(path: string, body: object): Promise<Record<string, unknown>> {
-  let status: number;
   let reply: unknown;
   try {
     const res = await fetch(BILLING_URL + path, {
@@ -133,14 +132,14 @@ async function call(path: string, body: object): Promise<Record<string, unknown>
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-    status = res.status;
     reply = await res.json();
   } catch {
     throw new SignInError("unreachable");
   }
-  if (!reply || typeof reply !== "object") throw new SignInError("unreachable");
+  if (!reply || typeof reply !== "object" || Array.isArray(reply)) {
+    throw new SignInError("unreachable");
+  }
   const r = reply as Record<string, unknown>;
   if (typeof r.error === "string") throw new SignInError(WORKER_FAILURES[r.error] ?? "unreachable");
-  if (status !== 200) throw new SignInError("unreachable");
   return r;
 }
