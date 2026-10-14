@@ -151,8 +151,8 @@ export interface OverlayVisibility {
   today: boolean;        // today's session W/L record
   opponent: boolean;     // opponent scouting line during a set
   grade: boolean;        // post-set grade letter (+ standout stat) — RANKED
-  gameGrade: boolean;    // post-GAME grade for unranked/direct. Its own toggle because it
-                         // fires every ~2 min, not once per set.
+  gameGrade: boolean;    // post-GAME grade, every mode (ranked games 1–2 too). Its own toggle
+                         // because it fires every ~2 min, not once per set.
   setResult: boolean;    // post-set result line (SET WON/LOST · score · vs opp)
   setRating: boolean;    // post-set "THIS SET" rating change (independent of the live Rating toggle)
   inputs: boolean;       // live controller input viewer (reads Dolphin's memory; Windows only)

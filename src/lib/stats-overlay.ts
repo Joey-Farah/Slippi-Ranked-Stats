@@ -265,8 +265,6 @@ function overlayDoc(boot: string): string {
   </div>
   <script>
     var POLL_MS = 500;
-    var POSTSET_MS = 180000; // hold the set result + grade until the next set starts or 3 min passes
-    var PERGAME_MS = 20000;  // unranked/direct: show the game grade, then back to the opponent line
 
     var GRADE_COLORS = { S: "#FF1493", A: "#00C853", B: "#00B0FF", C: "#FFC400", D: "#FF7300", F: "#FF1744" };
     var MEDALS = ${MEDALS_JSON};
@@ -276,7 +274,6 @@ function overlayDoc(boot: string): string {
     var latest = null, lastHtml = "";
     var firstApply = true, shownSetId = null;
     var postSet = false, postSetData = null, animatedSetId = null;
-    var holdTimer = null;
 
     function esc(t) { var d = document.createElement("div"); d.textContent = String(t); return d.innerHTML; }
     function fmt1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
@@ -317,8 +314,12 @@ function overlayDoc(boot: string): string {
       return '<span class="season"><span class="w">W: ' + esc(s.seasonWins) + '</span><span class="l">L: ' + esc(s.seasonLosses) + "</span></span>";
     }
 
-    function contextHtml(s, side) {
-      if (postSet && postSetData) {
+    // The latest grade (one game, or a whole ranked set) — stays up until a newer one replaces it.
+    // oppShown: the live opponent line is on screen for this same opponent, so the "vs" line and
+    // the score would only repeat what it already says.
+    function gradeHtml(s, side, oppShown) {
+      if (!postSet || !postSetData) return "";
+      {
         var won = postSetData.result === "win";
         var gradeEl = "", subEl = "";
         if (postSetData.gradeLetter && vis(s, postSetData.perGame ? "gameGrade" : "grade")) {
@@ -346,11 +347,11 @@ function overlayDoc(boot: string): string {
         var unit = postSetData.perGame ? "GAME" : "SET";
         var resTxt = noRes ? "NO RESULT" : (won ? unit + " WON" : unit + " LOST");
         var resCol = noRes ? "#9aa0a6" : (won ? "#2ecc71" : "#ff4d4f");
-        var resEl = setResultOn ? '<div class="setresult" style="color:' + resCol + '">' + resTxt + " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses) + "</div>" : "";
+        var resEl = setResultOn ? '<div class="setresult" style="color:' + resCol + '">' + resTxt + (oppShown ? "" : " · " + esc(postSetData.wins) + "–" + esc(postSetData.losses)) + "</div>" : "";
         // Opponent char as a stock icon (the char they played this set); text name as fallback.
         var vsChar = charsHtml(postSetData.opponentCharId != null ? [postSetData.opponentCharId] : []);
         var vsTail = vsChar ? " " + vsChar : (postSetData.opponentChar ? " · " + esc(postSetData.opponentChar) : "");
-        var vsEl = setResultOn ? '<div class="vs">vs ' + esc(postSetData.opponentCode) + vsTail + "</div>" : "";
+        var vsEl = setResultOn && !oppShown ? '<div class="vs">vs ' + esc(postSetData.opponentCode) + vsTail + "</div>" : "";
         // Per-set rating change — appears once the rating refetch lands (rating moved off
         // ratingBefore). Labelled "Last set:" (the set is over by the time it shows) so it's never
         // confused with the session total. Has its own "setRating" toggle, independent of the live
@@ -363,7 +364,12 @@ function overlayDoc(boot: string): string {
         if (side) return '<div class="setblock">' + gradeEl + subEl + '<div class="setinfo">' + resEl + vsEl + setMmrEl + "</div></div>";
         return gradeEl + subEl + resEl + vsEl + setMmrEl;
       }
-      if (s.opponent && vis(s, "opponent")) {
+    }
+
+    function oppShownFor(s) { return !!(s.opponent && vis(s, "opponent")); }
+
+    function oppHtml(s) {
+      if (oppShownFor(s)) {
         var o = s.opponent;
         // Line 1: tag (code) + char icon(s) — the tag is what a viewer recognizes; the code
         // disambiguates. Char shows the opponent's profile mains as stock icons (so a mid-set
@@ -394,6 +400,17 @@ function overlayDoc(boot: string): string {
         return '<div class="vs">' + l1 + '<div class="vs-sub">' + parts.join(" · ") + "</div>" + scoreEl + "</div>";
       }
       return "";
+    }
+
+    // Transient area: the live opponent line (while a set / run is live) and the latest grade.
+    // ⚠ Both, not one-or-the-other. The grade used to REPLACE the opponent line and leave on a
+    // timer; now it stays until replaced, so it has to coexist with the next game's opponent.
+    function contextHtml(s, side) {
+      var opp = oppHtml(s);
+      var sameOpp = !!opp && !!postSetData && s.opponent.code === postSetData.opponentCode;
+      var grade = gradeHtml(s, side, sameOpp);
+      if (opp && grade) return opp + '<div class="divider"></div>' + grade;
+      return opp || grade;
     }
 
     // Today's block (stacked): session MMR change + today's set W/L. The current MMR is no
@@ -805,16 +822,48 @@ function overlayDoc(boot: string): string {
     // ⚠ Only ever used to GROW the box. html font-size is 4vmin, so if the embedder shrank height
     // below width the font would shrink -> content shrinks -> height shrinks: an oscillation.
     // While height >= width, vmin stays pinned to width and the measurement is stable.
+    //
+    // ── Fit to the source ──
+    // Everything is rem-based, so the root font-size is one knob for the whole page. At the CSS
+    // size the content can be larger than the Browser Source in either direction — measured in
+    // headless Chrome: the Digital viewer at Large is 668px wide in a 600px source, X-Large up to
+    // 925px, and a stacked panel on any square-ish source ran hundreds of px off the bottom. Both
+    // were silently clipped (body is overflow: hidden). So after each render we measure at the CSS
+    // size and, if it doesn't fit, scale the root down by exactly the shortfall. Never scales UP:
+    // the chosen size is a maximum, not a target.
+    //
+    // ⚠ Extents come from every element's rect, not scrollWidth: the content is centred, so an
+    // overflow spills off BOTH sides and scrollWidth only sees the right-hand half.
     var lastPostedH = -1, sizeTimer = null;
-    function postSize() {
+    var FIT_MARGIN = 0.98;
+    function contentBox() {
+      var els = document.querySelectorAll("#stage *");
+      var L = Infinity, R = -Infinity, B = 0;
+      for (var i = 0; i < els.length; i++) {
+        var r = els[i].getBoundingClientRect();
+        if (!r.width && !r.height) continue;
+        if (r.left < L) L = r.left;
+        if (r.right > R) R = r.right;
+        if (r.bottom > B) B = r.bottom;
+      }
+      return { w: R > L ? R - L : 0, h: B };
+    }
+    function fitStage() {
+      var de = document.documentElement;
+      de.style.fontSize = "";
+      var box = contentBox();
+      // Report the NATURAL height (before any shrink) to the preview, so its box grows to show the
+      // overlay at full size rather than settling on a shrunken copy.
+      postSize(box.h);
+      var f = 1;
+      if (box.w > 0) f = Math.min(f, (window.innerWidth * FIT_MARGIN) / box.w);
+      if (box.h > 0) f = Math.min(f, (window.innerHeight * FIT_MARGIN) / box.h);
+      if (f < 1) de.style.fontSize = (parseFloat(getComputedStyle(de).fontSize) * f) + "px";
+    }
+    window.addEventListener("resize", function () { scheduleSize(); });
+    function postSize(rawH) {
       try {
-        var r = document.getElementById("root").getBoundingClientRect();
-        var inp = document.getElementById("inputs");
-        // The viewer is back in normal flow under the panel, so its bottom edge already accounts
-        // for the panel above it — max(), not add, or the box reserves double its height.
-        var h = r.bottom;
-        if (inp && !inp.hidden) h = Math.max(h, inp.getBoundingClientRect().bottom);
-        h = Math.ceil(h);
+        var h = Math.ceil(rawH);
         if (h > 0 && Math.abs(h - lastPostedH) > 2) {
           lastPostedH = h;
           if (window.parent && window.parent !== window) {
@@ -826,7 +875,7 @@ function overlayDoc(boot: string): string {
     // Debounced: called after renders and skin changes, never per input frame.
     function scheduleSize() {
       if (sizeTimer) return;
-      sizeTimer = setTimeout(function () { sizeTimer = null; postSize(); }, 60);
+      sizeTimer = setTimeout(function () { sizeTimer = null; fitStage(); }, 60);
     }
 
     function render() {
@@ -838,13 +887,8 @@ function overlayDoc(boot: string): string {
       lastHtml = h;
       // Mark the grade animated so later re-renders (e.g. when the MMR delta lands) don't re-spin it.
       if (postSet && postSetData && postSetData.gradeLetter) animatedSetId = postSetData.setId;
-      scheduleSize();
-    }
-
-    function endPostSet() {
-      clearTimeout(holdTimer); holdTimer = null;
-      postSet = false; postSetData = null;
-      render();
+      // Synchronous, not debounced: a debounce would flash one oversized frame before shrinking.
+      fitStage();
     }
 
     function apply(s) {
@@ -858,28 +902,22 @@ function overlayDoc(boot: string): string {
       }
       latest = s;
       syncInputStream(s);
-      if (firstApply) { firstApply = false; if (s && s.lastSet) shownSetId = s.lastSet.setId; }
-      // A per-game entry is gated by its own toggle: it fires every couple of minutes in
-      // friendlies, which is a different proposition from once per ranked set.
-      var entryAllowed = s && s.lastSet && (!s.lastSet.perGame || vis(s, "gameGrade"));
-      if (entryAllowed && s.lastSet.setId !== shownSetId) {
-        // A new entry: a ranked set completed, or an unranked/direct GAME finished. This has to
-        // be checked FIRST — in unranked the opponent card stays up for the whole run, so the
-        // old "opponent present => drop the bridge" branch dismissed every per-game grade before
-        // it could render.
-        shownSetId = s.lastSet.setId;
-        postSet = true; postSetData = s.lastSet;
-        clearTimeout(holdTimer);
-        // Per-game holds briefly then returns to the opponent line; contextHtml shows the bridge
-        // INSTEAD of the opponent, and in unranked you are still playing that person.
-        holdTimer = setTimeout(endPostSet, s.lastSet.perGame ? PERGAME_MS : POSTSET_MS);
-      } else if (s && s.opponent && postSet && postSetData && !postSetData.perGame) {
-        // a new ranked set is live — drop the stale set bridge
-        endPostSet();
-      } else if (postSet && (!s || !s.lastSet)) {
-        // the app cleared the completed set (a new game/set is starting) — dismiss the bridge
-        // early so the next set takes priority, even while the 3-min hold would otherwise run.
-        endPostSet();
+      // The latest grade stays up until a NEWER one replaces it (Joey, 2026-10-13) — there is no
+      // hold timer any more. A game grade after every game (every mode, ranked included), and
+      // the set grade when a ranked set ends. It renders BESIDE the opponent line, not instead of
+      // it, so it never has to get out of the way of the next game.
+      var entry = s && s.lastSet;
+      // A grade that was already up when the page (re)loaded shows without the spin-in: it is
+      // not new, OBS just refreshed.
+      if (firstApply) { firstApply = false; if (entry) animatedSetId = entry.setId; }
+      if (!entry) {
+        postSet = false; postSetData = null;
+      } else if (entry.setId !== shownSetId) {
+        shownSetId = entry.setId;
+        // A per-game entry has its own toggle. When it's off, the newer game still REPLACES the
+        // older grade (by clearing it) rather than leaving a previous set's grade on screen.
+        var allowed = !entry.perGame || vis(s, "gameGrade");
+        postSet = allowed; postSetData = allowed ? entry : null;
       }
       render();
     }

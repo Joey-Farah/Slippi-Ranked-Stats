@@ -1,3 +1,7 @@
+## ⚠ SESSION HANDOFF — 2026-10-13 (OVERLAY FIT + PERSISTENT PER-GAME GRADES — BANKED, UNTESTED LIVE)
+
+Code done, 222/222 tests pass, **not yet tested in OBS / a real game**. Details in the CLAUDE.md "Banked on `main`" bullet dated 2026-10-13. Next: Joey tests live (stacked + side, each skin/size, a ranked set and an unranked run), then fold into a release with a version bump + release notes.
+
 ## ⚠ SESSION HANDOFF — 2026-10-11 (v1.12.3 — INPUT VIEWER WORKS ON ANY MELEE BUILD — READ FIRST)
 
 ### Input viewer was blank on every non-vanilla ISO (FIXED, v1.12.3)
