@@ -3,6 +3,9 @@
 import { sendSignInCode } from "./email";
 import { json } from "./http";
 
+const CODE_TTL_MS = 10 * 60 * 1000;
+const MAX_ATTEMPTS = 5;
+
 export async function startSignIn(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
   const email = normalizeEmail(body?.email);
@@ -27,14 +30,32 @@ export async function verifySignIn(request: Request, env: Env): Promise<Response
   if (!email || !deviceId) return json({ error: "bad_request" }, 400);
 
   const row = await env.DB.prepare(
-    "SELECT id, code_hash FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1",
+    "SELECT id, code_hash, created_at FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1",
   )
     .bind(email)
-    .first<{ id: number; code_hash: string }>();
-  if (!row) return json({ error: "code_expired" }, 400);
-  if (row.code_hash !== (await sha256(`${email}:${code}`))) {
-    return json({ error: "wrong_code" }, 400);
+    .first<{ id: number; code_hash: string; created_at: number }>();
+  if (!row || Date.now() - row.created_at > CODE_TTL_MS) {
+    return json({ error: "code_expired" }, 400);
   }
+  // Count the try before checking it, in one conditional write, so parallel guesses can't
+  // slip past the cap.
+  const tried = await env.DB.prepare(
+    `UPDATE login_codes SET attempts = attempts + 1
+     WHERE id = ? AND attempts < ? AND used = 0
+     RETURNING attempts`,
+  )
+    .bind(row.id, MAX_ATTEMPTS)
+    .first<{ attempts: number }>();
+  if (!tried) return json({ error: "code_expired" }, 400);
+  if (row.code_hash !== (await sha256(`${email}:${code}`))) {
+    const left = MAX_ATTEMPTS - tried.attempts;
+    return json({ error: left > 0 ? "wrong_code" : "code_expired" }, 400);
+  }
+  // Claimed in one conditional write, so two requests racing with the same code can't both win.
+  const claim = await env.DB.prepare("UPDATE login_codes SET used = 1 WHERE id = ? AND used = 0")
+    .bind(row.id)
+    .run();
+  if (claim.meta.changes !== 1) return json({ error: "code_expired" }, 400);
 
   const now = Date.now();
   const account = await env.DB.prepare(

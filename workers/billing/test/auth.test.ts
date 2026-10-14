@@ -52,3 +52,50 @@ describe("sign-in round trip", () => {
     expect(verify.body.session).toMatch(/^[\w-]{40,}$/);
   });
 });
+
+describe("a code stops working", () => {
+  async function verify(code: string) {
+    return post("/auth/verify", { email: EMAIL, code, deviceId: DEVICE });
+  }
+
+  it("10 minutes after it was sent", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2026, 9, 14, 12, 0, 0) });
+    await post("/auth/start", { email: EMAIL });
+    const code = codeSentTo(EMAIL);
+
+    vi.setSystemTime(Date.UTC(2026, 9, 14, 12, 10, 1));
+    expect(await verify(code)).toEqual({ status: 400, body: { error: "code_expired" } });
+  });
+
+  it("once it has been used", async () => {
+    await post("/auth/start", { email: EMAIL });
+    const code = codeSentTo(EMAIL);
+
+    expect((await verify(code)).status).toBe(200);
+    expect(await verify(code)).toEqual({ status: 400, body: { error: "code_expired" } });
+  });
+
+  it("when a newer code has been asked for", async () => {
+    await post("/auth/start", { email: EMAIL });
+    const first = codeSentTo(EMAIL);
+    await post("/auth/start", { email: EMAIL });
+    const second = codeSentTo(EMAIL);
+
+    // A guess that happened to equal `second` would make this vacuous.
+    if (first !== second) expect((await verify(first)).status).toBe(400);
+    expect((await verify(second)).status).toBe(200);
+  });
+
+  it("after 5 wrong tries, even with the right code", async () => {
+    await post("/auth/start", { email: EMAIL });
+    const code = codeSentTo(EMAIL);
+    const wrong = code === "000000" ? "111111" : "000000";
+
+    for (let i = 0; i < 4; i++) {
+      expect(await verify(wrong)).toEqual({ status: 400, body: { error: "wrong_code" } });
+    }
+    // The 5th miss says the code is gone, so the app can send the player to ask for a new one.
+    expect(await verify(wrong)).toEqual({ status: 400, body: { error: "code_expired" } });
+    expect(await verify(code)).toEqual({ status: 400, body: { error: "code_expired" } });
+  });
+});
