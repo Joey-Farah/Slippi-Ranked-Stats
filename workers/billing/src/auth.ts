@@ -1,41 +1,55 @@
 // Sign-in with an emailed 6-digit code. The email is the account.
+//
+// /auth/start emails a code and answers with a random challenge; /auth/verify takes the two
+// together. Only the app that asked holds the challenge, so someone who merely knows a
+// player's email can't spend that code's tries or retire it. They can still ask for codes of
+// their own, which is what the per-email limits bound: at most 10 codes × 5 tries a day.
 
 import { sendSignInCode } from "./email";
 import { json } from "./http";
 
-const CODE_TTL_MS = 10 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+const CODE_TTL_MS = 10 * MINUTE;
 const MAX_ATTEMPTS = 5;
-const RATE_WINDOW_MS = 60 * 60 * 1000;
-const CODES_PER_EMAIL = 5;
-const CODES_PER_IP = 20;
+const CODES_PER_EMAIL_PER_HOUR = 5;
+const CODES_PER_EMAIL_PER_DAY = 10;
+const CODES_PER_IP_PER_HOUR = 20;
 
 export async function startSignIn(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
   const email = normalizeEmail(body?.email);
   if (!email) return json({ error: "bad_request" }, 400);
 
-  // The same limit applies whether or not the account exists, so this reveals nothing about
-  // who has signed up. Soft: two simultaneous requests can both squeak under it, which is fine.
-  const ip = clientIp(request);
   const now = Date.now();
-  const since = now - RATE_WINDOW_MS;
-  const recent = await env.DB.prepare(
-    `SELECT
-       (SELECT COUNT(*) FROM login_codes WHERE email = ? AND created_at > ?) AS by_email,
-       (SELECT COUNT(*) FROM login_codes WHERE ip = ? AND created_at > ?) AS by_ip`,
-  )
-    .bind(email, since, ip, since)
-    .first<{ by_email: number; by_ip: number }>();
-  if (recent!.by_email >= CODES_PER_EMAIL || recent!.by_ip >= CODES_PER_IP) {
-    return json({ error: "rate_limited" }, 429);
-  }
-
+  const challenge = randomToken();
   const code = randomCode();
+  // The limits are checked inside the INSERT, as one statement, so a burst of parallel
+  // requests can't all pass a separate count before any of them writes. They apply whether or
+  // not the account exists, so the answer reveals nothing about who has signed up.
   const inserted = await env.DB.prepare(
-    "INSERT INTO login_codes (email, ip, code_hash, created_at) VALUES (?, ?, ?, ?)",
+    `INSERT INTO login_codes (challenge_hash, email, ip_bucket, code_hash, created_at)
+     SELECT ?1, ?2, ?3, ?4, ?5
+     WHERE (SELECT COUNT(*) FROM login_codes WHERE email = ?2 AND created_at > ?6) < ?7
+       AND (SELECT COUNT(*) FROM login_codes WHERE email = ?2 AND created_at > ?8) < ?9
+       AND (SELECT COUNT(*) FROM login_codes WHERE ip_bucket = ?3 AND created_at > ?6) < ?10`,
   )
-    .bind(email, ip, await sha256(`${email}:${code}`), now)
+    .bind(
+      await sha256(challenge),
+      email,
+      rateBucket(request.headers.get("CF-Connecting-IP") ?? "unknown"),
+      await sha256(`${challenge}:${code}`),
+      now,
+      now - HOUR,
+      CODES_PER_EMAIL_PER_HOUR,
+      now - DAY,
+      CODES_PER_EMAIL_PER_DAY,
+      CODES_PER_IP_PER_HOUR,
+    )
     .run();
+  if (inserted.meta.changes !== 1) return json({ error: "rate_limited" }, 429);
 
   try {
     await sendSignInCode(env, email, code);
@@ -48,21 +62,21 @@ export async function startSignIn(request: Request, env: Env): Promise<Response>
       .run();
     return json({ error: "email_failed" }, 502);
   }
-  return json({ ok: true });
+  return json({ ok: true, challenge });
 }
 
 export async function verifySignIn(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
-  const email = normalizeEmail(body?.email);
-  const code = typeof body?.code === "string" ? body.code.trim() : "";
-  const deviceId = typeof body?.deviceId === "string" ? body.deviceId : "";
-  if (!email || !deviceId) return json({ error: "bad_request" }, 400);
+  const challenge = boundedString(body?.challenge, 200);
+  const code = boundedString(body?.code, 20).trim();
+  const deviceId = boundedString(body?.deviceId, 128);
+  if (!challenge || !deviceId) return json({ error: "bad_request" }, 400);
 
   const row = await env.DB.prepare(
-    "SELECT id, code_hash, created_at FROM login_codes WHERE email = ? ORDER BY id DESC LIMIT 1",
+    "SELECT id, email, code_hash, created_at FROM login_codes WHERE challenge_hash = ?",
   )
-    .bind(email)
-    .first<{ id: number; code_hash: string; created_at: number }>();
+    .bind(await sha256(challenge))
+    .first<{ id: number; email: string; code_hash: string; created_at: number }>();
   if (!row || Date.now() - row.created_at > CODE_TTL_MS) {
     return json({ error: "code_expired" }, 400);
   }
@@ -76,7 +90,7 @@ export async function verifySignIn(request: Request, env: Env): Promise<Response
     .bind(row.id, MAX_ATTEMPTS)
     .first<{ attempts: number }>();
   if (!tried) return json({ error: "code_expired" }, 400);
-  if (row.code_hash !== (await sha256(`${email}:${code}`))) {
+  if (row.code_hash !== (await sha256(`${challenge}:${code}`))) {
     const left = MAX_ATTEMPTS - tried.attempts;
     return json({ error: left > 0 ? "wrong_code" : "code_expired" }, 400);
   }
@@ -92,21 +106,22 @@ export async function verifySignIn(request: Request, env: Env): Promise<Response
      ON CONFLICT (email) DO UPDATE SET email = excluded.email
      RETURNING id`,
   )
-    .bind(email, now)
+    .bind(row.email, now)
     .first<{ id: number }>();
 
+  // Newest sign-in wins: the account's live session, if any, is marked replaced (kept, not
+  // deleted) in the same transaction that issues this one.
   const session = randomToken();
-  await env.DB.prepare(
-    `INSERT INTO devices (account_id, device_id, session_hash, created_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT (account_id) DO UPDATE SET
-       device_id = excluded.device_id,
-       session_hash = excluded.session_hash,
-       created_at = excluded.created_at`,
-  )
-    .bind(account!.id, deviceId, await sha256(session), now)
-    .run();
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE sessions SET replaced_at = ? WHERE account_id = ? AND replaced_at IS NULL",
+    ).bind(now, account!.id),
+    env.DB.prepare(
+      "INSERT INTO sessions (session_hash, account_id, device_id, created_at) VALUES (?, ?, ?, ?)",
+    ).bind(await sha256(session), account!.id, deviceId, now),
+  ]);
 
-  return json({ session, email });
+  return json({ session, email: row.email });
 }
 
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
@@ -118,14 +133,34 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
+function boundedString(value: unknown, max: number): string {
+  return typeof value === "string" && value.length <= max ? value : "";
+}
+
+// A plain address only. Anything Resend would parse as more than one recipient or as a
+// display name ("a<b@c.d>", "a@b.c,d@e.f", quoted local parts) is refused rather than
+// normalised, so one mailbox can't be given several identities to dodge the per-email limits.
+const EMAIL_RE =
+  /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
+
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const email = value.trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : null;
+  return email.length <= 254 && EMAIL_RE.test(email) ? email : null;
 }
 
-function clientIp(request: Request): string {
-  return request.headers.get("CF-Connecting-IP") ?? "unknown";
+/** IPv4 as is; IPv6 by its /64, since a single user is routinely handed a whole /64. */
+function rateBucket(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  if (ip.includes(".")) return ip.slice(ip.lastIndexOf(":") + 1); // IPv4-mapped
+  const [head, tail] = ip.toLowerCase().split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined
+      ? left
+      : [...left, ...Array(8 - left.length - right.length).fill("0"), ...right];
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }
 
 /** Uniform over 000000–999999: rejection-samples away the modulo bias of a raw u32. */
