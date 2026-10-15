@@ -5,7 +5,7 @@
 // Stripe Checkout sends the browser back to.
 
 import { startSignIn, verifySignIn } from "./auth";
-import { checkoutCancelled, checkoutDone, renewPass, startCheckout, stripeWebhook } from "./billing";
+import { checkoutCancelled, checkoutDone, openPortal, portalDone, renewPass, startCheckout, stripeWebhook } from "./billing";
 import { json } from "./http";
 
 type Handler = (request: Request, env: Env) => Promise<Response>;
@@ -15,9 +15,11 @@ const ROUTES: Record<string, { method: "GET" | "POST"; handler: Handler }> = {
   "/auth/verify": { method: "POST", handler: verifySignIn },
   "/pass/renew": { method: "POST", handler: renewPass },
   "/checkout": { method: "POST", handler: startCheckout },
+  "/portal": { method: "POST", handler: openPortal },
   "/stripe/webhook": { method: "POST", handler: stripeWebhook },
   "/checkout/done": { method: "GET", handler: checkoutDone },
   "/checkout/cancelled": { method: "GET", handler: checkoutCancelled },
+  "/portal/done": { method: "GET", handler: portalDone },
 };
 
 export default {

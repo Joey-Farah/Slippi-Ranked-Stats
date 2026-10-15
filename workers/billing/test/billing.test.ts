@@ -17,12 +17,13 @@ let stripe: {
   customers: { id: string; email: string; idempotencyKey: string | null }[];
   subs: FakeSub[];
   checkouts: URLSearchParams[];
+  portals: URLSearchParams[];
   calls: string[];
 };
 
 beforeEach(() => {
   sent = [];
-  stripe = { down: false, customers: [], subs: [], checkouts: [], calls: [] };
+  stripe = { down: false, customers: [], subs: [], checkouts: [], portals: [], calls: [] };
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.href === "https://api.resend.com/emails") {
@@ -54,6 +55,10 @@ beforeEach(() => {
     if (init?.method === "POST" && url.pathname === "/v1/checkout/sessions") {
       stripe.checkouts.push(form);
       return Response.json({ id: "cs_test_1", url: "https://checkout.stripe.com/c/pay/cs_test_1" });
+    }
+    if (init?.method === "POST" && url.pathname === "/v1/billing_portal/sessions") {
+      stripe.portals.push(form);
+      return Response.json({ id: "bps_1", url: "https://billing.stripe.com/p/session/test_1" });
     }
     throw new Error(`unexpected Stripe call: ${init?.method} ${url.pathname}`);
   });
@@ -252,6 +257,100 @@ describe("renewing the Pass", () => {
 
   it("refuses a request without a session", async () => {
     expect(await renew("")).toEqual({ status: 400, body: { error: "bad_request" } });
+  });
+});
+
+describe("managing the subscription", () => {
+  const portal = (session: string) => call("/portal", { session });
+
+  it("opens Stripe's Customer Portal for the account's customer, returning to our page", async () => {
+    const session = await signIn();
+    await checkout(session);
+    const res = await portal(session);
+    expect(res).toMatchObject({ status: 200, body: { url: "https://billing.stripe.com/p/session/test_1" } });
+    expect(Object.fromEntries(stripe.portals[0])).toEqual({ customer: "cus_1", return_url: `${ORIGIN}/portal/done` });
+  });
+
+  it("says there's nothing to manage for an account that never checked out", async () => {
+    const session = await signIn();
+    expect((await portal(session)).body).toMatchObject({ reason: "no_subscription" });
+    expect(stripe.calls).toEqual([]);
+  });
+
+  it("answers device_replaced and signed_out like every other endpoint", async () => {
+    const first = await signIn("player@example.com", "device-a");
+    await signIn("player@example.com", "device-b");
+    expect((await portal(first)).body).toMatchObject({ reason: "device_replaced" });
+    expect((await portal("never-issued")).body).toMatchObject({ reason: "signed_out" });
+  });
+
+  it("says Stripe is unreachable rather than failing silently", async () => {
+    const session = await signIn();
+    await checkout(session);
+    stripe.down = true;
+    expect(await portal(session)).toEqual({ status: 503, body: { error: "stripe_unreachable" } });
+  });
+
+  it("returns to a plain page telling the player to go back to the app", async () => {
+    const res = await exports.default.fetch(new Request(`${ORIGIN}/portal/done`));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("All set");
+  });
+});
+
+describe("a declined renewal (decision 6)", () => {
+  // Stripe's own sequence: paid → the renewal charge is declined, so the subscription goes
+  // past_due → the player fixes the card in the portal, Stripe retries, and it's active again.
+  it("ends Premium, and Premium comes back by itself once the card is fixed", async () => {
+    const session = await signIn();
+    await checkout(session);
+    const t = Math.floor(Date.now() / 1000);
+    await webhook("customer.subscription.created", pay(undefined, "active"), t);
+    expect((await renew(session)).body.pass).toBeTypeOf("string");
+
+    await webhook("customer.subscription.updated", pay(undefined, "past_due"), t + 1);
+    expect((await renew(session)).body).toMatchObject({ reason: "not_paid", paymentFailed: true });
+    // Subscribing again would open a second subscription beside the one Stripe is retrying.
+    expect((await checkout(session)).body).toMatchObject({ paymentFailed: true });
+    expect(stripe.checkouts).toHaveLength(1);
+
+    await webhook("customer.subscription.updated", pay(undefined, "active"), t + 2);
+    expect((await renew(session)).body.pass).toBeTypeOf("string");
+  });
+
+  it("is still Premium until the period ends after a cancel (Stripe keeps it active until then)", async () => {
+    const session = await signIn();
+    await checkout(session);
+    const t = Math.floor(Date.now() / 1000);
+    const sub = { ...pay(undefined, "active"), cancel_at_period_end: true };
+    await webhook("customer.subscription.updated", sub as any, t);
+    expect((await renew(session)).body.pass).toBeTypeOf("string");
+    await webhook("customer.subscription.deleted", pay(undefined, "canceled"), t + 1);
+    const ended = (await renew(session)).body;
+    expect(ended).toMatchObject({ reason: "not_paid" });
+    expect(ended.paymentFailed).toBeUndefined(); // nothing to fix: they can simply subscribe again
+    expect((await checkout(session)).body.url).toBeTypeOf("string");
+  });
+
+  it("is caught even if the past_due webhook never arrives, once the paid period is over", async () => {
+    const session = await signIn();
+    await checkout(session);
+    const t = Math.floor(Date.now() / 1000);
+    const lapsed = pay(undefined, "active");
+    lapsed.items.data[0].current_period_end = t - 60; // the period we were told about has ended
+    await webhook("customer.subscription.updated", lapsed, t);
+    pay(undefined, "past_due"); // ...and the renewal was declined, but that webhook was lost
+    expect((await renew(session)).body).toMatchObject({ reason: "not_paid" });
+    expect(stripe.calls).toContain("GET /v1/subscriptions");
+  });
+
+  it("trusts a recorded active subscription without asking Stripe while its period runs", async () => {
+    const session = await signIn();
+    await checkout(session);
+    await webhook("customer.subscription.created", pay(undefined, "active")); // ends 2030
+    stripe.calls = [];
+    expect((await renew(session)).body.pass).toBeTypeOf("string");
+    expect(stripe.calls).toEqual([]);
   });
 });
 

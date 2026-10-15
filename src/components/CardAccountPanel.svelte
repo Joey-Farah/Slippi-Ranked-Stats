@@ -7,6 +7,7 @@
     startSignIn,
     confirmCode,
     subscribe,
+    manageSubscription,
     signOut,
     SignInError,
     type SignInFailure,
@@ -43,6 +44,7 @@
   const sendCode = () => email.trim() && run(() => startSignIn(email));
   const submitCode = () => code.trim() && run(() => confirmCode(code));
   const startSubscribe = () => run(subscribe);
+  const openPortal = () => run(manageSubscription);
 </script>
 
 <div style="margin-top:10px; padding:8px; border:1px dashed var(--accent); border-radius:6px">
@@ -55,6 +57,8 @@
     <div style="font-size:11px; color:var(--muted); margin-bottom:6px; overflow-wrap:anywhere">
       {$cardAccount.email}
     </div>
+    <button class="btn btn-secondary" style="width:100%; font-size:11px; margin-bottom:6px" disabled={busy}
+      onclick={openPortal}>Manage subscription</button>
     <button class="btn btn-secondary" style="width:100%; font-size:11px" disabled={busy}
       onclick={() => run(signOut)}>Sign out</button>
 
@@ -64,8 +68,14 @@
     </div>
     {#if $cardAccount.awaitingPayment}
       <div style="font-size:11px; color:var(--muted); margin-bottom:6px; line-height:1.4">
-        Finish checking out in your browser. Premium switches on here by itself.
+        Finish up in your browser. Premium switches on here by itself.
       </div>
+    {:else if $cardAccount.paymentFailed}
+      <div style="font-size:11px; color:#e74c3c; margin-bottom:6px; line-height:1.4">
+        Your last payment didn't go through.
+      </div>
+      <button class="btn btn-primary" style="width:100%; font-size:11px; margin-bottom:6px" disabled={busy}
+        onclick={openPortal}>Update card</button>
     {:else}
       <button class="btn btn-primary" style="width:100%; font-size:11px; margin-bottom:6px" disabled={busy}
         onclick={startSubscribe}>Subscribe · $5/month</button>

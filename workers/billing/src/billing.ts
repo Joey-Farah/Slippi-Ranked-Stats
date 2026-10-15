@@ -13,6 +13,8 @@ import { periodEndMs, stripeRequest, verifyWebhookSignature, type StripeSubscrip
 
 /** Stripe statuses that are Premium (premise 4). past_due, unpaid, canceled, incomplete… aren't. */
 const PREMIUM_STATUSES = new Set(["active", "trialing"]);
+/** A live subscription whose last charge was declined: Stripe is still retrying it. */
+const PAYMENT_FAILED_STATUSES = new Set(["past_due", "unpaid"]);
 
 interface Account {
   id: number;
@@ -47,21 +49,32 @@ function sessionReason(lookup: SessionLookup, serverNow: number): Response | nul
   return null;
 }
 
+/**
+ * Whether a webhook has told us the account is paid FOR THE CURRENT PERIOD. A recorded "active"
+ * only counts until that period ends: every renewal sends a fresh webhook with the next period's
+ * end, so an expired one means we missed what happened next (a declined renewal, say), and the
+ * caller asks Stripe instead of trusting a stale "active" forever.
+ */
 async function hasPremiumInCache(env: Env, accountId: number): Promise<boolean> {
   const row = await env.DB.prepare(
-    `SELECT 1 FROM subscriptions WHERE account_id = ? AND status IN ('active', 'trialing') LIMIT 1`,
+    `SELECT 1 FROM subscriptions
+     WHERE account_id = ? AND status IN ('active', 'trialing')
+       AND (current_period_end IS NULL OR current_period_end > ?)
+     LIMIT 1`,
   )
-    .bind(accountId)
+    .bind(accountId, Date.now())
     .first();
   return row !== null;
 }
 
 /**
- * Asks Stripe for the customer's subscriptions, records them, and says whether any is Premium.
+ * Asks Stripe for the customer's subscriptions and records them. `premium`: one is paid up.
+ * `paymentFailed`: none is, but one is past_due/unpaid, so the player's card needs fixing (and
+ * a fresh Checkout would open a SECOND subscription while Stripe keeps retrying the first).
  * Throws StripeUnreachable rather than ever guessing.
  */
-async function hasPremiumLive(env: Env, account: Account): Promise<boolean> {
-  if (!account.stripe_customer_id) return false;
+async function liveStatus(env: Env, account: Account): Promise<{ premium: boolean; paymentFailed: boolean }> {
+  if (!account.stripe_customer_id) return { premium: false, paymentFailed: false };
   const list = await stripeRequest<{ data: StripeSubscription[] }>(env, "GET", "/subscriptions", {
     customer: account.stripe_customer_id,
     status: "all",
@@ -69,7 +82,8 @@ async function hasPremiumLive(env: Env, account: Account): Promise<boolean> {
   });
   const now = Date.now();
   for (const sub of list.data) await recordSubscription(env, account.id, sub, now);
-  return list.data.some((s) => PREMIUM_STATUSES.has(s.status));
+  const premium = list.data.some((s) => PREMIUM_STATUSES.has(s.status));
+  return { premium, paymentFailed: !premium && list.data.some((s) => PAYMENT_FAILED_STATUSES.has(s.status)) };
 }
 
 /** Upserts one subscription. A row only moves forward in time, so a late webhook can't undo a newer state. */
@@ -99,18 +113,20 @@ export async function renewPass(request: Request, env: Env): Promise<Response> {
   if (reason || lookup.kind !== "live") return reason!;
   const { account } = lookup;
 
-  let premium = await hasPremiumInCache(env, account.id);
-  if (!premium) {
+  if (!(await hasPremiumInCache(env, account.id))) {
     // The cache only ever confirms Premium. "Not paid" comes from Stripe or not at all, so a
     // missed or late webhook can't lock anyone out (premise 3).
+    let live;
     try {
-      premium = await hasPremiumLive(env, account);
+      live = await liveStatus(env, account);
     } catch (err) {
       console.error("renew: Stripe unreachable:", err);
       return json({ error: "stripe_unreachable" }, 503);
     }
+    if (!live.premium) {
+      return json({ reason: "not_paid", ...(live.paymentFailed ? { paymentFailed: true } : {}), serverNow });
+    }
   }
-  if (!premium) return json({ reason: "not_paid", serverNow });
 
   const pass = await signPass(env, {
     v: 1,
@@ -135,10 +151,12 @@ export async function startCheckout(request: Request, env: Env): Promise<Respons
   const { account } = lookup;
 
   try {
-    // Already paying? Don't open a second subscription; the app just renews.
-    if ((await hasPremiumInCache(env, account.id)) || (await hasPremiumLive(env, account))) {
-      return json({ alreadyPremium: true, serverNow });
-    }
+    // Already paying, or paying with a declined card? Don't open a second subscription: the app
+    // renews, or sends the player to the portal to fix the card.
+    if (await hasPremiumInCache(env, account.id)) return json({ alreadyPremium: true, serverNow });
+    const live = await liveStatus(env, account);
+    if (live.premium) return json({ alreadyPremium: true, serverNow });
+    if (live.paymentFailed) return json({ paymentFailed: true, serverNow });
     const customer = account.stripe_customer_id ?? (await createCustomer(env, account));
     const origin = new URL(request.url).origin;
     const checkout = await stripeRequest<{ url: string }>(env, "POST", "/checkout/sessions", {
@@ -170,6 +188,37 @@ async function createCustomer(env: Env, account: Account): Promise<string> {
     .bind(customer.id, account.id)
     .run();
   return customer.id;
+}
+
+// ── POST /portal {session} ───────────────────────────────────────────────────────────────────
+
+/**
+ * A Stripe Customer Portal link: cancel, or change the card. Under Managed Payments the portal is
+ * the only way to change a subscription's card (the API can't set its default payment method),
+ * and the way to fix a declined renewal. link.com offers the same to anyone with a Link account.
+ */
+export async function openPortal(request: Request, env: Env): Promise<Response> {
+  const session = boundedString((await readJson(request))?.session, 200);
+  if (!session) return json({ error: "bad_request" }, 400);
+
+  const serverNow = Date.now();
+  const lookup = await lookupSession(env, session);
+  const reason = sessionReason(lookup, serverNow);
+  if (reason || lookup.kind !== "live") return reason!;
+  const { account } = lookup;
+  // Never checked out: no Stripe customer, so nothing to manage. Definite, so it's a 200.
+  if (!account.stripe_customer_id) return json({ reason: "no_subscription", serverNow });
+
+  try {
+    const portal = await stripeRequest<{ url: string }>(env, "POST", "/billing_portal/sessions", {
+      customer: account.stripe_customer_id,
+      return_url: `${new URL(request.url).origin}/portal/done`,
+    });
+    return json({ url: portal.url, serverNow });
+  } catch (err) {
+    console.error("portal: Stripe unreachable:", err);
+    return json({ error: "stripe_unreachable" }, 503);
+  }
 }
 
 // ── POST /stripe/webhook ─────────────────────────────────────────────────────────────────────
@@ -215,6 +264,10 @@ export async function checkoutDone(): Promise<Response> {
 
 export async function checkoutCancelled(): Promise<Response> {
   return page("Checkout cancelled", "Nothing was charged. You can close this tab and subscribe from the app any time.");
+}
+
+export async function portalDone(): Promise<Response> {
+  return page("All set", "Any changes you made apply in Slippi Ranked Stats within a few minutes. You can close this tab.");
 }
 
 function page(title: string, message: string): Response {

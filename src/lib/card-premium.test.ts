@@ -86,6 +86,8 @@ const DAY = 24 * 60 * 60 * 1000;
 const world = {
   /** Whether the account's subscription is active. */
   paid: false,
+  /** Unpaid because a renewal charge was declined (Stripe past_due), rather than never paid. */
+  paymentFailed: false,
   /** The device the server currently has signed in. */
   deviceId: "",
   /** How far the server's clock is ahead of the (possibly faked) local one. */
@@ -118,7 +120,9 @@ async function happyServer(path: string, body: any): Promise<Response> {
   }
   const serverNow = Date.now() + world.serverAheadMs;
   if (path === "/pass/renew") {
-    if (!world.paid) return Response.json({ reason: "not_paid", serverNow });
+    if (!world.paid) {
+      return Response.json({ reason: "not_paid", ...(world.paymentFailed ? { paymentFailed: true } : {}), serverNow });
+    }
     const pass = await signPass({
       v: 1,
       email: "player@example.com",
@@ -128,7 +132,11 @@ async function happyServer(path: string, body: any): Promise<Response> {
     });
     return Response.json({ pass, serverNow });
   }
-  if (path === "/checkout") return Response.json({ url: "https://checkout.stripe.com/c/pay/cs_test_1", serverNow });
+  if (path === "/checkout") {
+    if (world.paymentFailed && !world.paid) return Response.json({ paymentFailed: true, serverNow });
+    return Response.json({ url: "https://checkout.stripe.com/c/pay/cs_test_1", serverNow });
+  }
+  if (path === "/portal") return Response.json({ url: "https://billing.stripe.com/p/session/test_1", serverNow });
   return Response.json({ error: "not_found" }, { status: 404 });
 }
 
@@ -142,6 +150,7 @@ beforeEach(() => {
   h.opened = [];
   h.server = happyServer;
   world.paid = false;
+  world.paymentFailed = false;
   world.deviceId = "";
   world.serverAheadMs = 0;
 });
@@ -570,5 +579,65 @@ describe("alongside the Discord route", () => {
     } finally {
       localStorage.removeItem("srs_isPremium");
     }
+  });
+});
+
+describe("managing the subscription", () => {
+  it("opens the Customer Portal; for a Premium player there's nothing to wait for", async () => {
+    const m = await signedIn(true);
+    await m.manageSubscription();
+    expect(h.opened).toEqual(["https://billing.stripe.com/p/session/test_1"]);
+    expect(get(m.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" });
+  });
+
+  it("stays signed in when there's no subscription to manage", async () => {
+    const m = await signedIn(false);
+    h.server = async (path, body) =>
+      path === "/portal" ? Response.json({ reason: "no_subscription", serverNow: Date.now() }) : happyServer(path, body);
+    await m.manageSubscription();
+    expect(h.opened).toEqual([]);
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
+  });
+});
+
+describe("a declined renewal", () => {
+  it("says the payment failed, offers the portal instead of a second subscription, and recovers", async () => {
+    const m = await signedIn(true);
+    world.paid = false;
+    world.paymentFailed = true; // the renewal charge was declined
+    await m.initCardPremium();
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com", paymentFailed: true });
+    expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
+
+    await m.subscribe(); // the worker refuses a second subscription
+    expect(h.opened).toEqual([]);
+    expect(get(m.cardAccount)).toMatchObject({ paymentFailed: true });
+
+    vi.useFakeTimers();
+    try {
+      await m.manageSubscription();
+      expect(h.opened).toEqual(["https://billing.stripe.com/p/session/test_1"]);
+      expect(get(m.cardAccount)).toMatchObject({ kind: "signed_in", awaitingPayment: true });
+
+      world.paid = true; // new card in the portal, Stripe's retry went through
+      world.paymentFailed = false;
+      await vi.advanceTimersByTimeAsync(3_000);
+      await vi.waitFor(() =>
+        expect(get(m.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("forgets the failed payment on sign-out", async () => {
+    const m = await signedIn(false);
+    world.paymentFailed = true;
+    await m.initCardPremium();
+    await m.signOut();
+    world.paymentFailed = false;
+    await m.startSignIn("player@example.com");
+    await m.confirmCode("123456");
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
   });
 });

@@ -39,7 +39,10 @@ const GRACE_MS = 7 * DAY;
 export type CardAccount =
   | { kind: "signed_out" }
   | { kind: "code_sent"; email: string }
-  | { kind: "signed_in"; email: string; awaitingPayment?: boolean }
+  /** awaitingPayment: a Checkout or the portal is open in the browser and we're polling for it.
+   *  paymentFailed: the subscription exists but its last charge was declined; the fix is a new
+   *  card in the portal (manageSubscription), NOT subscribe(), which the worker refuses. */
+  | { kind: "signed_in"; email: string; awaitingPayment?: boolean; paymentFailed?: boolean }
   | { kind: "premium"; email: string }
   /** Another computer signed in to this account; this one was signed out by it. */
   | { kind: "replaced" };
@@ -92,6 +95,8 @@ let passPayload: PassPayload | null = null;
 /** The code just sent. Memory only: a restart mid-sign-in starts over. */
 let pending: { email: string; challenge: string } | null = null;
 let awaitingPayment = false;
+/** From the last answer about this subscription; memory only (renewal re-learns it at launch). */
+let paymentFailed = false;
 let renewTimer: ReturnType<typeof setTimeout> | null = null;
 let inFlightRenew: Promise<void> | null = null;
 
@@ -153,6 +158,11 @@ export async function subscribe(): Promise<void> {
     await renewNow();
     return;
   }
+  if (reply.paymentFailed === true) {
+    paymentFailed = true;
+    publish();
+    return;
+  }
   if (typeof reply.url !== "string" || !reply.url.startsWith("https://")) {
     throw new SignInError("unreachable");
   }
@@ -162,10 +172,32 @@ export async function subscribe(): Promise<void> {
   pollForPayment(Date.now() + CHECKOUT_POLL_FOR_MS);
 }
 
+/**
+ * Opens Stripe's Customer Portal: cancel, or change the card. When Premium is off because a
+ * charge was declined, it then renews every few seconds (up to 10 minutes) so Premium returns by
+ * itself once Stripe's retry with the new card goes through.
+ */
+export async function manageSubscription(): Promise<void> {
+  const s = await load();
+  if (!s.session) throw new SignInError("unreachable");
+  const reply = await call("/portal", { session: s.session }, {});
+  if (await applyReason(reply)) return;
+  if (typeof reply.url !== "string" || !reply.url.startsWith("https://")) {
+    throw new SignInError("unreachable");
+  }
+  await openUrl(reply.url);
+  if (!isPremiumNow(s, passPayload)) {
+    awaitingPayment = true;
+    publish();
+    pollForPayment(Date.now() + CHECKOUT_POLL_FOR_MS);
+  }
+}
+
 /** Also abandons a sign-in that's waiting for its code. The device id is kept. */
 export async function signOut(): Promise<void> {
   pending = null;
   awaitingPayment = false;
+  paymentFailed = false;
   passPayload = null;
   if (stored) stored = { ...stored, email: null, session: null, pass: null, replaced: false };
   publish();
@@ -205,6 +237,7 @@ async function renew(): Promise<void> {
   }
   passPayload = payload;
   awaitingPayment = false;
+  paymentFailed = false;
   await update({
     pass: reply.pass as string,
     serverOffsetMs: serverNow - Date.now(),
@@ -217,12 +250,19 @@ async function applyReason(reply: Record<string, unknown>): Promise<boolean> {
     case "not_paid":
       // Still signed in; just not Premium. A pending Checkout keeps polling.
       passPayload = null;
+      paymentFailed = reply.paymentFailed === true;
       await update({ pass: null });
+      return true;
+    case "no_subscription":
+      // The portal has nothing to show someone who never checked out. Not a sign-out.
+      paymentFailed = false;
+      publish();
       return true;
     case "device_replaced":
     case "signed_out":
       passPayload = null;
       awaitingPayment = false;
+      paymentFailed = false;
       await update({
         email: null,
         session: null,
@@ -356,7 +396,12 @@ function publish(): void {
   else if (s?.session && s.email) {
     next = isPremiumNow(s, passPayload)
       ? { kind: "premium", email: s.email }
-      : { kind: "signed_in", email: s.email, ...(awaitingPayment ? { awaitingPayment: true } : {}) };
+      : {
+          kind: "signed_in",
+          email: s.email,
+          ...(awaitingPayment ? { awaitingPayment: true } : {}),
+          ...(paymentFailed ? { paymentFailed: true } : {}),
+        };
   } else if (s?.replaced) next = { kind: "replaced" };
   else next = { kind: "signed_out" };
   _account.set(next);
