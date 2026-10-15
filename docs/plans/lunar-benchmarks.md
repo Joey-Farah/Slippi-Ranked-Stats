@@ -1,5 +1,5 @@
 ---
-status: PLAN, agreed in outline with Joey 2026-10-15; nothing built yet. Branch feat/lunar-benchmarks.
+status: PLAN agreed with Joey 2026-10-15 (steps 1–5 approved; step 0 dropped); trial next. Branch feat/lunar-benchmarks.
 date: 2026-10-15
 ---
 
@@ -14,7 +14,7 @@ we already pool (erickfm ranked + the v3.7 public set).
 
 | # | Decision | Why |
 |---|---|---|
-| 1 | **Skip Lunar's ranked games.** | Verified to be the erickfm ranked set we already have: 849,041 (ours) vs 850,106 (Lunar), and a full slice (Ness, master-master) matched 28/28 by exact file size. |
+| 1 | **Skip Lunar's ranked games.** Adding them would count ~850k games twice and silently double ranked play's weight; the ~1,065 extra Lunar has can't be told apart without re-downloading erickfm's 1.4 TB (its per-file sizes aren't listed), so skipping costs ~0.1%. | Verified to be the erickfm ranked set we already have: 849,041 (ours) vs 850,106 (Lunar), and a full slice (Ness, master-master) matched 28/28 by exact file size. |
 | 2 | **Add all of Lunar's netplay (2,009,375) and tournament (392,888) games, unlabelled.** No per-player rating lookups. | Joey: people play to win in friendlies too, the set is too large to throw out, and the app now grades unranked/direct games. Per-code Slippi API lookups would be too much load. |
 | 3 | **De-duplicate against the v3.7 set** we already scanned. | A 25-replay sample found 4 of them in Lunar (matched by exact size; MD5s differ, since Lunar's `fileHash` is the MD5 of its pre-processing original). Partial overlap, so the sets can't simply be swapped. |
 
@@ -43,12 +43,9 @@ over Joey's stored sets before release (as for v1.10.0) and say it plainly in th
 
 ## Plan
 
-### 0. Ask Lunar first (Joey) — before any bulk pull
-A ~1 TB pull is a big ask of a one-server, Patreon-funded project, and grades are a Premium
-feature, so this is commercial use of data that comes with no stated licence. A short message on
-their Discord: who we are, what we'd use (aggregate stat distributions only, no per-player data
-kept), which download they'd prefer (snapshot vs jobs), and that we'll credit them. Consider
-supporting their Patreon.
+### 0. ~~Ask Lunar first~~ — dropped (Joey, 2026-10-15)
+Lunar publishes the full-database download for exactly this kind of use. We still use the
+pre-built snapshot rather than ~100 custom jobs (no packing load on their server) and credit them.
 
 ### 1. Trial on one small bundle (no snapshot yet)
 One fast-lane job (≤200 MB, ~2,000 netplay + a few hundred tournament games). Proves, end to end:
@@ -90,8 +87,6 @@ existing `baselines` + `regen` steps. Multi-day run, resumable, keeps the machin
 
 ## Open questions
 
-- Lunar's answer to step 0 may change the download route (they may prefer jobs, or offer something
-  better).
 - Does the `netplay` source include `mode.ranked` games with connect codes (i.e. de-anonymised
   copies of erickfm games)? The trial will show; if so, they're skipped as ranked.
 - Where to run it: this Windows machine has `raw_stats_v2.sqlite` and the venv. Bandwidth and
