@@ -1,5 +1,5 @@
 ---
-status: PLAN agreed with Joey 2026-10-15 (steps 1–5 approved; step 0 dropped); trial next. Branch feat/lunar-benchmarks.
+status: PLAN agreed with Joey 2026-10-15 (steps 1–5 approved; step 0 dropped). Step 1 trial DONE 2026-10-15; next is step 3. Branch feat/lunar-benchmarks.
 date: 2026-10-15
 ---
 
@@ -41,6 +41,39 @@ over Joey's stored sets before release (as for v1.10.0) and say it plainly in th
 - Our `--dataset db` builder already pools every source in the StatsDB, so a new source needs no
   change there.
 
+## Trial results (2026-10-15) — read before building
+
+Two fast-lane jobs, 330 netplay + 105 tournament games (newest first), run through the real
+`process_both_ports`. The scratch scripts aren't in the repo; the findings are:
+
+- **Bundles stream trivially**: zip entries are STORED (method 0) with sizes in the local headers
+  (no data descriptors). `lunar-manifest.json` maps `file` → `replayId`/`fileHash`.
+- **`slpz`**: no Python package exists; `cargo install slpz` (v1.3.0) gives a CLI. ⚠ Options must
+  come BEFORE the input: `slpz -q -d -o out.slp in.slpz` (`-o -` = stdout, input `-` = stdin).
+- **435/435 parsed** (2 player-rows each). **~16 replays/s in one process**, so ~42 h
+  single-threaded for 2.4M and a few hours with a worker pool. Median replay 3.4–3.9 MB unpacked.
+- **The `netplay` source mixes modes**: 215 direct, 105 **ranked (with connect codes)**, 10
+  unranked. The tournament bundle: 98 direct, 7 unranked (online tournaments run over direct).
+- **None of the 435 is already in our DB**, ranked ones included. They're recent (Sept 2026),
+  newer than the erickfm snapshot, so netplay's ranked-mode games are KEPT.
+
+### De-dup key: the game's own stats, not its file
+A replay's stats come from its frame data, so two copies of one game give identical stats even
+when names were anonymised (which changes the file's bytes and size). Key =
+`(player_char, opp_char` + `round(x, 4)` of `inputs_per_minute, avg_stock_duration,
+damage_per_opening, l_cancel_ratio)`. No file sizes or downloads needed, and it works across every
+source. **Positive control passed**: Lunar's copies of 4 v3.7 games we hold (Lunar files them
+under `tournament`) fingerprint identically to our local files and match their DB rows 8/8. This
+replaces the `(size, chars)` key in step 2.
+
+### ⚠ Bug in the CURRENT benchmark: v3.7 games are counted ~2.35×
+The v3.7 dataset stores each game once per player's character folder, sometimes in several batch
+folders too: `FALCO/…/15_26_13 Falco + Fox (PS).slp` and `FOX/…/15_26_13 Falco + Fox (PS).slp`.
+Our scan de-dups by path, so **247,169 of 430,112 v3.7 rows (57.5%) are duplicates**. v3.7 is
+20.2% of the pool as counted and ~9.7% really. Ranked is clean (5 of 1.7M). Fix: de-dup by the stat
+fingerprint when building baselines (`--dataset db`), which covers Lunar too. Modest grade impact;
+it ships in the same benchmark rebuild.
+
 ## Plan
 
 ### 0. ~~Ask Lunar first~~ — dropped (Joey, 2026-10-15)
@@ -58,15 +91,15 @@ One fast-lane job (≤200 MB, ~2,000 netplay + a few hundred tournament games). 
 - the v3.7 de-dup key works (below);
 - the manifest's shape.
 
-### 2. De-dup key against v3.7
+### 2. De-dup key against v3.7 — SUPERSEDED by the stat fingerprint (see Trial results)
 `(decompressed .slp byte size, sorted character pair)`. v3.7 sizes come free from HuggingFace's
 `list_repo_tree` (no downloads); characters are already in the StatsDB. A Lunar game whose key
 is in the v3.7 set is skipped. Validate the key on the trial bundle before trusting it.
 
 ### 3. `--dataset lunar` in `parse_hf_replays.py`
 Streams the snapshot zip with one sequential GET, unzipping entry by entry (local headers) and
-parsing each replay in memory: nothing over a few MB ever lands on disk. Skips ranked games and
-v3.7 duplicates; inserts the rest as `source = 'lunar_netplay'` / `'lunar_tournament'` (kept
+parsing each replay in memory: nothing over a few MB ever lands on disk. Skips Lunar's anonymised
+`ranked`-source entries (the erickfm set) and any game whose stat fingerprint is already in the DB; inserts the rest as `source = 'lunar_netplay'` / `'lunar_tournament'` (kept
 apart so they can be compared or dropped later), keyed by Lunar's `fileHash` (via the manifest)
 so `db.seen()` makes it re-runnable. Checkpoints the byte offset; on a drop, resumes with an HTTP
 Range request on a fresh link (2/day — so the checkpoint must be solid). Parallel parse workers.
