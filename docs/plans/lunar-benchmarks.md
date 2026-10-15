@@ -70,7 +70,7 @@ What today taught (all handled in the code now):
   classified by the archive's folders (`netplay/`, `tournament/`, `ranked_anonymized/`);
   `ranked_anonymized/` keeps erickfm's exact file names (848,784 of 849,751 already ours).
 - The machine blue-screened once under the full load (0x13A, a driver; Intel I225-V suspected;
-  minidump `C:\Windows\MinidumpA526-17437-01.dmp`; Joey updating drivers via Armoury
+  minidump `C:\Windows\Minidump\101526-17437-01.dmp`; Joey updating drivers via Armoury
   Crate). The run resumed with nothing lost.
 
 After it finishes: `parse_hf_replays.py --dataset db --db scripts/raw_stats_v3.sqlite --output
