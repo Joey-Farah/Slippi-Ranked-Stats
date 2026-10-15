@@ -6,6 +6,7 @@
 
 import { signOut, startSignIn, verifySignIn } from "./auth";
 import { checkoutCancelled, checkoutDone, openPortal, portalDone, renewPass, startCheckout, stripeWebhook } from "./billing";
+import { runHealthCheck } from "./health";
 import { json } from "./http";
 
 type Handler = (request: Request, env: Env) => Promise<Response>;
@@ -29,5 +30,10 @@ export default {
     if (!route) return json({ error: "not_found" }, 404);
     if (request.method !== route.method) return json({ error: "method_not_allowed" }, 405);
     return route.handler(request, env);
+  },
+
+  /** The hourly self-test (wrangler.toml [triggers]); emails the owner on a state change. */
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runHealthCheck(env).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

@@ -18,6 +18,13 @@ declare namespace Cloudflare {
     STRIPE_WEBHOOK_SECRET: string;
     /** Secret. The ECDSA P-256 private key Passes are signed with, as a JWK string. */
     PASS_SIGNING_KEY: string;
+    /** The public half the APP ships (src/lib/pass-key.ts), as a JWK string. Not a secret; the
+     *  self-test checks fresh Passes verify against it. */
+    PASS_PUBLIC_KEY?: string;
+    /** Where the self-test's alerts go. */
+    ALERT_EMAIL?: string;
+    /** Names this deployment in alerts, e.g. "staging". */
+    ENVIRONMENT_NAME?: string;
   }
 }
 

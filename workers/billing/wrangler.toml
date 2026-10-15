@@ -11,6 +11,14 @@ EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
 # The live-mode $5/month Price (slice 8). Created 2026-10-14 as price_1UQe5uFKmBCOtBry5x6TwzDo
 # ("Include tax in price: No"); check that tax choice before using it.
 STRIPE_PRICE_ID = "price_REPLACE_WITH_LIVE_PRICE"
+# The hourly self-test (src/health.ts) emails here when something breaks, and again on recovery.
+ALERT_EMAIL = "joeyefarah@gmail.com"
+ENVIRONMENT_NAME = "production"
+# The public key the production app ships (slice 8 generates the production pair).
+PASS_PUBLIC_KEY = ""
+
+[triggers]
+crons = ["17 * * * *"]  # hourly, off the top of the hour
 
 [[d1_databases]]
 binding = "DB"
@@ -31,6 +39,13 @@ EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
 ALLOW_LOGGED_CODES = "1"
 # The test-mode $5/month Price.
 STRIPE_PRICE_ID = "price_1UQeJ3FKmBCOtBrybTSdtSvc"
+ALERT_EMAIL = "joeyefarah@gmail.com"
+ENVIRONMENT_NAME = "staging"
+# = src/lib/pass-key.ts (the staging pair). The self-test checks fresh Passes verify against it.
+PASS_PUBLIC_KEY = '{"kty":"EC","crv":"P-256","x":"pjzjKrq4ktCkUMkHShyFeR0cQ9p5n77IG394PvdvyiI","y":"sYxRNqzzf-RrdLutIePFX8ar1WltAygG4ioprVpdkek"}'
+
+[env.staging.triggers]
+crons = ["17 * * * *"]
 
 [[env.staging.d1_databases]]
 binding = "DB"
