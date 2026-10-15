@@ -2,10 +2,14 @@ name = "srs-billing"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
 
-# Production. Secrets (never commit them):
-#   npx wrangler secret put RESEND_API_KEY
+# Production. Secrets (never commit them): RESEND_API_KEY, STRIPE_SECRET_KEY,
+# STRIPE_WEBHOOK_SECRET, PASS_SIGNING_KEY, each set with `npx wrangler secret put NAME`.
+# ⚠ From a real terminal: through Claude Code's `!` prompt wrangler can't prompt, and saves an
+# EMPTY secret. Or pipe it in: `(Get-Clipboard -Raw).Trim() | npx wrangler secret put NAME`.
 [vars]
 EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
+# The live-mode $5/month Price (slice 8).
+STRIPE_PRICE_ID = "price_REPLACE_WITH_LIVE_PRICE"
 
 [[d1_databases]]
 binding = "DB"
@@ -24,6 +28,8 @@ name = "srs-billing-staging"
 [env.staging.vars]
 EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
 ALLOW_LOGGED_CODES = "1"
+# The test-mode $5/month Price.
+STRIPE_PRICE_ID = "price_REPLACE_WITH_TEST_PRICE"
 
 [[env.staging.d1_databases]]
 binding = "DB"

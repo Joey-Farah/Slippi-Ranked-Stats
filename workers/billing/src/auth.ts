@@ -124,7 +124,7 @@ export async function verifySignIn(request: Request, env: Env): Promise<Response
   return json({ session, email: row.email });
 }
 
-async function readJson(request: Request): Promise<Record<string, unknown> | null> {
+export async function readJson(request: Request): Promise<Record<string, unknown> | null> {
   try {
     const body = await request.json();
     return body && typeof body === "object" ? (body as Record<string, unknown>) : null;
@@ -133,7 +133,7 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
-function boundedString(value: unknown, max: number): string {
+export function boundedString(value: unknown, max: number): string {
   return typeof value === "string" && value.length <= max ? value : "";
 }
 
@@ -179,7 +179,7 @@ function randomToken(): string {
     .replace(/=+$/, "");
 }
 
-async function sha256(text: string): Promise<string> {
+export async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

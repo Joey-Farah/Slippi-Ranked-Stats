@@ -10,6 +10,14 @@ declare namespace Cloudflare {
     RESEND_API_KEY?: string;
     /** "1" on staging only: with no RESEND_API_KEY, log codes instead of failing. */
     ALLOW_LOGGED_CODES?: string;
+    /** The $5/month Price Checkout sells. Not a secret. */
+    STRIPE_PRICE_ID: string;
+    /** Secret. A test-mode key on staging. */
+    STRIPE_SECRET_KEY: string;
+    /** Secret. The webhook endpoint's signing secret (whsec_…). */
+    STRIPE_WEBHOOK_SECRET: string;
+    /** Secret. The ECDSA P-256 private key Passes are signed with, as a JWK string. */
+    PASS_SIGNING_KEY: string;
   }
 }
 
