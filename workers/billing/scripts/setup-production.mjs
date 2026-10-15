@@ -12,7 +12,8 @@
 //
 // Safe to re-run: an existing key pair is kept (pass --new-key to replace it, which signs every
 // card subscriber out of Premium until their app renews... and the shipped app's public key
-// then no longer matches, so only do that before release). --skip-resend skips step 4.
+// then no longer matches, so only do that before release). --skip-resend skips step 4;
+// --resend-only does just step 4.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -41,6 +42,7 @@ function wrangler(cmdArgs, input) {
 // lives under [env.staging.vars], further down).
 const PROD_VAR = /^PASS_PUBLIC_KEY = .*$/m;
 
+if (!args.has("--resend-only")) {
 console.log("1/4  Database migrations");
 wrangler(["d1", "migrations", "apply", "srs-billing", "--remote"]);
 
@@ -75,11 +77,12 @@ if (privateJwk) {
   wrangler(["secret", "put", "PASS_SIGNING_KEY"], privateJwk);
   console.log("     PASS_SIGNING_KEY stored (not shown)");
 }
+}
 
 if (args.has("--skip-resend")) process.exit(0);
 console.log("4/4  Resend API key: create one at resend.com -> API Keys (Sending access is enough),");
-console.log("     then copy it. Waiting up to 3 minutes for a re_... key on the clipboard...");
-const deadline = Date.now() + 3 * 60_000;
+console.log("     then copy it. Waiting up to 10 minutes for a re_... key on the clipboard...");
+const deadline = Date.now() + 10 * 60_000;
 let key = null;
 while (Date.now() < deadline) {
   const clip = execFileSync("powershell", ["-NoProfile", "-Command", "Get-Clipboard -Raw"], { encoding: "utf8" }).trim();
@@ -87,7 +90,7 @@ while (Date.now() < deadline) {
   await new Promise((r) => setTimeout(r, 700));
 }
 if (!key) {
-  console.error("No re_... key showed up. Re-run with --skip-resend later... or just re-run.");
+  console.error("No re_... key showed up. Copy one, then re-run with --resend-only.");
   process.exit(1);
 }
 wrangler(["secret", "put", "RESEND_API_KEY"], key);

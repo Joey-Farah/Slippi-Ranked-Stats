@@ -40,9 +40,9 @@ if ($Production) {
 $webhookUrl = "$workerUrl/stripe/webhook"
 
 # Copying the command to run this would overwrite a key already on the clipboard, so it's fine
-# to start this first and copy the key afterwards: it waits up to 3 minutes for one to appear.
+# to start this first and copy the key afterwards: it waits up to 10 minutes for one to appear.
 $key = $null
-$deadline = (Get-Date).AddMinutes(3)
+$deadline = (Get-Date).AddMinutes(10)
 $asked = $false
 while ((Get-Date) -lt $deadline) {
   $clip = Get-Clipboard -Raw
@@ -54,7 +54,7 @@ while ((Get-Date) -lt $deadline) {
   Start-Sleep -Milliseconds 500
 }
 if (-not $key) {
-  Write-Host "No $keyPrefix... key showed up on the clipboard within 3 minutes. Nothing was changed." -ForegroundColor Red
+  Write-Host "No $keyPrefix... key showed up on the clipboard within 10 minutes. Nothing was changed." -ForegroundColor Red
   exit 1
 }
 Write-Host "Got the $keyPrefix key from the clipboard (not shown)."
