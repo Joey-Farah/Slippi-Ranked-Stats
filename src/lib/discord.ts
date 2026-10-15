@@ -66,13 +66,27 @@ function storeTokenResponse(data: {
   );
 }
 
+let refreshInFlight: Promise<string | null> | null = null;
+
 /**
  * Exchanges the stored refresh token for a fresh access token (silent — no browser, no
  * user interaction). Returns the new access token, or null if there's no refresh token or
  * Discord refused it (refresh tokens can be revoked or, after long dormancy, invalidated).
  * On a hard refusal we clear the dead refresh token so callers fall back to a re-link.
+ *
+ * One refresh at a time: Discord rotates the refresh token on every use, so a second request
+ * with the same token (the launch check and a Re-check click renewing together) is refused,
+ * and acting on that refusal used to throw away the login the first request had just renewed.
+ * A caller that arrives while a refresh is running waits for that one instead.
  */
-export async function refreshDiscordToken(): Promise<string | null> {
+export function refreshDiscordToken(): Promise<string | null> {
+  refreshInFlight ??= sendRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function sendRefresh(): Promise<string | null> {
   const rt = get(discordRefreshToken);
   if (!rt) return null;
 
