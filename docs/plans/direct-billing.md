@@ -1,5 +1,5 @@
 ---
-status: build plan APPROVED 2026-10-09; building on branch feat/card-billing — slice 1 code done 2026-10-14, staging demo pending
+status: build plan APPROVED 2026-10-09; building on branch feat/card-billing — slice 1 done and demoed on staging with real email 2026-10-14; slice 2 next
 date: 2026-10-09
 ---
 
@@ -145,7 +145,7 @@ writable and `isPremium = derived(… d || c)`. Every `$isPremium` reader is unc
 
 ## Slices (each is RED → GREEN, demoable, and its own small commits)
 
-1. ✅ *(code done 2026-10-14; the staging demo is Joey's, see `dev_notes.md`)* **Sign-in round trip** (touches every layer but Stripe): app email → worker → Resend → code → app
+1. ✅ *(done 2026-10-14: demoed on live staging, codes emailed via Resend)* **Sign-in round trip** (touches every layer but Stripe): app email → worker → Resend → code → app
    shows "Signed in as x", and it survives a restart. Worker tests (Miniflare): code expiry,
    attempt cap, rate limit, always-200. App: reducer tests plus a dev-build demo against a
    **staging** worker.

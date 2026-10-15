@@ -1,4 +1,35 @@
-## ⚠ SESSION HANDOFF — 2026-10-14 (CARD BILLING SLICE 1: SIGN-IN — CODE DONE, STAGING DEMO PENDING)
+## ⚠ SESSION HANDOFF — 2026-10-14 evening (CARD BILLING SLICE 1 DONE: STAGING LIVE, REAL EMAIL)
+
+Slice 1 is **demoed end to end on Windows** against the live staging worker, with real email:
+Joey signed in through the dev app with a code that arrived in his Gmail inbox (not spam).
+
+- **Staging is deployed:** `https://srs-billing-staging.joeyfarah.workers.dev`, D1
+  `srs-billing-staging` (id now committed in `wrangler.toml`), migration `0001_sign_in.sql` applied.
+- **Resend is live on staging:** domain `mail.slippirankedstats.com` verified (added via Resend's
+  Cloudflare auto-configure, so only `send.mail` + `resend._domainkey.mail` records were created;
+  no DMARC yet, optional). `RESEND_API_KEY` is set on the staging worker, so codes are **emailed,
+  no longer logged**. Test address that delivers nowhere: `delivered@resend.dev`.
+- ⚠ **`wrangler secret put` through Claude Code's `!` prompt saves an EMPTY secret** — there's no
+  TTY, so wrangler never prompts and reads nothing. On staging a blank key silently falls back to
+  logging codes (`ALLOW_LOGGED_CODES`) and still answers `ok`, so it LOOKS like it worked. Set
+  secrets from a real terminal, or pipe them: `(Get-Clipboard -Raw).Trim() | npx wrangler secret put
+  NAME --env staging`. Verify a send by the ABSENCE of the `[staging] sign-in code` log line.
+- **Bug found in the demo, fixed (`d227cf6`):** any successful sign-in step blanked the whole app
+  15 s later ("App failed to start: The resource id … is invalid"). Tauri's plugin-http `fetch`
+  never removes its abort listener, so `AbortSignal.timeout` firing after the reply cancelled a
+  request Rust had already freed; the rejection is unhandled and `main.ts` replaces the app on any
+  unhandled rejection. `call()` now uses its own timer, cleared in `finally`. ⚠ **Never pass
+  `AbortSignal.timeout` to plugin-http's fetch.** The regression test puts `AbortSignal.timeout`
+  on the fake clock (Node's runs on internal timers vitest can't advance), else it passes on the
+  broken code.
+- Minor, for slice 7: on launch the panel shows the email box for ~1 s before account.db loads.
+- The in-app check can be driven headlessly: launch `npm run tauri dev` with
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` and talk CDP to the page.
+
+Next: **slice 2** (Subscribe → Premium). Needs from Joey: Stripe test mode with Managed Payments
+activated + the $5/month product, then the Stripe secrets on staging.
+
+## SESSION HANDOFF — 2026-10-14 (CARD BILLING SLICE 1: SIGN-IN — CODE DONE; superseded by the evening banner above)
 
 Branch **`feat/card-billing`** (`main` merged in, so it also carries the untested overlay work
 from 10-13). Slice 1 of `docs/plans/direct-billing.md` is built: email → emailed code → "Signed in
