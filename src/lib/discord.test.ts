@@ -116,3 +116,42 @@ describe("renewing an expired login", () => {
     expectStillSignedIn();
   });
 });
+
+// Only Discord saying the refresh token itself is no good (OAuth's `invalid_grant`) ends a
+// login. Anything else is "try again later": the login is kept and Premium stays as it was.
+describe("a renewal Discord doesn't answer properly", () => {
+  beforeEach(() => expiredLogin({ expiryKnown: false }));
+
+  it.each([
+    ["rate limited", () => Response.json({ message: "You are being rate limited.", retry_after: 1.5, global: false }, { status: 429 })],
+    ["down", () => new Response("upstream connect error", { status: 503 })],
+    ["unreachable", () => { throw new TypeError("error sending request"); }],
+    ["rejecting our app's own setup", () => Response.json({ error: "invalid_client" }, { status: 401 })],
+    ["answering with garbage", () => new Response("<html>oops</html>", { status: 200 })],
+  ])("keeps the login and Premium when Discord is %s", async (_, answer) => {
+    h.discord.tokenAnswer = answer;
+    expect(await verifyPatronRole()).toBe("transient");
+    expect(get(discordPremium)).toBe(true);
+    expect(get(discordToken)).toBe("at-1");
+    expect(get(discordRefreshToken)).toBe("rt-1");
+  });
+
+  it("renews on a later attempt once Discord answers again", async () => {
+    let failures = 2;
+    h.discord.tokenAnswer = () => {
+      if (failures-- > 0) return new Response(null, { status: 429 });
+      h.discord.tokenAnswer = null;
+      return h.tokenEndpoint(new URLSearchParams({ grant_type: "refresh_token", refresh_token: "rt-1" }));
+    };
+    expect(await verifyPatronRoleWithRetry(undefined, { baseDelayMs: 1 })).toBe("premium");
+    expectStillSignedIn();
+  });
+
+  it("signs out when Discord says the refresh token is no good", async () => {
+    h.discord.refreshToken = "rt-revoked";
+    expect(await verifyPatronRole()).toBe("auth_invalid");
+    expect(get(discordPremium)).toBe(false);
+    expect(get(discordToken)).toBeNull();
+    expect(get(discordRefreshToken)).toBeNull();
+  });
+});
