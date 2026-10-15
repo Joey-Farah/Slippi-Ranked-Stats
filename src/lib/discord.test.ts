@@ -155,3 +155,21 @@ describe("a renewal Discord doesn't answer properly", () => {
     expect(get(discordRefreshToken)).toBeNull();
   });
 });
+
+describe("Connect Discord finishing while the old login is being renewed", () => {
+  beforeEach(() => expiredLogin({ expiryKnown: false }));
+
+  it("keeps the new login when Discord refuses the old refresh token", async () => {
+    h.discord.duringRefresh = () => {
+      // The new link lands: Discord knows only the new pair, and the app has stored it.
+      h.discord.refreshToken = "rt-new";
+      h.discord.accessTokens.add("at-new");
+      discordToken.set("at-new");
+      discordRefreshToken.set("rt-new");
+    };
+    await verifyPatronRole();
+    expect(get(discordToken)).toBe("at-new");
+    expect(get(discordRefreshToken)).toBe("rt-new");
+    expect(get(discordPremium)).toBe(true);
+  });
+});

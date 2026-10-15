@@ -275,6 +275,9 @@ export async function verifyPatronRole(
         // Discord gave no usable answer: keep the login and Premium, and try again later.
         if (renewed.reason === "retry") return "transient";
       }
+      // Only end the login this check was about. A Connect Discord that finished meanwhile
+      // stored a newer one, which this answer says nothing about.
+      if (get(discordToken) !== t) return "transient";
       discordToken.set(null);
       discordRefreshToken.set(null);
       discordTokenExpiresAt.set(null);
