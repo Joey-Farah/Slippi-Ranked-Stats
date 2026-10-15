@@ -1,5 +1,5 @@
 ---
-status: PLAN agreed with Joey 2026-10-15 (steps 1–5 approved; step 0 dropped). Step 1 trial DONE 2026-10-15; next is step 3. Branch feat/lunar-benchmarks.
+status: PLAN agreed with Joey 2026-10-15 (steps 1–5 approved; step 0 dropped). Steps 1–4 built 2026-10-15; the ingest is half done, see Status. Branch feat/lunar-benchmarks.
 date: 2026-10-15
 ---
 
@@ -40,6 +40,42 @@ over Joey's stored sets before release (as for v1.10.0) and say it plainly in th
 - No drive on the Windows machine fits 1.3 TB (free: C 115 GB, D 379 GB, F 267 GB) → **stream it**.
 - Our `--dataset db` builder already pools every source in the StatsDB, so a new source needs no
   change there.
+
+## ⚠ Status 2026-10-15 evening — the ingest is HALF DONE; resume at/after 11:32 on 2026-10-16
+
+`scripts/lunar_ingest.py` (this branch) streams the full-database snapshot into
+`scripts/raw_stats_v3.sqlite` (Windows machine only; gitignored). After two runs it holds
+**~347,600 Lunar games** (rows: lunar_tournament 365,920, lunar_netplay 146,978, lunar_unranked
+72,260, lunar_direct 71,222, lunar_ranked 38,810, + 62 new `ranked`) on top of erickfm ranked
+(1,698,201 rows) and de-duplicated v3.7 (182,943 rows). **~1.87M entries still wanted**, ~4 h at
+~130/s (CPU-bound on 16 workers).
+
+**Resume:** `.venv/Scripts/python.exe -u scripts/lunar_ingest.py --workers 16 --connections 12
+>> scripts/logs/lunar_ingest.log 2>&1`. Everything already stored or recorded in `lunar_skipped`
+is skipped by name, so a re-run plans only what's left (no checkpoint needed beyond the DB).
+
+What today taught (all handled in the code now):
+- ⚠ **Lunar issues only 2 full-database links per 24 h, per IP** (server-enforced: HTTP 429
+  `fulldb_rate_limited`, `retryAfterSeconds`). A link is an R2 presigned URL valid for **1 h for
+  NEW requests**; a request that started in time runs on past expiry. So every segment must be
+  requested within the hour (`--connections` ≥ the number of planned segments), and a segment
+  whose stream drops after expiry is **parked** (a later run with a fresh link finishes it).
+  Stopping all connections on a single drop cost a whole run on 10-15; fixed.
+- Restarts burn links: each relaunch after the reuse window fetches a new one. Don't restart
+  needlessly; both of 10-15's links went on restarts.
+- Long streams drop now and then (`stream ended N bytes early`, ~3 in 1.5 h across 8 streams);
+  the reader retries in place while the link is valid.
+- The first run used a byte rule for "anonymised ranked" (netplay block, empty codes) that also
+  matched pre-connect-code netplay and online-tournament games: 143,610 real games skipped. Now
+  classified by the archive's folders (`netplay/`, `tournament/`, `ranked_anonymized/`);
+  `ranked_anonymized/` keeps erickfm's exact file names (848,784 of 849,751 already ours).
+- The machine blue-screened once under the full load (0x13A, a driver; Intel I225-V suspected;
+  minidump `C:\Windows\MinidumpA526-17437-01.dmp`; Joey updating drivers via Armoury
+  Crate). The run resumed with nothing lost.
+
+After it finishes: `parse_hf_replays.py --dataset db --db scripts/raw_stats_v3.sqlite --output
+scripts/grade_baselines.json`, then `regen_benchmarks.py`, then measure the grade shift over
+Joey's stored sets (plan step 5).
 
 ## Trial results (2026-10-15) — read before building
 

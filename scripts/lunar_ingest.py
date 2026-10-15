@@ -514,8 +514,11 @@ def main():
                     finally:
                         stream.close()
                 except LinkBudgetExhausted as e:
-                    log(str(e))
-                    stop.set()
+                    # Only THIS segment needs a new request; the other connections' requests
+                    # started in time and run on. Park this one (a re-run picks it up) and let
+                    # the rest finish. (Stopping everything here cost a whole run on 2026-10-15.)
+                    log(f"chunk {cid}: parked at byte {pos:,}: {e}")
+                    break
                 except (OSError, EOFError, urllib.error.URLError, ValueError, RuntimeError) as e:
                     attempts += 1
                     if attempts > 8:
