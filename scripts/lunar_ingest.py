@@ -156,6 +156,18 @@ class LinkBudgetExhausted(Exception):
     pass
 
 
+def link_expiry(link) -> float:
+    """When a signed link stops accepting NEW requests: X-Amz-Date + X-Amz-Expires from the URL
+    itself (R2 presigned), else LINK_REUSE_S after it was fetched."""
+    import calendar, urllib.parse
+    q = urllib.parse.parse_qs(urllib.parse.urlsplit(link["url"]).query)
+    try:
+        signed = calendar.timegm(time.strptime(q["X-Amz-Date"][0], "%Y%m%dT%H%M%SZ"))
+        return signed + int(q["X-Amz-Expires"][0])
+    except (KeyError, ValueError):
+        return link["at"] + LINK_REUSE_S
+
+
 class LocalZip:
     def __init__(self, path):
         self.path = path
@@ -184,7 +196,7 @@ class LunarBundle:
         with self.lock:
             now = time.time()
             link = self.state.get("link")
-            if link and now - link["at"] < LINK_REUSE_S:
+            if link and now < link_expiry(link) - 90:
                 return link["url"]
             issued = [t for t in self.state.get("links_issued", []) if now - t < 24 * 3600]
             if self.full_db and len(issued) >= LINKS_PER_DAY:
@@ -313,16 +325,17 @@ def process_entry(args):
 
 # ── Planning ──────────────────────────────────────────────────────────────────────────────────
 
-def plan_chunks(index, cd_off, wanted):
-    """Contiguous byte ranges covering every wanted entry, cut at ~CHUNK_BYTES. Each chunk is
-    (chunk_id, start, end, [names wanted in it]); end is the next entry's offset."""
+def plan_chunks(index, cd_off, wanted, chunk_bytes=CHUNK_BYTES):
+    """Contiguous byte ranges covering every wanted entry, cut at ~chunk_bytes. Each chunk is
+    (chunk_id, start, end, [names wanted in it]); end is the next entry's offset. Smallest first:
+    stray single entries are one request each, so they go while the link is fresh."""
     bounds = [off for off, _ in index] + [cd_off]
     chunks, cur = [], None
     for k, (off, name) in enumerate(index):
         if name not in wanted:
             continue
         end = bounds[k + 1]
-        if cur and off - cur[2] <= MERGE_GAP_BYTES and end - cur[1] <= CHUNK_BYTES:
+        if cur and off - cur[2] <= MERGE_GAP_BYTES and end - cur[1] <= chunk_bytes:
             cur[2] = end
             cur[3].append(name)
         else:
@@ -332,7 +345,7 @@ def plan_chunks(index, cd_off, wanted):
         # a chunk is identified by its start offset, which is stable across runs
     if cur:
         chunks.append(cur)
-    return [(f"{c[1]}", c[1], c[2], c[3]) for c in chunks]
+    return sorted(((f"{c[1]}", c[1], c[2], c[3]) for c in chunks), key=lambda c: c[2] - c[1])
 
 
 # ── State ─────────────────────────────────────────────────────────────────────────────────────
@@ -416,6 +429,9 @@ def main():
     ap.add_argument("--checkpoint", help="default: scripts/lunar_<bundle>.checkpoint.json or <zip>.checkpoint.json")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 4) - 2))
     ap.add_argument("--connections", type=int, default=6, help="chunks downloaded at once")
+    ap.add_argument("--chunk-gb", type=float, default=0,
+                    help="bytes per request, in GB (default: the remaining span split evenly across "
+                         "--connections, so one link covers the whole run)")
     ap.add_argument("--window", type=int, default=0, help="replays in flight (default 40×workers)")
     ap.add_argument("--batch", type=int, default=2000, help="replays per DB commit")
     ap.add_argument("--limit", type=int, default=0, help="stop soon after this many replays (0 = all; "
@@ -455,7 +471,12 @@ def main():
     wanted = {n for _, n in index
               if n.endswith(".slpz") and db_filename(n) not in stored and n not in skipped}
     by_dir = collections.Counter(n.split("/", 1)[0] if "/" in n else "(flat bundle)" for n in wanted)
-    chunks = plan_chunks(index, cd_off, wanted)
+    # The full database's signed link lasts an hour and only 2 are issued a day; storage lets a
+    # request that STARTED in time run on past expiry, but not a new one. So by default each
+    # connection gets one long segment, all started within minutes of the link being issued.
+    span = sum(e - s_ for _, s_, e, _ in plan_chunks(index, cd_off, wanted))
+    chunk_bytes = int(args.chunk_gb * 1e9) if args.chunk_gb else max(CHUNK_BYTES, span // args.connections + 1)
+    chunks = plan_chunks(index, cd_off, wanted, chunk_bytes)
     log(f"index: {len(index):,} entries; still wanted {len(wanted):,} ({dict(by_dir)}); "
         f"{len(chunks):,} chunks to go, {sum(c[2] - c[1] for c in chunks) / 1e9:,.0f} GB")
 
