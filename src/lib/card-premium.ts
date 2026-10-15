@@ -53,8 +53,9 @@ export type CardAccount =
    *  card in the portal (manageSubscription), NOT subscribe(), which the worker refuses. */
   | { kind: "signed_in"; email: string; awaitingPayment?: boolean; paymentFailed?: boolean }
   | { kind: "premium"; email: string }
-  /** Another computer signed in to this account; this one was signed out by it. */
-  | { kind: "replaced" }
+  /** Another computer signed in to this account; this one was signed out by it. The email is
+   *  kept (null in states saved before it was) so signing back in starts filled in. */
+  | { kind: "replaced"; email: string | null }
   /** The server no longer knows this computer's session (see applyReason). Premium carries on
    *  until the Pass it already has expires; signing in again restores everything. */
   | { kind: "sign_in_again"; email: string; premium: boolean };
@@ -297,7 +298,6 @@ async function applyReason(reply: Record<string, unknown>): Promise<boolean> {
       awaitingPayment = false;
       paymentFailed = false;
       await update({
-        email: null,
         session: null,
         pass: null,
         replaced: true,
@@ -441,7 +441,7 @@ function publish(): void {
         };
   } else if (s?.needsSignIn && s.email) {
     next = { kind: "sign_in_again", email: s.email, premium: isPremiumNow(s, passPayload) };
-  } else if (s?.replaced) next = { kind: "replaced" };
+  } else if (s?.replaced) next = { kind: "replaced", email: s.email };
   else next = { kind: "signed_out" };
   _account.set(next);
   cardPremium.set(next.kind === "premium" || (next.kind === "sign_in_again" && next.premium));

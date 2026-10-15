@@ -483,9 +483,9 @@ describe("Premium by card", () => {
     const m = await signedIn(true);
     h.server = async () => Response.json({ reason: "device_replaced", serverNow: Date.now() });
     await m.initCardPremium();
-    expect(get(m.cardAccount)).toEqual({ kind: "replaced" });
+    expect(get(m.cardAccount)).toEqual({ kind: "replaced", email: "player@example.com" });
     expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
-    expect(get((await launch()).cardAccount)).toEqual({ kind: "replaced" });
+    expect(get((await launch()).cardAccount)).toEqual({ kind: "replaced", email: "player@example.com" });
   });
 
   it("renews every 6 hours while the app is open", async () => {

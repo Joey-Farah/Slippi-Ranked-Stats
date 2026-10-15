@@ -56,6 +56,10 @@
   const begin = (what: "subscribe" | "signin") => {
     intent = what;
     error = "";
+    // Signed out by another computer: they're a subscriber, so start with the address they used.
+    if (what === "signin" && $cardAccount.kind === "replaced" && $cardAccount.email && !email) {
+      email = $cardAccount.email;
+    }
   };
   const sendCode = () => email.trim() && run(() => startSignIn(email));
   const submitCode = () =>
@@ -113,9 +117,7 @@
   </div>
 {:else if intent}
   <div class="card-flow">
-    {#if $cardAccount.kind === "replaced"}
-      <div class="note">Signed in on another computer. Sign in again to use Premium here.</div>
-    {:else if $cardAccount.kind === "sign_in_again"}
+    {#if $cardAccount.kind === "sign_in_again"}
       <div class="note">
         Please sign in again.{#if $cardAccount.premium} Premium stays on in the meantime.{/if}
       </div>
@@ -141,10 +143,13 @@
 {:else}
   <div class="card-flow">
     {#if $cardAccount.kind === "replaced"}
+      <!-- Already a subscriber, signed out by a sign-in elsewhere: signing back in is the action. -->
       <div class="note">Signed in on another computer. Sign in again to use Premium here.</div>
+      <button class="btn btn-primary wide" style={size} onclick={() => begin("signin")}>Sign in again</button>
+    {:else}
+      <button class="btn btn-primary wide" style={size} onclick={() => begin("subscribe")}>Get Premium · $5/month</button>
+      <button class="link" onclick={() => begin("signin")}>Already subscribed? Sign in</button>
     {/if}
-    <button class="btn btn-primary wide" style={size} onclick={() => begin("subscribe")}>Get Premium · $5/month</button>
-    <button class="link" onclick={() => begin("signin")}>Already subscribed? Sign in</button>
   </div>
 {/if}
 
