@@ -1,5 +1,5 @@
 ---
-status: build plan APPROVED 2026-10-09; building on branch feat/card-billing — slice 1 done and demoed 2026-10-14; slice 2 done and demoed with Stripe test mode 2026-10-14; slice 3 next
+status: build plan APPROVED 2026-10-09; building on branch feat/card-billing — slice 1 done and demoed 2026-10-14; slice 2 done and demoed with Stripe test mode 2026-10-14; slice 3 done 2026-10-15; slice 4 next
 date: 2026-10-09
 ---
 
@@ -152,7 +152,13 @@ writable and `isPremium = derived(… d || c)`. Every `$isPremium` reader is unc
 2. ✅ *(done 2026-10-14: demoed end to end with a test-mode Managed Payments Checkout)* **Subscribe → Premium:** "Subscribe" opens test-mode Checkout; pay with 4242 → webhook → renew
    returns a signed Pass → the app verifies it → `isPremium` → Premium tabs unlock. Includes the
    `discordPremium || cardPremium` merge, tested so a Discord patron is unaffected.
-3. **Not paying ends Premium:** a Stripe **test clock** advances to renewal with a declining card →
+3. ✅ *(done 2026-10-15. The test-clock demo was dropped by Joey's rule: don't re-test what's
+   Stripe's own machinery (renewals, declines, retries, the portal's card form). Our side is unit-
+   tested with a fake Stripe; the one live check was the join, our `/portal` opening Stripe's
+   Customer Portal for a Managed Payments subscription, which passed. Added beyond the plan: a
+   past_due/unpaid subscription returns `not_paid` + `paymentFailed` and `/checkout` refuses a second
+   subscription beside it ("Update card" instead of Subscribe), and a cached `active` is trusted only
+   until its `current_period_end`.)* **Not paying ends Premium:** a Stripe **test clock** advances to renewal with a declining card →
    `not_paid` (confirmed live) → Premium off. Fix the card → Premium returns by itself. Also covers
    cancel via the portal.
 4. **One device, newest wins:** sign in on a second install → the first gets `device_replaced` → "Signed
@@ -164,6 +170,10 @@ writable and `isPremium = derived(… d || c)`. Every `$isPremium` reader is unc
 7. **UI polish:** Sidebar/PremiumGate branches for the card route, manage-subscription and sign-out
    links, short plain copy.
 8. **Go live:** live keys, production worker, a version bump, and short plain release notes.
+   ⚠ Also: Stripe **Settings → Business → Public details** (+ Branding) must say "Slippi Ranked
+   Stats"; the portal currently headlines "Joey Farah". The live Price
+   `price_1UQe5uFKmBCOtBry5x6TwzDo` exists (tax-exclusive; decide). Production needs its own
+   PASS_SIGNING_KEY pair (`src/lib/pass-key.ts` is the staging public key).
 
 ## What Joey has to do (I never handle secrets; he runs `! wrangler secret put …`)
 

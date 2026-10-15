@@ -1,4 +1,25 @@
-## ⚠ SESSION HANDOFF — 2026-10-14 evening (CARD BILLING SLICE 1 DONE: STAGING LIVE, REAL EMAIL)
+## ⚠ SESSION HANDOFF — 2026-10-15 (CARD BILLING SLICE 3 DONE; LUNAR BENCHMARK INGEST RUNNING)
+
+**Card billing slice 3 done** (this branch, `e365ac2`): `/portal` → Stripe Customer Portal
+(cancel / change card; under Managed Payments it's the only way to change a subscription's card)
+and a "Manage subscription" button; a declined renewal (past_due/unpaid) comes back as
+`not_paid` + `paymentFailed`, the panel says "Your last payment didn't go through" with "Update
+card", and `/checkout` refuses a second subscription beside it. A cached `active` is trusted only
+until `current_period_end`, so a lost webhook can't keep a non-payer Premium forever. 55 worker /
+262 app tests. Live-checked: the portal opens for the real test subscription. ⚠ **Joey's rule
+(2026-10-15): don't spend time live-testing what is Stripe's own machinery** (renewals, declines,
+retries, the portal's forms); unit-test our reaction to Stripe's statuses, and live-check only the
+join between us and Stripe. Next: **slice 4** (one device, newest wins: the worker already answers
+`device_replaced`; slice 4 is the app side + UI).
+
+**Two folders now:** this branch is checked out in a git worktree at
+`C:\Users\joeyf\Documents\GitHub\Slippi-Ranked-Stats-billing` (deps installed there), while the
+main folder is on `feat/lunar-benchmarks`, running the multi-hour Lunar replay ingest
+(`docs/plans/lunar-benchmarks.md` on that branch). Don't switch the main folder's branch while
+that ingest runs. `tauri dev` leaves CRLF-only churn in `src-tauri/Cargo.toml` + `gen/schemas`;
+don't commit it.
+
+## SESSION HANDOFF — 2026-10-14 evening (CARD BILLING SLICE 1 DONE: STAGING LIVE, REAL EMAIL)
 
 Slice 1 is **demoed end to end on Windows** against the live staging worker, with real email:
 Joey signed in through the dev app with a code that arrived in his Gmail inbox (not spam).
