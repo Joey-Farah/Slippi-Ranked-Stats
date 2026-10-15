@@ -27,7 +27,7 @@
 
 <div style="
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  height: 60%; min-height: 340px; gap: 0; text-align: center; padding: 32px;
+  min-height: max(340px, 60%); gap: 0; text-align: center; padding: 40px 32px;
 ">
   <div style="font-size: 32px; margin-bottom: 12px">🔒</div>
   <div style="font-size: 17px; font-weight: 700; margin-bottom: 8px">{featureName}</div>
