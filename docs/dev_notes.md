@@ -1,3 +1,139 @@
+## ⚠ SESSION HANDOFF — 2026-10-15 (CARD BILLING SLICE 3 DONE; LUNAR BENCHMARK INGEST RUNNING)
+
+**Card billing slice 3 done** (this branch, `e365ac2`): `/portal` → Stripe Customer Portal
+(cancel / change card; under Managed Payments it's the only way to change a subscription's card)
+and a "Manage subscription" button; a declined renewal (past_due/unpaid) comes back as
+`not_paid` + `paymentFailed`, the panel says "Your last payment didn't go through" with "Update
+card", and `/checkout` refuses a second subscription beside it. A cached `active` is trusted only
+until `current_period_end`, so a lost webhook can't keep a non-payer Premium forever. 55 worker /
+262 app tests. Live-checked: the portal opens for the real test subscription. ⚠ **Joey's rule
+(2026-10-15): don't spend time live-testing what is Stripe's own machinery** (renewals, declines,
+retries, the portal's forms); unit-test our reaction to Stripe's statuses, and live-check only the
+join between us and Stripe. Next: **slice 4** (one device, newest wins: the worker already answers
+`device_replaced`; slice 4 is the app side + UI).
+
+**Two folders now:** this branch is checked out in a git worktree at
+`C:\Users\joeyf\Documents\GitHub\Slippi-Ranked-Stats-billing` (deps installed there), while the
+main folder is on `feat/lunar-benchmarks`, running the multi-hour Lunar replay ingest
+(`docs/plans/lunar-benchmarks.md` on that branch). Don't switch the main folder's branch while
+that ingest runs. `tauri dev` leaves CRLF-only churn in `src-tauri/Cargo.toml` + `gen/schemas`;
+don't commit it.
+
+## SESSION HANDOFF — 2026-10-14 evening (CARD BILLING SLICE 1 DONE: STAGING LIVE, REAL EMAIL)
+
+Slice 1 is **demoed end to end on Windows** against the live staging worker, with real email:
+Joey signed in through the dev app with a code that arrived in his Gmail inbox (not spam).
+
+- **Staging is deployed:** `https://srs-billing-staging.joeyfarah.workers.dev`, D1
+  `srs-billing-staging` (id now committed in `wrangler.toml`), migration `0001_sign_in.sql` applied.
+- **Resend is live on staging:** domain `mail.slippirankedstats.com` verified (added via Resend's
+  Cloudflare auto-configure, so only `send.mail` + `resend._domainkey.mail` records were created;
+  no DMARC yet, optional). `RESEND_API_KEY` is set on the staging worker, so codes are **emailed,
+  no longer logged**. Test address that delivers nowhere: `delivered@resend.dev`.
+- ⚠ **`wrangler secret put` through Claude Code's `!` prompt saves an EMPTY secret** — there's no
+  TTY, so wrangler never prompts and reads nothing. On staging a blank key silently falls back to
+  logging codes (`ALLOW_LOGGED_CODES`) and still answers `ok`, so it LOOKS like it worked. Set
+  secrets from a real terminal, or pipe them: `(Get-Clipboard -Raw).Trim() | npx wrangler secret put
+  NAME --env staging`. Verify a send by the ABSENCE of the `[staging] sign-in code` log line.
+- **Bug found in the demo, fixed (`d227cf6`):** any successful sign-in step blanked the whole app
+  15 s later ("App failed to start: The resource id … is invalid"). Tauri's plugin-http `fetch`
+  never removes its abort listener, so `AbortSignal.timeout` firing after the reply cancelled a
+  request Rust had already freed; the rejection is unhandled and `main.ts` replaces the app on any
+  unhandled rejection. `call()` now uses its own timer, cleared in `finally`. ⚠ **Never pass
+  `AbortSignal.timeout` to plugin-http's fetch.** The regression test puts `AbortSignal.timeout`
+  on the fake clock (Node's runs on internal timers vitest can't advance), else it passes on the
+  broken code.
+- Minor, for slice 7: on launch the panel shows the email box for ~1 s before account.db loads.
+- The in-app check can be driven headlessly: launch `npm run tauri dev` with
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` and talk CDP to the page.
+
+**Slice 2 (Subscribe → Premium) DONE and DEMOED end to end the same night (21:27):** dev app →
+Subscribe → test-mode Managed Payments Checkout (4242 card) → app flipped to "✓ Premium" by
+polling, `/checkout/done` page shown, and the signed webhook recorded the subscription as
+`active` in staging D1. That also proves PASS_SIGNING_KEY matches `src/lib/pass-key.ts`.
+Stripe test setup that exists now: Managed Payments activated; test product "SRS Premium Access"
+(tax code SaaS – personal use) with price `price_1UQeJ3FKmBCOtBrybTSdtSvc` (in wrangler.toml);
+webhook `we_1UQeHJFKmBCOtBrymOOvppke`; both Stripe secrets on staging. ⚠ A LIVE product + price
+`price_1UQe5uFKmBCOtBry5x6TwzDo` also got created by accident ("Include tax in price: No") — noted
+in wrangler.toml for slice 8; decide the tax choice there. ⚠ **Every Stripe product needs a tax
+code under Managed Payments**, in test mode too, or Checkout 400s ("product tax code is missing").
+
+⚠ **Incident, contained:** the first `sk_test_` key was stored with a BOM (Windows PowerShell
+prepends U+FEFF when piping to a program), Stripe rejected it, and the Workers runtime logged the
+WHOLE Authorization header as a non-ASCII warning — key in the `wrangler tail` output. Test key,
+no money at risk; Joey ROLLED it (expire now). Fixed twice: every worker secret goes through
+`secret()` (src/http.ts, trims incl. U+FEFF, with a test that fails without it), and
+`workers/billing/scripts/setup-stripe.ps1` sets BOTH `[Console]::InputEncoding` and
+`$OutputEncoding` to BOM-less UTF-8 (`$OutputEncoding` alone still emits the BOM — measured).
+The script waits for an `sk_test_`/`sk_live_` key to appear on the clipboard, creates the webhook
+via the API, stores both secrets unprinted, clears the clipboard; `-Replace` recreates an
+existing webhook, `-Production` targets the live worker. Also: paths in `!` commands must use
+forward slashes — the `!` prompt is bash and eats backslashes.
+
+Original slice-2 build notes: Worker: `/pass/renew`, `/checkout`, `/stripe/webhook`,
+`GET /checkout/done|cancelled`, migration `0002_subscriptions.sql` (applied remotely). Stripe is
+called over plain fetch (no SDK), API version pinned `2025-03-31.basil`, Checkout uses
+`managed_payments[enabled]=true` + the account's own Stripe customer (both confirmed in Stripe's
+docs). App: Pass verified with WebCrypto against `src/lib/pass-key.ts` (⚠ the STAGING public key;
+slice 8 needs its own production pair), `isPremium = discordPremium || cardPremium`
+(`discordPremium` keeps `srs_isPremium`). `PASS_SIGNING_KEY` is set on staging (generated and
+piped straight in, never printed). Grace needs no "unreachable" flag: definite answers delete the
+Pass, so an expired Pass still on disk already means "no answer since".
+
+**To demo slice 2, Joey needs to (Stripe dashboard, TEST mode):**
+1. Settings → Managed Payments: activate it and accept the terms.
+2. Product catalog → create "Slippi Ranked Stats Premium", $5.00 USD monthly, with a tax code
+   labelled "Eligible for Managed Payments". Copy the **price id** (`price_…`) into
+   `STRIPE_PRICE_ID` under `[env.staging.vars]` in `workers/billing/wrangler.toml`.
+3. Developers → Webhooks → add endpoint
+   `https://srs-billing-staging.joeyfarah.workers.dev/stripe/webhook` with the five
+   `customer.subscription.*` events (created/updated/deleted/paused/resumed).
+4. Secrets (from a real terminal, or piped from the clipboard): `STRIPE_SECRET_KEY` (the test
+   `sk_test_…`) and `STRIPE_WEBHOOK_SECRET` (the endpoint's `whsec_…`), both `--env staging`.
+Then redeploy, and in `npm run tauri dev`: sign in → Subscribe → pay with 4242 4242 4242 4242 →
+the panel flips to "✓ Premium" and the Premium tabs unlock.
+
+## SESSION HANDOFF — 2026-10-14 (CARD BILLING SLICE 1: SIGN-IN — CODE DONE; superseded by the evening banner above)
+
+Branch **`feat/card-billing`** (`main` merged in, so it also carries the untested overlay work
+from 10-13). Slice 1 of `docs/plans/direct-billing.md` is built: email → emailed code → "Signed in
+as x", surviving a restart. Worker 23 tests (`cd workers/billing && npm test`), app suite green,
+`tsc` clean, verified end to end against `wrangler dev`. **Dev builds only**: the sidebar panel
+(`CardAccountPanel.svelte`) and the launch load are behind `import.meta.env.DEV`, verified absent
+from a production `vite build`. Nothing touches `isPremium` yet (slice 2).
+
+⚠ **The verify contract changed from the plan after a fresh-context review:** `/auth/start`
+returns a random `challenge`, and `/auth/verify` takes `{challenge, code, deviceId}`, not the
+email. Without it, anyone who knew a player's email could burn that code's 5 tries or retire it
+by asking for a new one. Other review fixes: rate limits are checked *inside* the INSERT (100
+parallel requests used to send 15 codes against a limit of 5), a 10/day per-email cap, IPv6
+limited per /64, display-name/multi-recipient addresses refused, and **`sessions` replaced
+`devices`**, so a new sign-in marks the old session `replaced_at` instead of overwriting it.
+Slice 4 needs that to answer `device_replaced` rather than `signed_out`.
+
+**To demo it (Windows, needs Joey's Cloudflare login; no Resend needed yet):**
+1. `cd workers\billing` → `npm install --legacy-peer-deps` → `npx wrangler login` if needed.
+2. `npx wrangler d1 create srs-billing-staging` → paste the printed id over the zeros under
+   `[[env.staging.d1_databases]]` in `wrangler.toml` and commit it (D1 ids aren't secrets).
+3. `npx wrangler d1 migrations apply srs-billing-staging --remote --env staging`
+4. `npm run deploy:staging` → must land on `https://srs-billing-staging.joeyfarah.workers.dev`
+   (`BILLING_URL` in `card-premium.ts`).
+5. Leave `npx wrangler tail --env staging` running: staging has no `RESEND_API_KEY`, so codes
+   are logged as `[staging] sign-in code for <email>: 123456` (`ALLOW_LOGGED_CODES`, staging only;
+   a test pins that production's config doesn't set it).
+6. Repo root: `npm run tauri dev` → sidebar → **DEV · CARD PREMIUM** → email → code from the
+   tail → "Signed in as …". Quit and relaunch → still signed in. Sign out → relaunch → signed out.
+
+**Open / deferred, none blocking:**
+- `login_codes` rows are never deleted; purge old ones from the slice-6 cron.
+- Sign-out is local only: the server-side session stays live until the next sign-in replaces
+  it. Harmless now; revisit with renewals (slice 2/4).
+- Resend's free tier (100 emails/day) is a shared bottleneck: the per-IP limit slows a flood but
+  can't stop a distributed one from exhausting it and blocking sign-in for everyone that day.
+- The plan's pure `decide()` reducer isn't built: slice 1 has no renew/grace logic to put in it.
+  It arrives with renewals.
+- The production `[[d1_databases]]` id is also still zeros (slice 8).
+
 ## ⚠ SESSION HANDOFF — 2026-10-13 (OVERLAY FIT + PERSISTENT PER-GAME GRADES — BANKED, UNTESTED LIVE)
 
 Code done, 222/222 tests pass, **not yet tested in OBS / a real game**. Details in the CLAUDE.md "Banked on `main`" bullet dated 2026-10-13. Next: Joey tests live (stacked + side, each skin/size, a ranked set and an unranked run), then fold into a release with a version bump + release notes.
@@ -988,6 +1124,20 @@ anywhere else is the bug the table exists to prevent.
 
 The windows are plain day counts (`1y` = 365, `2y` = 730), matching how `30d`/`90d` already worked
 — not calendar-month arithmetic, so "Last Year" is 365 days rather than the same date last year.
+
+---
+
+## ▶ BANKED IDEA — Rename the app, e.g. "Slippi Companion App" (2026-10-15, NOT started)
+
+Joey wants this on file — **no action planned yet.** The app has grown well past ranked stats
+(live session, overlay, input viewer, notes, unranked/direct grading), so the name may no longer
+fit. Things a rename touches, for when it's picked up: the display name (window title, header,
+release notes) is cheap; the Tauri **bundle identifier** is NOT — it decides `appDataDir`, so
+changing it strands every install's DBs, settings, card sign-in and Discord tokens unless the
+app migrates the old folder. Also: the GitHub repo + updater endpoint URL, the
+slippirankedstats.com domain and `mail.` sending domain, the Stripe public business name /
+statement descriptor (live billing, v1.13.0), Discord/Patreon/Ko-fi copy, and the OBS overlay
+file paths users already have set up (`<appDataDir>/stream-overlay/`).
 
 ---
 

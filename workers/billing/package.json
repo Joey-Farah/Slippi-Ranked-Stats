@@ -1,0 +1,21 @@
+{
+  "name": "srs-billing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260831.1",
+    "@vitest/runner": "4.1.4",
+    "@vitest/snapshot": "4.1.4",
+    "typescript": "5.9.3",
+    "vitest": "4.1.4",
+    "wrangler": "4.124.0"
+  }
+}

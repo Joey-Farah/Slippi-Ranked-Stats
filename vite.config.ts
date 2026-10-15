@@ -1,4 +1,6 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { resolve } from "path";
@@ -42,6 +44,11 @@ export default defineConfig({
     },
   },
   clearScreen: false,
+  // Workers have their own suite (`npm test` in workers/<name>), which only runs inside the
+  // Workers runtime: it imports `cloudflare:workers`, which doesn't exist here.
+  test: {
+    exclude: [...configDefaults.exclude, "workers/**"],
+  },
   resolve: {
     dedupe: ["buffer"],
     alias: {

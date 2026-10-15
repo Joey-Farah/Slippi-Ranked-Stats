@@ -1,5 +1,5 @@
 ---
-status: build plan APPROVED 2026-10-09; building on branch feat/card-billing
+status: build plan APPROVED 2026-10-09; slices 1–7 done; slice 8 (go live) in progress 2026-10-15: production worker deployed with all secrets, release pending
 date: 2026-10-09
 ---
 
@@ -95,17 +95,20 @@ approved.
 
 | Endpoint | Does |
 |---|---|
-| `POST /auth/start {email}` | Emails a 6-digit code via Resend. Always returns 200, so it doesn't reveal whether an account exists. Code is hashed, has a 10-min TTL, max 5 attempts; requests are rate-limited per email and per IP. |
-| `POST /auth/verify {email, code, deviceId}` | Creates the account if new. Issues a device session (random, stored hashed) and **replaces** the account's previous device. Returns `{session}` plus a renew result. |
+| `POST /auth/start {email}` | Emails a 6-digit code via Resend and returns `{ok, challenge}`. Answers the same whether or not the account exists (it never reads `accounts`); the only failures are `bad_request`, `rate_limited` and `email_failed`. Code has a 10-min TTL and max 5 attempts, and is stored only as a hash salted with the challenge. Limits: 5 codes/hour and 10/day per email, 20/hour per IP (IPv6 per /64), checked inside the INSERT so parallel requests can't beat them. |
+| `POST /auth/verify {challenge, code, deviceId}` | *(Changed 2026-10-14 from `{email, …}` after review, approved by Joey the same day: binding the code to a challenge only the requesting app holds means knowing someone's email no longer lets you burn their code's tries or retire it.)* Creates the account if new. Issues a session (random, stored hashed) and marks the account's previous session **replaced** (kept, not deleted, so slice 4 can tell `device_replaced` from a session it never issued). Returns `{session, email}`; the renew result is added in slice 2. |
 | `POST /pass/renew {session}` | `{pass, serverNow}` · `{reason: not_paid \| device_replaced \| signed_out, serverNow}` |
 | `POST /checkout {session}` | Creates a Checkout Session: `mode: subscription`, `managed_payments: {enabled: true}`, `customer` set to the account's Stripe customer (locks the email), `success_url` set to the worker's own `/checkout/done` page. Returns `{url}`. |
 | `POST /portal {session}` | Stripe Customer Portal URL (cancel / update card). |
 | `POST /stripe/webhook` | Verifies the signature (`constructEventAsync` + SubtleCrypto) and upserts the subscription status and period end on `customer.subscription.*`. |
 | cron (hourly) | An in-process test renewal for a canary account plus a Stripe reachability check. Posts to a Discord webhook on the first failure and on recovery. |
 
-D1 `srs-billing`: `accounts(id, email UNIQUE, stripe_customer_id)`, `login_codes`,
-`devices(account_id UNIQUE, device_id, session_hash)`,
+D1 `srs-billing`: `accounts(id, email UNIQUE, stripe_customer_id)`,
+`login_codes(challenge_hash UNIQUE, email, ip_bucket, code_hash, attempts, used)`,
+`sessions(session_hash PK, account_id, device_id, replaced_at)` with at most one live
+(`replaced_at IS NULL`) session per account, and (slice 2)
 `subscriptions(account_id, stripe_subscription_id, status, current_period_end)`.
+Built so far: `workers/billing/migrations/0001_sign_in.sql`.
 
 ### App module `src/lib/card-premium.ts` (deep: small surface, logic hidden)
 
@@ -142,25 +145,45 @@ writable and `isPremium = derived(… d || c)`. Every `$isPremium` reader is unc
 
 ## Slices (each is RED → GREEN, demoable, and its own small commits)
 
-1. **Sign-in round trip** (touches every layer but Stripe): app email → worker → Resend → code → app
+1. ✅ *(done 2026-10-14: demoed on live staging, codes emailed via Resend)* **Sign-in round trip** (touches every layer but Stripe): app email → worker → Resend → code → app
    shows "Signed in as x", and it survives a restart. Worker tests (Miniflare): code expiry,
    attempt cap, rate limit, always-200. App: reducer tests plus a dev-build demo against a
    **staging** worker.
-2. **Subscribe → Premium:** "Subscribe" opens test-mode Checkout; pay with 4242 → webhook → renew
+2. ✅ *(done 2026-10-14: demoed end to end with a test-mode Managed Payments Checkout)* **Subscribe → Premium:** "Subscribe" opens test-mode Checkout; pay with 4242 → webhook → renew
    returns a signed Pass → the app verifies it → `isPremium` → Premium tabs unlock. Includes the
    `discordPremium || cardPremium` merge, tested so a Discord patron is unaffected.
-3. **Not paying ends Premium:** a Stripe **test clock** advances to renewal with a declining card →
+3. ✅ *(done 2026-10-15. The test-clock demo was dropped by Joey's rule: don't re-test what's
+   Stripe's own machinery (renewals, declines, retries, the portal's card form). Our side is unit-
+   tested with a fake Stripe; the one live check was the join, our `/portal` opening Stripe's
+   Customer Portal for a Managed Payments subscription, which passed. Added beyond the plan: a
+   past_due/unpaid subscription returns `not_paid` + `paymentFailed` and `/checkout` refuses a second
+   subscription beside it ("Update card" instead of Subscribe), and a cached `active` is trusted only
+   until its `current_period_end`.)* **Not paying ends Premium:** a Stripe **test clock** advances to renewal with a declining card →
    `not_paid` (confirmed live) → Premium off. Fix the card → Premium returns by itself. Also covers
    cancel via the portal.
-4. **One device, newest wins:** sign in on a second install → the first gets `device_replaced` → "Signed
+4. ✅ *(done 2026-10-15, live-checked: the first install showed "Signed in on another computer". It now offers "Sign in again" with the email filled in.)* **One device, newest wins:** sign in on a second install → the first gets `device_replaced` → "Signed
    in on another computer".
-5. **Never lock out on our failures:** a reducer test matrix with a fake clock covering 5xx, 4xx,
+5. ✅ *(done 2026-10-15: unit-tested matrix incl. signed_out keeping the Pass until expiry. The E2E "worker stopped" run is parked; the matrix covers the same paths.)* **Never lock out on our failures:** a reducer test matrix with a fake clock covering 5xx, 4xx,
    429, timeout, garbage body, clock skew, expiry inside and past 7 days of grace, and a corrupt Pass.
    Then an E2E run with the worker stopped mid-session.
-6. **Hourly self-test + Discord alert** (cron), verified by deliberately breaking the canary on staging.
-7. **UI polish:** Sidebar/PremiumGate branches for the card route, manage-subscription and sign-out
+6. ✅ *(done 2026-10-15. Alerts go by EMAIL to ALERT_EMAIL, not Discord, on a state change only (failing / recovered); checks: database, Stripe price, webhook secret, Pass signing vs the app's public key, Resend key. Cron `17 * * * *`, migration 0003_health, `src/health.ts`.)* **Hourly self-test + alert** (cron), verified by deliberately breaking the canary on staging.
+7. ✅ *(done 2026-10-15: CardSignIn (inline Get Premium → email → code → Checkout), CardAccountPanel in the sidebar, card first on the locked screens with "or support on Patreon / Ko-fi" below.)* **UI polish:** Sidebar/PremiumGate branches for the card route, manage-subscription and sign-out
    links, short plain copy.
 8. **Go live:** live keys, production worker, a version bump, and short plain release notes.
+   ⚠ Also: Stripe **Settings → Business → Public details** (+ Branding) must say "Slippi Ranked
+   Stats"; the portal currently headlines "Joey Farah". The live Price
+   `price_1UQe5uFKmBCOtBry5x6TwzDo` exists (tax-exclusive; **kept**: Joey 2026-10-15, "$5/month" + tax at Checkout). Production needs its own
+   PASS_SIGNING_KEY pair (`src/lib/pass-key.ts` is the staging public key).
+
+**Slice 8 progress (2026-10-15):** production D1 `srs-billing` (1701bc6f-…) migrated; worker
+`https://srs-billing.joeyfarah.workers.dev` deployed with PASS_SIGNING_KEY, RESEND_API_KEY (its
+own Resend key), STRIPE_SECRET_KEY (a dedicated live key) and STRIPE_WEBHOOK_SECRET (live webhook
+`we_1UQwoJFKmBCOtBry0tTqVhQp`); production public key committed in `pass-key.ts`, which (like
+`BILLING_URL`) picks staging in dev builds and production in release builds. Done with
+`workers/billing/scripts/setup-production.mjs` + `setup-stripe.ps1 -Production` (⚠ run the
+.ps1 with `-ExecutionPolicy Bypass`; and copy each key AFTER starting the script, since copying
+the command overwrites the clipboard). `CARD_BILLING_ENABLED` is now `true`.
+Remaining: Stripe live Public details / portal check, merge to main, v1.13.0.
 
 ## What Joey has to do (I never handle secrets; he runs `! wrangler secret put …`)
 

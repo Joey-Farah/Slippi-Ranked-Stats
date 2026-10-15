@@ -10,7 +10,7 @@
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import Notes from "./components/tabs/Notes.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, discordPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
   import { getDb, getGames, getSnapshots, getSeasons, pruneUnproductiveScannedFiles } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
@@ -18,6 +18,7 @@
   import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { refreshNotes } from "./lib/notes";
+  import { initCardPremium, CARD_BILLING_ENABLED } from "./lib/card-premium";
   import { scrollAffordance } from "./lib/tab-scroll";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
@@ -138,7 +139,7 @@
     // proactively refresh a near-expired access token before the check (see discord.ts).
     const token = get(discordToken);
     if (token) verifyPatronRoleWithRetry().catch(() => {});
-    else isPremium.set(false);
+    else discordPremium.set(false);
 
     pingTelemetry("open");
 
@@ -147,6 +148,10 @@
     // render them the instant an opponent is detected, whether or not that tab was ever
     // visited. The table is tiny; this is one small query at launch.
     refreshNotes().catch(() => {});
+
+    // Card Premium (docs/plans/direct-billing.md): renews the Pass at launch. One switch
+    // (CARD_BILLING_ENABLED) turns the whole card route on or off.
+    if (CARD_BILLING_ENABLED) initCardPremium().catch((e) => console.error("card premium:", e));
 
     try {
       const update = await check();

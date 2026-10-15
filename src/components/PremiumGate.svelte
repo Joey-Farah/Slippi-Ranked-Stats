@@ -2,6 +2,8 @@
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { startDiscordAuth, verifyPatronRole } from "../lib/discord";
   import { isPremium, discordToken, discordUsername } from "../lib/store";
+  import { CARD_BILLING_ENABLED } from "../lib/card-premium";
+  import CardSignIn from "./CardSignIn.svelte";
 
   let { featureName, description }: { featureName: string; description: string } = $props();
 
@@ -25,13 +27,25 @@
 
 <div style="
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  height: 60%; min-height: 340px; gap: 0; text-align: center; padding: 32px;
+  min-height: max(340px, 60%); gap: 0; text-align: center; padding: 40px 32px;
 ">
   <div style="font-size: 32px; margin-bottom: 12px">🔒</div>
   <div style="font-size: 17px; font-weight: 700; margin-bottom: 8px">{featureName}</div>
   <div style="font-size: 13px; color: var(--muted); max-width: 360px; line-height: 1.6; margin-bottom: 24px">
     {description}
   </div>
+
+  <!-- Card first (Joey, 2026-10-15): most new players never need the Discord server. -->
+  {#if CARD_BILLING_ENABLED}
+    <div style="width:100%; max-width:280px">
+      <CardSignIn />
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; width:100%; max-width:280px; margin:16px 0 12px; color:var(--muted); font-size:11px">
+      <div style="flex:1; height:1px; background:var(--border)"></div>
+      or support on Patreon / Ko-fi
+      <div style="flex:1; height:1px; background:var(--border)"></div>
+    </div>
+  {/if}
 
   {#if !$discordToken}
     <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; max-width:280px">
