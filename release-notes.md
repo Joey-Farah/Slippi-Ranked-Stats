@@ -1,3 +1,27 @@
+## What's New in v1.13.0
+
+### 💳 Get Premium with a card
+
+You can now get Premium for **$5/month** by card, right from the app. Click **Get Premium**
+on any Premium tab or in the sidebar, enter your email and the code it sends you, and pay on
+Stripe's checkout page. Premium switches on by itself once the payment goes through. No
+Discord needed.
+
+The sidebar shows your subscription, with **Manage** to cancel or change your card, and
+**Sign out**. A card subscription works on one computer at a time; signing in on another one
+moves it there.
+
+Patreon and Ko-fi still work exactly as before.
+
+### 🎥 Overlay fixes
+
+- **The overlay always fits its OBS source.** Bigger input viewer sizes, and some layouts,
+  could spill past the edge and get cut off. The overlay now shrinks to fit instead.
+- **Per-game grades show in every mode**, ranked games included, and they stay up until the
+  next one replaces them. They now appear below the opponent line instead of covering it.
+
+---
+
 ## What's New in v1.12.3
 
 Includes everything from v1.12.2, which went out a few days ago — see below.

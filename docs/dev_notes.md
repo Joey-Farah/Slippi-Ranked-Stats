@@ -1,3 +1,22 @@
+## ⚠ SESSION HANDOFF — 2026-10-15 evening (v1.13.0 PREPARED: CARD BILLING LIVE ON PRODUCTION)
+
+`feat/card-billing` is merged into `main` and the version is **1.13.0** (release notes written).
+**Tag NOT pushed until Joey's go-ahead** — pushing `v1.13.0` triggers the release workflow.
+
+- **Production is live and verified:** worker `https://srs-billing.joeyfarah.workers.dev`, D1
+  `srs-billing`, all four secrets set, live webhook `we_1UQwoJFKmBCOtBry0tTqVhQp`. The hourly
+  self-test passes (first OK run 17:17 CDT, "recovered" email received). A real production sign-in
+  (code by email) and a live Checkout page were checked; no payment made.
+- **Release builds talk to production, dev builds to staging** (`import.meta.env.DEV` in
+  `card-premium.ts` + `pass-key.ts`). Verified in the built bundle: production URL + key only.
+- Stripe live: public business name = Joey's LLC, statement descriptor matched to the website
+  slippirankedstats.com, support email `hello@joeyfarah.dev` (Cloudflare Email Routing → Gmail).
+- ⚠ **D1 read budget:** see the "Cloudflare D1" rule in CLAUDE.md (an analysis query burned 98%
+  of the account's daily 5M reads on 2026-10-15).
+- Still open (not this release): chancesdm Discord diagnostics (self-disable 2026-10-29), the
+  Discord Re-check/launch-refresh token race, Lunar ingest (resumes 2026-10-16 11:32), the
+  banked app-rename idea.
+
 ## ⚠ SESSION HANDOFF — 2026-10-15 (CARD BILLING SLICE 3 DONE; LUNAR BENCHMARK INGEST RUNNING)
 
 **Card billing slice 3 done** (this branch, `e365ac2`): `/portal` → Stripe Customer Portal
