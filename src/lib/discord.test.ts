@@ -173,3 +173,26 @@ describe("Connect Discord finishing while the old login is being renewed", () =>
     expect(get(discordPremium)).toBe(true);
   });
 });
+
+// Patrons whose login is healthy must see no change from any of the above.
+describe("a healthy login", () => {
+  beforeEach(() => {
+    expiredLogin({ expiryKnown: false });
+    h.discord.accessTokens.add("at-1");
+  });
+
+  it("is confirmed without renewing", async () => {
+    expect(await verifyPatronRoleWithRetry()).toBe("premium");
+    expect(h.discord.refreshRequests).toBe(0);
+    expect(get(discordToken)).toBe("at-1");
+    expect(get(discordRefreshToken)).toBe("rt-1");
+  });
+
+  it("is renewed ahead of its expiry and stays Premium", async () => {
+    discordTokenExpiresAt.set(Date.now() + 60 * 60 * 1000); // inside the 1-day early-renewal window
+    expect(await verifyPatronRoleWithRetry()).toBe("premium");
+    expect(h.discord.refreshRequests).toBe(1);
+    expectStillSignedIn();
+    expect(get(discordToken)).toBe("at-2");
+  });
+});
