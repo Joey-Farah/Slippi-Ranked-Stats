@@ -12,6 +12,11 @@ const STAGING: JsonWebKey = {
 };
 
 // Written by workers/billing/scripts/setup-production.mjs, which also stores the private half.
-const PRODUCTION: JsonWebKey = {};
+const PRODUCTION: JsonWebKey = {
+  "kty": "EC",
+  "crv": "P-256",
+  "x": "bC_LMcXLECoVeF42XlD96MZcxZoC2ih89pNInMgz_p4",
+  "y": "EbDMKOs41QPzufNzalnN-u4Zfh6HWM4hP_Yhs5PUVVg"
+};
 
 export const PASS_PUBLIC_KEY: JsonWebKey = import.meta.env.DEV ? STAGING : PRODUCTION;

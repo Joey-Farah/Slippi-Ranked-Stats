@@ -15,7 +15,7 @@ STRIPE_PRICE_ID = "price_1UQe5uFKmBCOtBry5x6TwzDo"
 ALERT_EMAIL = "joeyefarah@gmail.com"
 ENVIRONMENT_NAME = "production"
 # The public key the production app ships (slice 8 generates the production pair).
-PASS_PUBLIC_KEY = ""
+PASS_PUBLIC_KEY = '{"kty":"EC","crv":"P-256","x":"bC_LMcXLECoVeF42XlD96MZcxZoC2ih89pNInMgz_p4","y":"EbDMKOs41QPzufNzalnN-u4Zfh6HWM4hP_Yhs5PUVVg"}'
 
 [triggers]
 crons = ["17 * * * *"]  # hourly, off the top of the hour
