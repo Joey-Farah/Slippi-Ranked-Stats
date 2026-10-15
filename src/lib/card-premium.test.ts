@@ -510,6 +510,8 @@ describe("when the server can't be reached", () => {
     () => new Response("<html>502</html>", { status: 502 }),
     () => Response.json({ serverNow: T0 }), // a 200 with no Pass in it
     () => Response.json({ pass: "not.a-pass", serverNow: T0 }),
+    () => new Response("rate limited", { status: 429, headers: { "retry-after": "60" } }),
+    () => Response.json({ error: "bad_request" }, { status: 400 }), // a 4xx is never a definite answer
   ];
 
   for (const [i, reply] of unreachable.entries()) {
@@ -665,5 +667,102 @@ describe("signing out on the server", () => {
     const m = await launch();
     await m.signOut();
     expect(h.requests.filter((r) => r.path === "/auth/signout")).toEqual([]);
+  });
+});
+
+describe("the server losing this computer's session (signed_out)", () => {
+  const T0 = Date.UTC(2026, 9, 14, 12);
+  const signedOutReply = async () => Response.json({ reason: "signed_out", serverNow: Date.now() });
+
+  it("keeps Premium until the Pass expires, asks to sign in again, and gives no grace after", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(T0);
+      const m = await signedIn(true); // the Pass expires at T0 + 3 days
+      h.server = signedOutReply;
+      vi.setSystemTime(T0 + 1 * DAY);
+      await m.initCardPremium();
+      expect(get(m.cardAccount)).toEqual({ kind: "sign_in_again", email: "player@example.com", premium: true });
+      expect(await premiumStores()).toEqual({ isPremium: true, cardPremium: true });
+
+      // Survives a restart (with the server unreachable, nothing changes either way).
+      h.server = () => Promise.reject(new TypeError("network down"));
+      const relaunched = await launch();
+      expect(get(relaunched.cardAccount)).toMatchObject({ kind: "sign_in_again", premium: true });
+
+      vi.setSystemTime(T0 + 3 * DAY + 1); // the Pass has expired: no 7-day grace in this state
+      const later = await launch();
+      expect(get(later.cardAccount)).toEqual({ kind: "sign_in_again", email: "player@example.com", premium: false });
+      expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is back to normal after signing in again", async () => {
+    const m = await signedIn(true);
+    h.server = signedOutReply;
+    await m.initCardPremium();
+    h.server = happyServer;
+    await m.startSignIn("player@example.com");
+    await m.confirmCode("123456");
+    expect(get(m.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" });
+    expect(JSON.parse(h.disk!).needsSignIn).toBe(false);
+  });
+
+  it("stops renewing until then: there's no session to renew with", async () => {
+    const m = await signedIn(true);
+    h.server = signedOutReply;
+    await m.initCardPremium();
+    const before = h.requests.length;
+    await m.initCardPremium();
+    expect(h.requests.length).toBe(before);
+  });
+
+  it("is cleared by signing out on purpose", async () => {
+    const m = await signedIn(true);
+    h.server = signedOutReply;
+    await m.initCardPremium();
+    await m.signOut();
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_out" });
+    expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
+  });
+});
+
+describe("a renewal that never answers", () => {
+  it("is abandoned after 15 s without touching Premium", async () => {
+    const m = await signedIn(true);
+    let aborted = false;
+    h.server = (_path, _body, signal) =>
+      new Promise((_, reject) =>
+        signal?.addEventListener("abort", () => {
+          aborted = true;
+          reject(signal.reason);
+        })
+      );
+    vi.useFakeTimers();
+    try {
+      const renewal = m.initCardPremium();
+      await vi.advanceTimersByTimeAsync(15_000);
+      await renewal;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(aborted).toBe(true);
+    expect(get(m.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" });
+  });
+});
+
+describe("a corrupted saved Pass", () => {
+  it("counts for nothing, and the next renewal puts things right", async () => {
+    await signedIn(true);
+    h.disk = JSON.stringify({ ...JSON.parse(h.disk!), pass: " garbage%%%.not-base64" });
+    h.server = () => Promise.reject(new TypeError("network down"));
+    const offline = await launch();
+    expect(get(offline.cardAccount)).toMatchObject({ kind: "signed_in" });
+
+    h.server = happyServer;
+    const online = await launch();
+    expect(get(online.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" });
   });
 });

@@ -109,6 +109,11 @@
       <div style="font-size:11px; color:var(--muted); margin-bottom:6px; line-height:1.4">
         Signed in on another computer. Sign in again to use Premium here.
       </div>
+    {:else if $cardAccount.kind === "sign_in_again"}
+      <div style="font-size:11px; color:var(--muted); margin-bottom:6px; line-height:1.4; overflow-wrap:anywhere">
+        Please sign in again as {$cardAccount.email}.
+        {#if $cardAccount.premium}Premium stays on in the meantime.{/if}
+      </div>
     {/if}
     <input
       type="email"

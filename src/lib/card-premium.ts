@@ -45,7 +45,10 @@ export type CardAccount =
   | { kind: "signed_in"; email: string; awaitingPayment?: boolean; paymentFailed?: boolean }
   | { kind: "premium"; email: string }
   /** Another computer signed in to this account; this one was signed out by it. */
-  | { kind: "replaced" };
+  | { kind: "replaced" }
+  /** The server no longer knows this computer's session (see applyReason). Premium carries on
+   *  until the Pass it already has expires; signing in again restores everything. */
+  | { kind: "sign_in_again"; email: string; premium: boolean };
 
 /** Why a sign-in step failed. Everything that isn't a definite answer is "unreachable". */
 export type SignInFailure =
@@ -75,6 +78,8 @@ interface Stored {
   serverOffsetMs: number;
   /** Set when a sign-in was ended by one on another computer. */
   replaced: boolean;
+  /** Set when the server answered signed_out for a session this computer still held. */
+  needsSignIn: boolean;
 }
 
 interface PassPayload {
@@ -136,6 +141,7 @@ export async function confirmCode(code: string): Promise<void> {
     session: reply.session,
     pass: null,
     replaced: false,
+    needsSignIn: false,
   };
   passPayload = null;
   pending = null;
@@ -205,7 +211,7 @@ export async function signOut(): Promise<void> {
   awaitingPayment = false;
   paymentFailed = false;
   passPayload = null;
-  if (stored) stored = { ...stored, email: null, session: null, pass: null, replaced: false };
+  if (stored) stored = { ...stored, email: null, session: null, pass: null, replaced: false, needsSignIn: false };
   publish();
   if (session) call("/auth/signout", { session }, {}).catch(() => {});
   if (stored) await persist();
@@ -265,8 +271,16 @@ async function applyReason(reply: Record<string, unknown>): Promise<boolean> {
       paymentFailed = false;
       publish();
       return true;
-    case "device_replaced":
     case "signed_out":
+      // Only this computer can end its own session (signOut), and a sign-in elsewhere answers
+      // device_replaced. So the server not knowing a session we still hold means the server lost
+      // it: our failure, not the player's. Decision 5: keep the Pass until it expires (no grace),
+      // and ask them to sign in again.
+      awaitingPayment = false;
+      paymentFailed = false;
+      await update({ session: null, needsSignIn: true, replaced: false });
+      return true;
+    case "device_replaced":
       passPayload = null;
       awaitingPayment = false;
       paymentFailed = false;
@@ -274,7 +288,8 @@ async function applyReason(reply: Record<string, unknown>): Promise<boolean> {
         email: null,
         session: null,
         pass: null,
-        replaced: reply.reason === "device_replaced",
+        replaced: true,
+        needsSignIn: false,
       });
       return true;
     default:
@@ -351,9 +366,11 @@ function fromBase64url(s: string): Uint8Array<ArrayBuffer> {
  * renewal returns, so a returning player doesn't see Premium blink off and on.
  */
 function isPremiumNow(s: Stored, p: PassPayload | null): boolean {
-  if (!p || !s.session) return false;
+  if (!p) return false;
   const serverNow = Date.now() + s.serverOffsetMs;
-  return serverNow - p.exp < GRACE_MS;
+  if (s.session) return serverNow - p.exp < GRACE_MS;
+  // Lost by the server (signed_out): honour the Pass to its expiry, but no grace on top.
+  return s.needsSignIn && serverNow < p.exp;
 }
 
 // ── account.db ─────────────────────────────────────────────────────────────────────────────
@@ -381,6 +398,7 @@ async function load(): Promise<Stored> {
     pass: null,
     serverOffsetMs: 0,
     replaced: false,
+    needsSignIn: false,
   };
   if (!fromDisk) await persist();
   // A stored Pass is re-checked on every launch; it counts only if its signature still holds.
@@ -409,10 +427,12 @@ function publish(): void {
           ...(awaitingPayment ? { awaitingPayment: true } : {}),
           ...(paymentFailed ? { paymentFailed: true } : {}),
         };
+  } else if (s?.needsSignIn && s.email) {
+    next = { kind: "sign_in_again", email: s.email, premium: isPremiumNow(s, passPayload) };
   } else if (s?.replaced) next = { kind: "replaced" };
   else next = { kind: "signed_out" };
   _account.set(next);
-  cardPremium.set(next.kind === "premium");
+  cardPremium.set(next.kind === "premium" || (next.kind === "sign_in_again" && next.premium));
 }
 
 function parseStored(text: string | null): Stored | null {
@@ -427,6 +447,7 @@ function parseStored(text: string | null): Stored | null {
       pass: typeof s.pass === "string" ? s.pass : null,
       serverOffsetMs: Number.isFinite(s.serverOffsetMs) ? s.serverOffsetMs : 0,
       replaced: s.replaced === true,
+      needsSignIn: s.needsSignIn === true,
     };
   } catch {
     return null;
