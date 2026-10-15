@@ -137,6 +137,7 @@ async function happyServer(path: string, body: any): Promise<Response> {
     return Response.json({ url: "https://checkout.stripe.com/c/pay/cs_test_1", serverNow });
   }
   if (path === "/portal") return Response.json({ url: "https://billing.stripe.com/p/session/test_1", serverNow });
+  if (path === "/auth/signout") return Response.json({ ok: true });
   return Response.json({ error: "not_found" }, { status: 404 });
 }
 
@@ -639,5 +640,30 @@ describe("a declined renewal", () => {
     await m.startSignIn("player@example.com");
     await m.confirmCode("123456");
     expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
+  });
+});
+
+describe("signing out on the server", () => {
+  it("ends the session there too, so it can't be renewed from a copy of account.db", async () => {
+    const m = await signedIn(true);
+    await m.signOut();
+    await vi.waitFor(() =>
+      expect(h.requests.at(-1)).toEqual({ path: "/auth/signout", body: { session: SESSION } })
+    );
+  });
+
+  it("still signs this computer out when the server can't be reached", async () => {
+    const m = await signedIn(true);
+    h.server = () => Promise.reject(new TypeError("network down"));
+    await m.signOut();
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_out" });
+    expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
+    expect(get((await launch()).cardAccount)).toEqual({ kind: "signed_out" });
+  });
+
+  it("doesn't call the server when nobody was signed in", async () => {
+    const m = await launch();
+    await m.signOut();
+    expect(h.requests.filter((r) => r.path === "/auth/signout")).toEqual([]);
   });
 });

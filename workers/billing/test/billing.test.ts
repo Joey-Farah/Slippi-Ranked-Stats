@@ -260,6 +260,49 @@ describe("renewing the Pass", () => {
   });
 });
 
+describe("one device per account, newest wins (decision 3)", () => {
+  const signOut = (session: string) => call("/auth/signout", { session });
+
+  it("moves Premium to the computer that signed in last", async () => {
+    const first = await signIn("player@example.com", "device-a");
+    await checkout(first);
+    pay();
+    expect((await renew(first)).body.pass).toBeTypeOf("string");
+
+    const second = await signIn("player@example.com", "device-b");
+    expect((await renew(second)).body.pass).toBeTypeOf("string");
+    expect((await renew(first)).body).toMatchObject({ reason: "device_replaced" });
+
+    // ...and back again: the first computer signs in anew and takes it back.
+    const third = await signIn("player@example.com", "device-a");
+    expect((await renew(third)).body.pass).toBeTypeOf("string");
+    expect((await renew(second)).body).toMatchObject({ reason: "device_replaced" });
+  });
+
+  it("signing out ends the session on the server too", async () => {
+    const session = await signIn();
+    await checkout(session);
+    pay();
+    expect(await signOut(session)).toEqual({ status: 200, body: { ok: true } });
+    expect((await renew(session)).body).toMatchObject({ reason: "signed_out" });
+    expect(await signOut(session)).toEqual({ status: 200, body: { ok: true } }); // twice is fine
+  });
+
+  it("a replaced computer signing out can't sign out the one that replaced it", async () => {
+    const first = await signIn("player@example.com", "device-a");
+    const second = await signIn("player@example.com", "device-b");
+    await signOut(first);
+    expect((await renew(first)).body).toMatchObject({ reason: "device_replaced" }); // still says why
+    await checkout(second);
+    pay();
+    expect((await renew(second)).body.pass).toBeTypeOf("string");
+  });
+
+  it("refuses a sign-out without a session", async () => {
+    expect(await signOut("")).toEqual({ status: 400, body: { error: "bad_request" } });
+  });
+});
+
 describe("managing the subscription", () => {
   const portal = (session: string) => call("/portal", { session });
 

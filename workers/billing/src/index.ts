@@ -4,7 +4,7 @@
 // that code, never the HTTP status, to decide what happened. The two GET routes are the pages
 // Stripe Checkout sends the browser back to.
 
-import { startSignIn, verifySignIn } from "./auth";
+import { signOut, startSignIn, verifySignIn } from "./auth";
 import { checkoutCancelled, checkoutDone, openPortal, portalDone, renewPass, startCheckout, stripeWebhook } from "./billing";
 import { json } from "./http";
 
@@ -13,6 +13,7 @@ type Handler = (request: Request, env: Env) => Promise<Response>;
 const ROUTES: Record<string, { method: "GET" | "POST"; handler: Handler }> = {
   "/auth/start": { method: "POST", handler: startSignIn },
   "/auth/verify": { method: "POST", handler: verifySignIn },
+  "/auth/signout": { method: "POST", handler: signOut },
   "/pass/renew": { method: "POST", handler: renewPass },
   "/checkout": { method: "POST", handler: startCheckout },
   "/portal": { method: "POST", handler: openPortal },

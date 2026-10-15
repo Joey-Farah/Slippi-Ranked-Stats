@@ -193,14 +193,21 @@ export async function manageSubscription(): Promise<void> {
   }
 }
 
-/** Also abandons a sign-in that's waiting for its code. The device id is kept. */
+/**
+ * Also abandons a sign-in that's waiting for its code. The device id is kept. Tells the worker to
+ * end the session too, best effort: this computer is signed out whether or not that call lands
+ * (offline, worker down), and a session left alive server-side is harmless, it just can't renew
+ * once another sign-in replaces it.
+ */
 export async function signOut(): Promise<void> {
+  const session = stored?.session;
   pending = null;
   awaitingPayment = false;
   paymentFailed = false;
   passPayload = null;
   if (stored) stored = { ...stored, email: null, session: null, pass: null, replaced: false };
   publish();
+  if (session) call("/auth/signout", { session }, {}).catch(() => {});
   if (stored) await persist();
 }
 

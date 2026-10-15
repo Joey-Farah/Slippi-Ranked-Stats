@@ -124,6 +124,21 @@ export async function verifySignIn(request: Request, env: Env): Promise<Response
   return json({ session, email: row.email });
 }
 
+/**
+ * Ends a session for good, so a later renewal with it answers `signed_out`. Only the holder of
+ * the session can end it. Always `{ok: true}`, whether or not the session existed: signing out
+ * twice, or after another computer replaced this one, isn't an error. A replaced session is left
+ * on record (deleting it would turn that computer's `device_replaced` into `signed_out`).
+ */
+export async function signOut(request: Request, env: Env): Promise<Response> {
+  const session = boundedString((await readJson(request))?.session, 200);
+  if (!session) return json({ error: "bad_request" }, 400);
+  await env.DB.prepare("DELETE FROM sessions WHERE session_hash = ? AND replaced_at IS NULL")
+    .bind(await sha256(session))
+    .run();
+  return json({ ok: true });
+}
+
 export async function readJson(request: Request): Promise<Record<string, unknown> | null> {
   try {
     const body = await request.json();
