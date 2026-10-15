@@ -1,5 +1,5 @@
 ---
-status: build plan APPROVED 2026-10-09; building on branch feat/card-billing — slice 1 done and demoed 2026-10-14; slice 2 done and demoed with Stripe test mode 2026-10-14; slice 3 done 2026-10-15; slice 4 next
+status: build plan APPROVED 2026-10-09; slices 1–7 done; slice 8 (go live) in progress 2026-10-15: production worker deployed with all secrets, release pending
 date: 2026-10-09
 ---
 
@@ -161,19 +161,29 @@ writable and `isPremium = derived(… d || c)`. Every `$isPremium` reader is unc
    until its `current_period_end`.)* **Not paying ends Premium:** a Stripe **test clock** advances to renewal with a declining card →
    `not_paid` (confirmed live) → Premium off. Fix the card → Premium returns by itself. Also covers
    cancel via the portal.
-4. **One device, newest wins:** sign in on a second install → the first gets `device_replaced` → "Signed
+4. ✅ *(done 2026-10-15, live-checked: the first install showed "Signed in on another computer". It now offers "Sign in again" with the email filled in.)* **One device, newest wins:** sign in on a second install → the first gets `device_replaced` → "Signed
    in on another computer".
-5. **Never lock out on our failures:** a reducer test matrix with a fake clock covering 5xx, 4xx,
+5. ✅ *(done 2026-10-15: unit-tested matrix incl. signed_out keeping the Pass until expiry. The E2E "worker stopped" run is parked; the matrix covers the same paths.)* **Never lock out on our failures:** a reducer test matrix with a fake clock covering 5xx, 4xx,
    429, timeout, garbage body, clock skew, expiry inside and past 7 days of grace, and a corrupt Pass.
    Then an E2E run with the worker stopped mid-session.
-6. **Hourly self-test + Discord alert** (cron), verified by deliberately breaking the canary on staging.
-7. **UI polish:** Sidebar/PremiumGate branches for the card route, manage-subscription and sign-out
+6. ✅ *(done 2026-10-15. Alerts go by EMAIL to ALERT_EMAIL, not Discord, on a state change only (failing / recovered); checks: database, Stripe price, webhook secret, Pass signing vs the app's public key, Resend key. Cron `17 * * * *`, migration 0003_health, `src/health.ts`.)* **Hourly self-test + alert** (cron), verified by deliberately breaking the canary on staging.
+7. ✅ *(done 2026-10-15: CardSignIn (inline Get Premium → email → code → Checkout), CardAccountPanel in the sidebar, card first on the locked screens with "or support on Patreon / Ko-fi" below.)* **UI polish:** Sidebar/PremiumGate branches for the card route, manage-subscription and sign-out
    links, short plain copy.
 8. **Go live:** live keys, production worker, a version bump, and short plain release notes.
    ⚠ Also: Stripe **Settings → Business → Public details** (+ Branding) must say "Slippi Ranked
    Stats"; the portal currently headlines "Joey Farah". The live Price
-   `price_1UQe5uFKmBCOtBry5x6TwzDo` exists (tax-exclusive; decide). Production needs its own
+   `price_1UQe5uFKmBCOtBry5x6TwzDo` exists (tax-exclusive; **kept**: Joey 2026-10-15, "$5/month" + tax at Checkout). Production needs its own
    PASS_SIGNING_KEY pair (`src/lib/pass-key.ts` is the staging public key).
+
+**Slice 8 progress (2026-10-15):** production D1 `srs-billing` (1701bc6f-…) migrated; worker
+`https://srs-billing.joeyfarah.workers.dev` deployed with PASS_SIGNING_KEY, RESEND_API_KEY (its
+own Resend key), STRIPE_SECRET_KEY (a dedicated live key) and STRIPE_WEBHOOK_SECRET (live webhook
+`we_1UQwoJFKmBCOtBry0tTqVhQp`); production public key committed in `pass-key.ts`, which (like
+`BILLING_URL`) picks staging in dev builds and production in release builds. Done with
+`workers/billing/scripts/setup-production.mjs` + `setup-stripe.ps1 -Production` (⚠ run the
+.ps1 with `-ExecutionPolicy Bypass`; and copy each key AFTER starting the script, since copying
+the command overwrites the clipboard). `CARD_BILLING_ENABLED` is now `true`.
+Remaining: Stripe live Public details / portal check, merge to main, v1.13.0.
 
 ## What Joey has to do (I never handle secrets; he runs `! wrangler secret put …`)
 
