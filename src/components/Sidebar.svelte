@@ -6,6 +6,7 @@
     connectCode, replayDirs, dateRange, DATE_RANGES,
     games, snapshots, seasons,
     isScanning, isFetchingSnapshot, scanProgress, statusMessage, sidebarOpen, isPremium,
+    discordPremium, cardPremium,
     discordToken, discordUsername, linkedCodes, displayName,
   } from "../lib/store";
   import { startDiscordAuth, verifyPatronRole, disconnectDiscord } from "../lib/discord";
@@ -19,11 +20,11 @@
   import { fetchRatingSnapshot } from "../lib/api";
   import { insertSnapshot, insertSeason, getGames, getSnapshots, getSeasons, clearScannedFiles } from "../lib/db";
   import CardAccountPanel from "./CardAccountPanel.svelte";
+  import { CARD_BILLING_ENABLED } from "../lib/card-premium";
 
   let isVerifying = $state(false);
 
   // Statically false in a production build, so the card panel below is dropped by the bundler.
-  const IS_DEV = import.meta.env.DEV;
 
   // Feedback form
   const FEEDBACK_WORKER_URL = "https://srs-feedback.joeyfarah.workers.dev";
@@ -361,7 +362,9 @@
 <!-- Premium section -->
   <div style="padding-top: 8px; border-top: 1px solid var(--border)">
 
-    {#if $isPremium}
+    <!-- The Discord block follows DISCORD Premium: a card-only subscriber must not see
+         "Connected — Premium" for a Discord account they never linked. -->
+    {#if $discordPremium}
       <!-- Patron confirmed -->
       <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#2ecc71; font-weight:600; margin-bottom:8px">
         <span>✓</span>
@@ -376,6 +379,8 @@
         {/if}
       </div>
 
+    {:else if $cardPremium}
+      <!-- Premium by card: no Discord pitch or "not a patron" warning -->
     {:else if $discordToken}
       <!-- Connected but not a patron -->
       <div style="font-size:12px; color:#e74c3c; font-weight:600; margin-bottom:4px">
@@ -502,9 +507,8 @@
       </div>
     {/if}
 
-    <!-- DEV ONLY: the card route (docs/plans/direct-billing.md). Outside the Discord branches
-         above because the two routes are independent. Dropped from production builds. -->
-    {#if IS_DEV}
+    <!-- The card route (docs/plans/direct-billing.md), independent of the Discord block above. -->
+    {#if CARD_BILLING_ENABLED}
       <CardAccountPanel />
     {/if}
   </div>

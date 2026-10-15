@@ -13,6 +13,8 @@
     loadGameStats, runGameStatsBatch, countGameStatsQueue, cancelGameGrading,
   } from "../../lib/game-grading";
   import { startDiscordAuth, verifyPatronRole } from "../../lib/discord";
+  import { CARD_BILLING_ENABLED } from "../../lib/card-premium";
+  import CardSignIn from "../CardSignIn.svelte";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { invoke } from "@tauri-apps/api/core";
   import { CHARACTERS, parseSlpFile, isLegalStage, collectSlpFiles } from "../../lib/parser";
@@ -551,8 +553,12 @@
         </div>
       </div>
 
-      <!-- Col 2: support buttons -->
+      <!-- Col 2: support buttons (card first, then Patreon / Ko-fi) -->
       <div style="display: flex; flex-direction: column; gap: 6px; flex: 0 0 190px">
+        {#if CARD_BILLING_ENABLED}
+          <CardSignIn compact />
+          <div style="font-size: 11px; color: var(--muted); text-align: center; margin: 2px 0">or</div>
+        {/if}
         <button
           type="button"
           onclick={() => openUrl(PATREON_URL)}

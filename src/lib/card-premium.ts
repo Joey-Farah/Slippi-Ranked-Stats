@@ -24,6 +24,12 @@ import { loadCardState, saveCardState } from "./db";
 import { PASS_PUBLIC_KEY } from "./pass-key";
 import { cardPremium } from "./store";
 
+/**
+ * The one switch for the whole card route: the sign-in/subscribe UI, the sidebar block and the
+ * launch renewal all check it. Dev builds only until slice 8 (go live) sets it to true.
+ */
+export const CARD_BILLING_ENABLED: boolean = import.meta.env.DEV;
+
 const BILLING_URL = "https://srs-billing-staging.joeyfarah.workers.dev";
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -37,6 +43,9 @@ const CHECKOUT_POLL_FOR_MS = 10 * 60 * 1000;
 const GRACE_MS = 7 * DAY;
 
 export type CardAccount =
+  /** account.db not read yet. The UI shows nothing card-related until it is, so a returning
+   *  subscriber doesn't see a sign-in form flash up at launch. */
+  | { kind: "loading" }
   | { kind: "signed_out" }
   | { kind: "code_sent"; email: string }
   /** awaitingPayment: a Checkout or the portal is open in the browser and we're polling for it.
@@ -90,7 +99,7 @@ interface PassPayload {
   exp: number;
 }
 
-const _account = writable<CardAccount>({ kind: "signed_out" });
+const _account = writable<CardAccount>({ kind: "loading" });
 export const cardAccount: Readable<CardAccount> = { subscribe: _account.subscribe };
 
 /** null until account.db has been read. */
@@ -106,8 +115,11 @@ let renewTimer: ReturnType<typeof setTimeout> | null = null;
 let inFlightRenew: Promise<void> | null = null;
 
 export async function initCardPremium(): Promise<void> {
-  await load();
-  publish();
+  try {
+    await load();
+  } finally {
+    publish(); // even if account.db couldn't be read: show signed out, not "loading" forever
+  }
   if (stored?.session) await renewNow();
   scheduleRenewal(RENEW_EVERY_MS);
 }
