@@ -28,3 +28,7 @@ TestingSLPFiles/
 .wrangler/
 .vercel
 .env*
+scripts/raw_stats_v3.sqlite*
+scripts/lunar_checkpoint.json
+scripts/*.zip.checkpoint.json
+scripts/lunar_*.checkpoint.json
