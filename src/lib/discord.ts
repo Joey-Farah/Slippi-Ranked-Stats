@@ -3,7 +3,7 @@ import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
 import {
-  isPremium,
+  discordPremium,
   isOwner,
   discordToken,
   discordUsername,
@@ -182,7 +182,7 @@ export type VerifyResult = "premium" | "no_role" | "no_token" | "auth_invalid" |
  * which uses a bot token (server-side) to look up the user's roles in the SRS
  * guild. Also refreshes the stored username.
  *
- * Only flips `isPremium` on a definitive response. Transient failures
+ * Only flips `discordPremium` on a definitive response. Transient failures
  * (5xx/429/network) leave the prior value alone so a Discord hiccup can't
  * silently downgrade an existing patron.
  */
@@ -235,16 +235,16 @@ export async function verifyPatronRole(
 
   switch (data.reason) {
     case "premium":
-      isPremium.set(true);
+      discordPremium.set(true);
       pingTelemetry("premium");
       return "premium";
 
     case "no_role":
-      isPremium.set(false);
+      discordPremium.set(false);
       return "no_role";
 
     case "not_in_guild":
-      isPremium.set(false);
+      discordPremium.set(false);
       return "auth_invalid";
 
     case "auth_invalid":
@@ -261,7 +261,7 @@ export async function verifyPatronRole(
       discordRefreshToken.set(null);
       discordTokenExpiresAt.set(null);
       discordUsername.set(null);
-      isPremium.set(false);
+      discordPremium.set(false);
       return "auth_invalid";
 
     default:
@@ -307,5 +307,5 @@ export async function disconnectDiscord(): Promise<void> {
   discordRefreshToken.set(null);
   discordTokenExpiresAt.set(null);
   discordUsername.set(null);
-  isPremium.set(false);
+  discordPremium.set(false);
 }

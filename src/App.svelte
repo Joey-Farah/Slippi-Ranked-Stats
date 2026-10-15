@@ -10,7 +10,7 @@
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import Notes from "./components/tabs/Notes.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, discordPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
   import { getDb, getGames, getSnapshots, getSeasons, pruneUnproductiveScannedFiles } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
@@ -139,7 +139,7 @@
     // proactively refresh a near-expired access token before the check (see discord.ts).
     const token = get(discordToken);
     if (token) verifyPatronRoleWithRetry().catch(() => {});
-    else isPremium.set(false);
+    else discordPremium.set(false);
 
     pingTelemetry("open");
 

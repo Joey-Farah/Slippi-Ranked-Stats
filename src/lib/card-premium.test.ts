@@ -1,5 +1,19 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
+
+// card-premium.ts feeds store.ts, which reads localStorage at module load; vitest runs in node,
+// which has none. Same in-memory stub as live-record.test.ts.
+beforeAll(() => {
+  if (typeof globalThis.localStorage === "undefined") {
+    const mem = new Map<string, string>();
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => void mem.set(k, v),
+      removeItem: (k: string) => void mem.delete(k),
+      clear: () => mem.clear(),
+    };
+  }
+});
 
 // card-premium.ts is tested through its public surface. Its two edges are faked: the network
 // (Tauri's fetch, answered by `h.server`) and the disk (account.db, held in `h.disk`). A
@@ -12,7 +26,20 @@ const h = vi.hoisted(() => ({
   requests: [] as { path: string; body: any }[],
   server: (_path: string, _body: any, _signal?: AbortSignal): Response | Promise<Response> =>
     Response.json({ error: "not_found" }, { status: 404 }),
+  /** URLs handed to the browser. */
+  opened: [] as string[],
 }));
+
+// The fake worker signs Passes with its own throwaway key pair; the app is given the public half.
+const keys = await vi.hoisted(async () => {
+  const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+    "sign",
+    "verify",
+  ])) as CryptoKeyPair;
+  return { privateKey: pair.privateKey, publicJwk: await crypto.subtle.exportKey("jwk", pair.publicKey) };
+});
+
+vi.mock("./pass-key", () => ({ PASS_PUBLIC_KEY: keys.publicJwk }));
 
 vi.mock("@tauri-apps/plugin-http", () => ({
   fetch: async (url: string, init: RequestInit) => {
@@ -20,6 +47,12 @@ vi.mock("@tauri-apps/plugin-http", () => ({
     const body = JSON.parse(String(init.body));
     h.requests.push({ path, body });
     return h.server(path, body, init.signal ?? undefined);
+  },
+}));
+
+vi.mock("@tauri-apps/plugin-shell", () => ({
+  open: async (url: string) => {
+    h.opened.push(url);
   },
 }));
 
@@ -47,25 +80,70 @@ async function launch(): Promise<CardModule> {
 const SESSION = "s".repeat(43);
 
 const CHALLENGE = "c".repeat(43);
+const DAY = 24 * 60 * 60 * 1000;
 
-/** A worker that hands out CHALLENGE and accepts code 123456 with it. */
-function happyServer(path: string, body: any): Response {
+/** The fake worker's view of the world. */
+const world = {
+  /** Whether the account's subscription is active. */
+  paid: false,
+  /** The device the server currently has signed in. */
+  deviceId: "",
+  /** How far the server's clock is ahead of the (possibly faked) local one. */
+  serverAheadMs: 0,
+};
+
+function b64url(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** A Pass signed exactly as the worker signs one. */
+async function signPass(payload: object): Promise<string> {
+  const body = b64url(new TextEncoder().encode(JSON.stringify(payload)));
+  const sig = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    keys.privateKey,
+    new TextEncoder().encode(body)
+  );
+  return `${body}.${b64url(new Uint8Array(sig))}`;
+}
+
+/** A worker that hands out CHALLENGE, accepts code 123456 with it, and renews per `world`. */
+async function happyServer(path: string, body: any): Promise<Response> {
   if (path === "/auth/start") return Response.json({ ok: true, challenge: CHALLENGE });
   if (path === "/auth/verify") {
     if (body.challenge !== CHALLENGE) return Response.json({ error: "code_expired" }, { status: 400 });
-    return body.code === "123456"
-      ? Response.json({ session: SESSION, email: "player@example.com" })
-      : Response.json({ error: "wrong_code" }, { status: 400 });
+    if (body.code !== "123456") return Response.json({ error: "wrong_code" }, { status: 400 });
+    world.deviceId = body.deviceId;
+    return Response.json({ session: SESSION, email: "player@example.com" });
   }
+  const serverNow = Date.now() + world.serverAheadMs;
+  if (path === "/pass/renew") {
+    if (!world.paid) return Response.json({ reason: "not_paid", serverNow });
+    const pass = await signPass({
+      v: 1,
+      email: "player@example.com",
+      deviceId: world.deviceId,
+      iat: serverNow,
+      exp: serverNow + 3 * DAY,
+    });
+    return Response.json({ pass, serverNow });
+  }
+  if (path === "/checkout") return Response.json({ url: "https://checkout.stripe.com/c/pay/cs_test_1", serverNow });
   return Response.json({ error: "not_found" }, { status: 404 });
 }
+
+const verifyRequest = () => h.requests.filter((r) => r.path === "/auth/verify").at(-1);
 
 beforeEach(() => {
   h.disk = null;
   h.loadFailures = 0;
   h.saveFailures = 0;
   h.requests = [];
+  h.opened = [];
   h.server = happyServer;
+  world.paid = false;
+  world.deviceId = "";
+  world.serverAheadMs = 0;
 });
 
 describe("signing in", () => {
@@ -88,7 +166,7 @@ describe("signing in", () => {
     const m = await launch();
     await m.startSignIn("player@example.com");
     await m.confirmCode("123456");
-    expect(h.requests.at(-1)).toEqual({
+    expect(verifyRequest()).toEqual({
       path: "/auth/verify",
       body: { challenge: CHALLENGE, code: "123456", deviceId: expect.any(String) },
     });
@@ -215,7 +293,7 @@ describe("when a step fails", () => {
       timeout.mockRestore();
       vi.useRealTimers();
     }
-    expect(signals).toHaveLength(2);
+    expect(signals).toHaveLength(3); // start, verify, and the renewal right after
     expect(signals.every((s) => !s.aborted)).toBe(true);
   });
 });
@@ -226,7 +304,7 @@ describe("when account.db misbehaves", () => {
     const m = await launch();
     await m.startSignIn("player@example.com");
     await m.confirmCode("123456");
-    expect(h.requests.at(-1)!.body.deviceId).toMatch(/^\S{16,}$/);
+    expect(verifyRequest()!.body.deviceId).toMatch(/^\S{16,}$/);
   });
 
   it("says so when it can't be read at all", async () => {
@@ -273,6 +351,224 @@ describe("a damaged account.db", () => {
       const m = await launch();
       expect(get(m.cardAccount)).toEqual({ kind: "signed_out" });
       expect(JSON.parse(h.disk!).deviceId).toMatch(/^\S{16,}$/);
+    }
+  });
+});
+
+/** Signed in, with or without a paid subscription. */
+async function signedIn(paid = false): Promise<CardModule> {
+  world.paid = paid;
+  const m = await launch();
+  await m.startSignIn("player@example.com");
+  await m.confirmCode("123456");
+  return m;
+}
+
+async function premiumStores() {
+  const store = await import("./store");
+  return { isPremium: get(store.isPremium), cardPremium: get(store.cardPremium) };
+}
+
+const renewCount = () => h.requests.filter((r) => r.path === "/pass/renew").length;
+
+describe("Premium by card", () => {
+  it("switches on at sign-in for someone who already pays", async () => {
+    const m = await signedIn(true);
+    expect(get(m.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" });
+    expect(await premiumStores()).toEqual({ isPremium: true, cardPremium: true });
+  });
+
+  it("stays off for someone signed in who hasn't paid", async () => {
+    const m = await signedIn(false);
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
+    expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
+  });
+
+  it("subscribing opens Checkout, then switches on by itself once the payment lands", async () => {
+    const m = await signedIn(false);
+    vi.useFakeTimers();
+    try {
+      await m.subscribe();
+      expect(h.opened).toEqual(["https://checkout.stripe.com/c/pay/cs_test_1"]);
+      expect(get(m.cardAccount)).toMatchObject({ kind: "signed_in", awaitingPayment: true });
+
+      await vi.advanceTimersByTimeAsync(9_000); // still paying
+      expect(get(m.cardAccount)).toMatchObject({ kind: "signed_in", awaitingPayment: true });
+
+      world.paid = true;
+      await vi.advanceTimersByTimeAsync(3_000);
+      // Signing and checking the Pass is real WebCrypto, which settles on its own thread rather
+      // than on the fake clock, so wait for the poll's renewal to land.
+      await vi.waitFor(() =>
+        expect(get(m.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" })
+      );
+      expect(renewCount()).toBeLessThanOrEqual(6); // polled every 3s, not in a tight loop
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops waiting for a payment after 10 minutes", async () => {
+    const m = await signedIn(false);
+    vi.useFakeTimers();
+    try {
+      await m.subscribe();
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 3_000);
+      expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
+      const after = renewCount();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(renewCount()).toBe(after);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("doesn't open Checkout for someone already paying", async () => {
+    const m = await signedIn(false);
+    world.paid = true;
+    h.server = async (path, body) =>
+      path === "/checkout"
+        ? Response.json({ alreadyPremium: true, serverNow: Date.now() })
+        : happyServer(path, body);
+    await m.subscribe();
+    expect(h.opened).toEqual([]);
+    expect(get(m.cardAccount)).toMatchObject({ kind: "premium" });
+  });
+
+  it("is still on after a restart, even with the server down at launch", async () => {
+    await signedIn(true);
+    h.server = () => Promise.reject(new TypeError("network down"));
+    const m = await launch();
+    expect(get(m.cardAccount)).toEqual({ kind: "premium", email: "player@example.com" });
+  });
+
+  it("can't be granted by editing the stored Pass", async () => {
+    await signedIn(true);
+    const disk = JSON.parse(h.disk!);
+    const sig = disk.pass.split(".")[1];
+    const payload = { v: 1, email: "player@example.com", deviceId: disk.deviceId, iat: 0, exp: Date.now() + 365 * DAY };
+    const forged = b64url(new TextEncoder().encode(JSON.stringify(payload)));
+    h.disk = JSON.stringify({ ...disk, pass: forged + "." + sig });
+    h.server = () => Promise.reject(new TypeError("network down"));
+    expect(get((await launch()).cardAccount)).toMatchObject({ kind: "signed_in" });
+  });
+
+  it("won't accept a Pass issued to another device", async () => {
+    const m = await signedIn(false);
+    world.paid = true;
+    world.deviceId = "someone-elses-device";
+    await m.initCardPremium();
+    expect(get(m.cardAccount)).toMatchObject({ kind: "signed_in" });
+  });
+
+  it("switches off when the server says the subscription isn't paid", async () => {
+    const m = await signedIn(true);
+    world.paid = false;
+    await m.initCardPremium();
+    expect(get(m.cardAccount)).toEqual({ kind: "signed_in", email: "player@example.com" });
+    expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
+  });
+
+  it("signs out, saying why, when another computer signs in to the account", async () => {
+    const m = await signedIn(true);
+    h.server = async () => Response.json({ reason: "device_replaced", serverNow: Date.now() });
+    await m.initCardPremium();
+    expect(get(m.cardAccount)).toEqual({ kind: "replaced" });
+    expect(await premiumStores()).toEqual({ isPremium: false, cardPremium: false });
+    expect(get((await launch()).cardAccount)).toEqual({ kind: "replaced" });
+  });
+
+  it("renews every 6 hours while the app is open", async () => {
+    const m = await signedIn(true);
+    vi.useFakeTimers();
+    try {
+      await m.initCardPremium();
+      const before = renewCount();
+      await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
+      expect(renewCount()).toBe(before + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("when the server can't be reached", () => {
+  const T0 = Date.UTC(2026, 9, 14, 12);
+  const unreachable: (() => Response | Promise<Response>)[] = [
+    () => Promise.reject(new TypeError("network down")),
+    () => Response.json({ error: "stripe_unreachable" }, { status: 503 }),
+    () => new Response("<html>502</html>", { status: 502 }),
+    () => Response.json({ serverNow: T0 }), // a 200 with no Pass in it
+    () => Response.json({ pass: "not.a-pass", serverNow: T0 }),
+  ];
+
+  for (const [i, reply] of unreachable.entries()) {
+    it("keeps Premium through 7 days of grace past the Pass's expiry, failure " + (i + 1), async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(T0);
+        const m = await signedIn(true); // the Pass expires at T0 + 3 days
+        h.server = reply;
+
+        vi.setSystemTime(T0 + 3 * DAY + 6 * DAY);
+        await m.initCardPremium();
+        expect(get(m.cardAccount), "6 days into grace").toMatchObject({ kind: "premium" });
+
+        vi.setSystemTime(T0 + 3 * DAY + 7 * DAY + 1);
+        await m.initCardPremium();
+        expect(get(m.cardAccount), "grace over").toMatchObject({ kind: "signed_in" });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
+
+  it("gives no grace once the server has said the subscription ended", async () => {
+    const m = await signedIn(true);
+    world.paid = false;
+    await m.initCardPremium(); // definite: not_paid
+    h.server = () => Promise.reject(new TypeError("network down"));
+    await m.initCardPremium();
+    expect(get(m.cardAccount)).toMatchObject({ kind: "signed_in" });
+  });
+});
+
+describe("a wrong PC clock", () => {
+  it("can't expire a valid Pass early", async () => {
+    const T0 = Date.UTC(2026, 9, 14, 12);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(T0 + 5 * DAY); // this PC thinks it's 5 days later than it is
+      world.serverAheadMs = -5 * DAY;
+      const m = await signedIn(true);
+      h.server = () => Promise.reject(new TypeError("network down"));
+      await m.initCardPremium();
+      expect(get(m.cardAccount)).toMatchObject({ kind: "premium" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("alongside the Discord route", () => {
+  it("leaves a Discord patron Premium whatever the card side says", async () => {
+    await signedIn(false);
+    const store = await import("./store");
+    store.discordPremium.set(true);
+    expect(get(store.isPremium)).toBe(true);
+    store.discordPremium.set(false);
+    expect(get(store.isPremium)).toBe(false);
+  });
+
+  it("keeps Discord Premium under its old storage key, so no patron loses it on update", async () => {
+    localStorage.setItem("srs_isPremium", "true");
+    try {
+      vi.resetModules();
+      const store = await import("./store");
+      expect(get(store.discordPremium)).toBe(true);
+      expect(get(store.isPremium)).toBe(true);
+    } finally {
+      localStorage.removeItem("srs_isPremium");
     }
   });
 });

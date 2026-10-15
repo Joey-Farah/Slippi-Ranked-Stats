@@ -6,6 +6,7 @@
     cardAccount,
     startSignIn,
     confirmCode,
+    subscribe,
     signOut,
     SignInError,
     type SignInFailure,
@@ -41,6 +42,7 @@
 
   const sendCode = () => email.trim() && run(() => startSignIn(email));
   const submitCode = () => code.trim() && run(() => confirmCode(code));
+  const startSubscribe = () => run(subscribe);
 </script>
 
 <div style="margin-top:10px; padding:8px; border:1px dashed var(--accent); border-radius:6px">
@@ -48,10 +50,26 @@
     DEV · CARD PREMIUM
   </div>
 
-  {#if $cardAccount.kind === "signed_in"}
+  {#if $cardAccount.kind === "premium"}
+    <div style="font-size:12px; margin-bottom:2px; color:var(--accent); font-weight:700">✓ Premium</div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:6px; overflow-wrap:anywhere">
+      {$cardAccount.email}
+    </div>
+    <button class="btn btn-secondary" style="width:100%; font-size:11px" disabled={busy}
+      onclick={() => run(signOut)}>Sign out</button>
+
+  {:else if $cardAccount.kind === "signed_in"}
     <div style="font-size:12px; margin-bottom:6px; overflow-wrap:anywhere">
       Signed in as {$cardAccount.email}
     </div>
+    {#if $cardAccount.awaitingPayment}
+      <div style="font-size:11px; color:var(--muted); margin-bottom:6px; line-height:1.4">
+        Finish checking out in your browser. Premium switches on here by itself.
+      </div>
+    {:else}
+      <button class="btn btn-primary" style="width:100%; font-size:11px; margin-bottom:6px" disabled={busy}
+        onclick={startSubscribe}>Subscribe · $5/month</button>
+    {/if}
     <button class="btn btn-secondary" style="width:100%; font-size:11px" disabled={busy}
       onclick={() => run(signOut)}>Sign out</button>
 
@@ -77,6 +95,11 @@
     </div>
 
   {:else}
+    {#if $cardAccount.kind === "replaced"}
+      <div style="font-size:11px; color:var(--muted); margin-bottom:6px; line-height:1.4">
+        Signed in on another computer. Sign in again to use Premium here.
+      </div>
+    {/if}
     <input
       type="email"
       placeholder="you@example.com"

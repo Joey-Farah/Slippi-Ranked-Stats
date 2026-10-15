@@ -126,7 +126,14 @@ export const uiZoom = persisted<number>("srs_uiZoom", 1);
 // (the pre-toggle behaviour), but it runs right through the rating line and sometimes you just
 // want to read the rating itself — so it's persisted rather than reset every launch.
 export const showRatingAvg = persisted<boolean>("srs_showRatingAvg", true);
-export const isPremium = persisted<boolean>("srs_isPremium", false);
+// Premium comes by either of two routes that never interact (docs/plans/direct-billing.md,
+// decision 10): the Discord patron role, and a card subscription's Pass. `discordPremium` keeps
+// the old `srs_isPremium` key, so existing patrons need no migration. Only discord.ts and
+// App.svelte write it; only card-premium.ts writes `cardPremium` (never persisted: it's
+// recomputed from account.db every launch). Everything else reads `isPremium`.
+export const discordPremium = persisted<boolean>("srs_isPremium", false);
+export const cardPremium = writable<boolean>(false);
+export const isPremium = derived([discordPremium, cardPremium], ([d, c]) => d || c);
 
 // Live Ranked Stats overlay (premium): the unified always-on OBS Browser Source showing
 // tag / rank / MMR / global placement / season + today's record, plus a post-set bridge
