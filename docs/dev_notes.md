@@ -26,8 +26,29 @@ Joey signed in through the dev app with a code that arrived in his Gmail inbox (
 - The in-app check can be driven headlessly: launch `npm run tauri dev` with
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` and talk CDP to the page.
 
-Next: **slice 2** (Subscribe → Premium). Needs from Joey: Stripe test mode with Managed Payments
-activated + the $5/month product, then the Stripe secrets on staging.
+**Slice 2 (Subscribe → Premium) code DONE the same night, deployed to staging, NOT yet demoed** —
+blocked only on Joey's Stripe setup. Worker: `/pass/renew`, `/checkout`, `/stripe/webhook`,
+`GET /checkout/done|cancelled`, migration `0002_subscriptions.sql` (applied remotely). Stripe is
+called over plain fetch (no SDK), API version pinned `2025-03-31.basil`, Checkout uses
+`managed_payments[enabled]=true` + the account's own Stripe customer (both confirmed in Stripe's
+docs). App: Pass verified with WebCrypto against `src/lib/pass-key.ts` (⚠ the STAGING public key;
+slice 8 needs its own production pair), `isPremium = discordPremium || cardPremium`
+(`discordPremium` keeps `srs_isPremium`). `PASS_SIGNING_KEY` is set on staging (generated and
+piped straight in, never printed). Grace needs no "unreachable" flag: definite answers delete the
+Pass, so an expired Pass still on disk already means "no answer since".
+
+**To demo slice 2, Joey needs to (Stripe dashboard, TEST mode):**
+1. Settings → Managed Payments: activate it and accept the terms.
+2. Product catalog → create "Slippi Ranked Stats Premium", $5.00 USD monthly, with a tax code
+   labelled "Eligible for Managed Payments". Copy the **price id** (`price_…`) into
+   `STRIPE_PRICE_ID` under `[env.staging.vars]` in `workers/billing/wrangler.toml`.
+3. Developers → Webhooks → add endpoint
+   `https://srs-billing-staging.joeyfarah.workers.dev/stripe/webhook` with the five
+   `customer.subscription.*` events (created/updated/deleted/paused/resumed).
+4. Secrets (from a real terminal, or piped from the clipboard): `STRIPE_SECRET_KEY` (the test
+   `sk_test_…`) and `STRIPE_WEBHOOK_SECRET` (the endpoint's `whsec_…`), both `--env staging`.
+Then redeploy, and in `npm run tauri dev`: sign in → Subscribe → pay with 4242 4242 4242 4242 →
+the panel flips to "✓ Premium" and the Premium tabs unlock.
 
 ## SESSION HANDOFF — 2026-10-14 (CARD BILLING SLICE 1: SIGN-IN — CODE DONE; superseded by the evening banner above)
 

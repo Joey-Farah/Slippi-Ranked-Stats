@@ -1,5 +1,5 @@
 ---
-status: build plan APPROVED 2026-10-09; building on branch feat/card-billing — slice 1 done and demoed on staging with real email 2026-10-14; slice 2 next
+status: build plan APPROVED 2026-10-09; building on branch feat/card-billing — slice 1 done and demoed 2026-10-14; slice 2 code done and on staging 2026-10-14, demo waits on Stripe test-mode setup
 date: 2026-10-09
 ---
 
@@ -149,7 +149,7 @@ writable and `isPremium = derived(… d || c)`. Every `$isPremium` reader is unc
    shows "Signed in as x", and it survives a restart. Worker tests (Miniflare): code expiry,
    attempt cap, rate limit, always-200. App: reducer tests plus a dev-build demo against a
    **staging** worker.
-2. **Subscribe → Premium:** "Subscribe" opens test-mode Checkout; pay with 4242 → webhook → renew
+2. 🟡 *(code done + on staging 2026-10-14; demo waits on Stripe setup, see `dev_notes.md`)* **Subscribe → Premium:** "Subscribe" opens test-mode Checkout; pay with 4242 → webhook → renew
    returns a signed Pass → the app verifies it → `isPremium` → Premium tabs unlock. Includes the
    `discordPremium || cardPremium` merge, tested so a Discord patron is unaffected.
 3. **Not paying ends Premium:** a Stripe **test clock** advances to renewal with a declining card →
