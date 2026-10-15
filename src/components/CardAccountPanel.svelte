@@ -32,7 +32,7 @@
 {#if $cardAccount.kind === "loading"}
   <!-- reading account.db -->
 {:else if subscriber}
-  <div style="margin-top:10px">
+  <div style="margin-bottom:12px">
     <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#2ecc71; font-weight:600; margin-bottom:2px">
       <span>✓</span><span>Premium · card</span>
     </div>
@@ -54,12 +54,18 @@
     {/if}
   </div>
 {:else if !$isPremium}
-  <div style="margin-top:10px">
+  <div style="margin-bottom:12px">
     <CardSignIn compact />
+  </div>
+  <!-- Same divider as the locked screens: the Discord route's pitch follows in the sidebar. -->
+  <div style="display:flex; align-items:center; gap:8px; margin:0 0 12px; color:var(--muted); font-size:10px">
+    <div style="flex:1; height:1px; background:var(--border)"></div>
+    or support on Patreon / Ko-fi
+    <div style="flex:1; height:1px; background:var(--border)"></div>
   </div>
 {:else if $cardAccount.kind === "signed_in"}
   <!-- Premium through Discord, and also signed in to a card account that isn't paying. -->
-  <div style="margin-top:10px; font-size:11px; color:var(--muted); overflow-wrap:anywhere">
+  <div style="margin-bottom:12px; font-size:11px; color:var(--muted); overflow-wrap:anywhere">
     Card account: {$cardAccount.email} ·
     <button disabled={busy} onclick={() => run(signOut)}
       style="background:none;border:none;padding:0;color:var(--muted);font-size:inherit;cursor:pointer;text-decoration:underline;font-family:inherit">Sign out</button>

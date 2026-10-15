@@ -362,6 +362,11 @@
 <!-- Premium section -->
   <div style="padding-top: 8px; border-top: 1px solid var(--border)">
 
+    <!-- The card route first, matching the locked screens (docs/plans/direct-billing.md). -->
+    {#if CARD_BILLING_ENABLED}
+      <CardAccountPanel />
+    {/if}
+
     <!-- The Discord block follows DISCORD Premium: a card-only subscriber must not see
          "Connected — Premium" for a Discord account they never linked. -->
     {#if $discordPremium}
@@ -505,11 +510,6 @@
           </div>
         </div>
       </div>
-    {/if}
-
-    <!-- The card route (docs/plans/direct-billing.md), independent of the Discord block above. -->
-    {#if CARD_BILLING_ENABLED}
-      <CardAccountPanel />
     {/if}
   </div>
 
