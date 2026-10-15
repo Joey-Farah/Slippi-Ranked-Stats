@@ -1,5 +1,6 @@
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import worker from "../src/index";
 
 // Stripe and Resend are both faked at the fetch boundary. The fake Stripe holds customers and
 // subscriptions in memory; a test "pays" by putting an active subscription there, exactly what
@@ -294,6 +295,24 @@ describe("the Stripe webhook", () => {
   it("acknowledges events it doesn't act on, so Stripe stops retrying them", async () => {
     const res = await webhook("invoice.paid", { id: "in_1", customer: "cus_x", status: "paid", items: { data: [] } });
     expect(res).toEqual({ status: 200, body: { received: true } });
+  });
+});
+
+describe("a secret saved with a byte-order mark in front", () => {
+  // Windows PowerShell adds one when it pipes text into `wrangler secret put`. Sent as is, the
+  // key is rejected, and the runtime logs the whole Authorization header, key and all.
+  it("is sent to Stripe without it", async () => {
+    const session = await signIn();
+    const bomEnv = { ...env, STRIPE_SECRET_KEY: "﻿sk_test_fake\r\n" };
+    const res = await worker.fetch(
+      new Request(`${ORIGIN}/checkout`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ session }),
+      }),
+      bomEnv,
+    );
+    expect(res.status).toBe(200); // the fake Stripe asserts the header is exactly "Bearer sk_test_fake"
   });
 });
 

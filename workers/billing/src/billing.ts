@@ -7,7 +7,7 @@
 // which the app treats as "couldn't reach the server" and keeps its Pass.
 
 import { boundedString, readJson, sha256 } from "./auth";
-import { json } from "./http";
+import { json, secret } from "./http";
 import { PASS_TTL_MS, signPass } from "./pass";
 import { periodEndMs, stripeRequest, verifyWebhookSignature, type StripeSubscription } from "./stripe";
 
@@ -184,7 +184,7 @@ const SUBSCRIPTION_EVENTS = new Set([
 
 export async function stripeWebhook(request: Request, env: Env): Promise<Response> {
   const body = await request.text();
-  const ok = await verifyWebhookSignature(body, request.headers.get("stripe-signature"), env.STRIPE_WEBHOOK_SECRET);
+  const ok = await verifyWebhookSignature(body, request.headers.get("stripe-signature"), secret(env.STRIPE_WEBHOOK_SECRET));
   if (!ok) return json({ error: "bad_signature" }, 400);
 
   let event: { type?: string; created?: number; data?: { object?: StripeSubscription } };

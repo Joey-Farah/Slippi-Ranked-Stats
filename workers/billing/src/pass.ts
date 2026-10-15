@@ -4,6 +4,8 @@
 // The app holds only the public key and checks the signature with WebCrypto, so editing a
 // stored Pass can't grant Premium. The private key is the PASS_SIGNING_KEY secret, a JWK.
 
+import { secret } from "./http";
+
 export const PASS_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 export interface PassPayload {
@@ -19,15 +21,16 @@ export interface PassPayload {
 let cachedKey: { jwk: string; key: CryptoKey } | null = null;
 
 async function signingKey(env: Env): Promise<CryptoKey> {
-  if (cachedKey?.jwk === env.PASS_SIGNING_KEY) return cachedKey.key;
+  const jwk = secret(env.PASS_SIGNING_KEY);
+  if (cachedKey?.jwk === jwk) return cachedKey.key;
   const key = await crypto.subtle.importKey(
     "jwk",
-    JSON.parse(env.PASS_SIGNING_KEY),
+    JSON.parse(jwk),
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["sign"],
   );
-  cachedKey = { jwk: env.PASS_SIGNING_KEY, key };
+  cachedKey = { jwk, key };
   return key;
 }
 

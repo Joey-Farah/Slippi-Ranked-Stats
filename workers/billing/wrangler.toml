@@ -29,7 +29,7 @@ name = "srs-billing-staging"
 EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
 ALLOW_LOGGED_CODES = "1"
 # The test-mode $5/month Price.
-STRIPE_PRICE_ID = "price_REPLACE_WITH_TEST_PRICE"
+STRIPE_PRICE_ID = "price_1UQe5uFKmBCOtBry5x6TwzDo"
 
 [[env.staging.d1_databases]]
 binding = "DB"

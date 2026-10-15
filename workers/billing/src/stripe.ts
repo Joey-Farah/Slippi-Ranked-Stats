@@ -1,6 +1,8 @@
 // The few Stripe calls the worker makes, over plain fetch: no SDK, so the worker has no runtime
 // dependencies and tests fake Stripe at the same fetch boundary as Resend.
 
+import { secret } from "./http";
+
 // Managed Payments needs 2025-03-31.basil or later. Pinned so a dashboard default can't change
 // response shapes under us.
 const STRIPE_VERSION = "2025-03-31.basil";
@@ -25,7 +27,7 @@ export async function stripeRequest<T>(
   const form = formEncode(params);
   const url = `https://api.stripe.com/v1${path}` + (method === "GET" && form ? `?${form}` : "");
   const headers: Record<string, string> = {
-    authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+    authorization: `Bearer ${secret(env.STRIPE_SECRET_KEY)}`,
     "stripe-version": STRIPE_VERSION,
   };
   if (method === "POST") headers["content-type"] = "application/x-www-form-urlencoded";
