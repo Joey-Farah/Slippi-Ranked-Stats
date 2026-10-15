@@ -26,8 +26,30 @@ Joey signed in through the dev app with a code that arrived in his Gmail inbox (
 - The in-app check can be driven headlessly: launch `npm run tauri dev` with
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` and talk CDP to the page.
 
-**Slice 2 (Subscribe → Premium) code DONE the same night, deployed to staging, NOT yet demoed** —
-blocked only on Joey's Stripe setup. Worker: `/pass/renew`, `/checkout`, `/stripe/webhook`,
+**Slice 2 (Subscribe → Premium) DONE and DEMOED end to end the same night (21:27):** dev app →
+Subscribe → test-mode Managed Payments Checkout (4242 card) → app flipped to "✓ Premium" by
+polling, `/checkout/done` page shown, and the signed webhook recorded the subscription as
+`active` in staging D1. That also proves PASS_SIGNING_KEY matches `src/lib/pass-key.ts`.
+Stripe test setup that exists now: Managed Payments activated; test product "SRS Premium Access"
+(tax code SaaS – personal use) with price `price_1UQeJ3FKmBCOtBrybTSdtSvc` (in wrangler.toml);
+webhook `we_1UQeHJFKmBCOtBrymOOvppke`; both Stripe secrets on staging. ⚠ A LIVE product + price
+`price_1UQe5uFKmBCOtBry5x6TwzDo` also got created by accident ("Include tax in price: No") — noted
+in wrangler.toml for slice 8; decide the tax choice there. ⚠ **Every Stripe product needs a tax
+code under Managed Payments**, in test mode too, or Checkout 400s ("product tax code is missing").
+
+⚠ **Incident, contained:** the first `sk_test_` key was stored with a BOM (Windows PowerShell
+prepends U+FEFF when piping to a program), Stripe rejected it, and the Workers runtime logged the
+WHOLE Authorization header as a non-ASCII warning — key in the `wrangler tail` output. Test key,
+no money at risk; Joey ROLLED it (expire now). Fixed twice: every worker secret goes through
+`secret()` (src/http.ts, trims incl. U+FEFF, with a test that fails without it), and
+`workers/billing/scripts/setup-stripe.ps1` sets BOTH `[Console]::InputEncoding` and
+`$OutputEncoding` to BOM-less UTF-8 (`$OutputEncoding` alone still emits the BOM — measured).
+The script waits for an `sk_test_`/`sk_live_` key to appear on the clipboard, creates the webhook
+via the API, stores both secrets unprinted, clears the clipboard; `-Replace` recreates an
+existing webhook, `-Production` targets the live worker. Also: paths in `!` commands must use
+forward slashes — the `!` prompt is bash and eats backslashes.
+
+Original slice-2 build notes: Worker: `/pass/renew`, `/checkout`, `/stripe/webhook`,
 `GET /checkout/done|cancelled`, migration `0002_subscriptions.sql` (applied remotely). Stripe is
 called over plain fetch (no SDK), API version pinned `2025-03-31.basil`, Checkout uses
 `managed_payments[enabled]=true` + the account's own Stripe customer (both confirmed in Stripe's

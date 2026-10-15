@@ -8,7 +8,8 @@ compatibility_date = "2026-08-01"
 # EMPTY secret. Or pipe it in: `(Get-Clipboard -Raw).Trim() | npx wrangler secret put NAME`.
 [vars]
 EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
-# The live-mode $5/month Price (slice 8).
+# The live-mode $5/month Price (slice 8). Created 2026-10-14 as price_1UQe5uFKmBCOtBry5x6TwzDo
+# ("Include tax in price: No"); check that tax choice before using it.
 STRIPE_PRICE_ID = "price_REPLACE_WITH_LIVE_PRICE"
 
 [[d1_databases]]
@@ -29,7 +30,7 @@ name = "srs-billing-staging"
 EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
 ALLOW_LOGGED_CODES = "1"
 # The test-mode $5/month Price.
-STRIPE_PRICE_ID = "price_1UQe5uFKmBCOtBry5x6TwzDo"
+STRIPE_PRICE_ID = "price_1UQeJ3FKmBCOtBrybTSdtSvc"
 
 [[env.staging.d1_databases]]
 binding = "DB"
