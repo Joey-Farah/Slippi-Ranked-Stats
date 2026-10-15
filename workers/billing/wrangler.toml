@@ -28,6 +28,5 @@ ALLOW_LOGGED_CODES = "1"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "srs-billing-staging"
-# Replace with the id printed by `npx wrangler d1 create srs-billing-staging`.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "1bbb1d40-ecce-4387-ad59-316c19c5e404"
 migrations_dir = "migrations"
