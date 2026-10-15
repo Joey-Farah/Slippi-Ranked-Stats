@@ -10,6 +10,16 @@ This causes Claude to appear in the GitHub contributor list. Removing it require
 
 **NEVER read, print, or otherwise access sensitive files** including `.env`, `.env.*`, `*.pem`, `*.key`, `*.secret`, `credentials.*`, or any file that may contain secrets, API keys, tokens, or passwords. If a task seems to require reading one of these files, stop and ask the user how to proceed instead.
 
+## Cloudflare D1: never burn the shared read budget
+
+The Cloudflare account is on the **free plan: 5,000,000 D1 rows read per day, shared by EVERY database** (`srs-telemetry`, `srs-billing`, `srs-billing-staging`), reset 00:00 UTC. Past the cap every D1 request errors, which takes down live card billing (Premium sign-in and renewals), not just the database that was queried.
+
+On 2026-10-15 a single ad-hoc telemetry query (a self-join, `... install_id IN (SELECT install_id FROM events ...)`, over ~27k rows with no index) read **4.9M rows in one run, 98% of the day**, and triggered Cloudflare's "nearing the daily cap" email.
+
+- **Never run analysis queries against remote D1.** Pull the data once (`SELECT * FROM events`, or `wrangler d1 export`), costing about one read per row, then analyse it locally in SQLite.
+- Against remote D1, only run cheap, bounded queries: single-table, filtered, with `LIMIT`. **No self-joins, no correlated or `IN (SELECT …)` subqueries, no CTEs that rescan a table.**
+- Unsure what something costs? Check `npx wrangler d1 insights <db> --timePeriod 1d --sort-by reads` afterwards, and stop if the day's reads are climbing.
+
 ## General
 
 - Read `docs/dev_notes.md` at the start of each session — it is the cross-session handoff document.
