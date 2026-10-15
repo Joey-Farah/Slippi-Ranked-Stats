@@ -1,11 +1,17 @@
 // The public half of the key the srs-billing worker signs Passes with (its PASS_SIGNING_KEY
 // secret). Public by design: it can only CHECK a Pass, never make one.
 //
-// ⚠ This is the STAGING key, matching the staging worker the dev build talks to. Slice 8 (go
-// live) generates a separate production pair and swaps this for the production public key.
-export const PASS_PUBLIC_KEY: JsonWebKey = {
+// Two pairs, one per worker: dev builds talk to staging (card-premium.ts BILLING_URL), release
+// builds to production, so a Pass from one can never unlock the other.
+
+const STAGING: JsonWebKey = {
   "kty": "EC",
   "crv": "P-256",
   "x": "pjzjKrq4ktCkUMkHShyFeR0cQ9p5n77IG394PvdvyiI",
   "y": "sYxRNqzzf-RrdLutIePFX8ar1WltAygG4ioprVpdkek"
 };
+
+// Written by workers/billing/scripts/setup-production.mjs, which also stores the private half.
+const PRODUCTION: JsonWebKey = {};
+
+export const PASS_PUBLIC_KEY: JsonWebKey = import.meta.env.DEV ? STAGING : PRODUCTION;

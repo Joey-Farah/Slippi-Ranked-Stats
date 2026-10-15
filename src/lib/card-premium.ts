@@ -14,7 +14,8 @@
 // `device_replaced` or `signed_out`. A timeout, an error or an outage keeps the Pass, and keeps
 // Premium for 7 days past its expiry (decision 5b).
 //
-// ⚠ Dev builds only until slice 8 of the plan: every entry point is behind import.meta.env.DEV.
+// Every entry point is behind CARD_BILLING_ENABLED. Dev builds talk to the staging worker (Stripe
+// test mode), release builds to production.
 // It feeds `cardPremium` in store.ts, which `isPremium` ORs with the Discord route.
 
 import { writable, type Readable } from "svelte/store";
@@ -26,11 +27,14 @@ import { cardPremium } from "./store";
 
 /**
  * The one switch for the whole card route: the sign-in/subscribe UI, the sidebar block and the
- * launch renewal all check it. Dev builds only until slice 8 (go live) sets it to true.
+ * launch renewal all check it. Live in release builds since v1.13.0.
  */
-export const CARD_BILLING_ENABLED: boolean = import.meta.env.DEV;
+export const CARD_BILLING_ENABLED: boolean = true;
 
-const BILLING_URL = "https://srs-billing-staging.joeyfarah.workers.dev";
+/** Paired with PASS_PUBLIC_KEY in pass-key.ts, which switches on the same condition. */
+const BILLING_URL = import.meta.env.DEV
+  ? "https://srs-billing-staging.joeyfarah.workers.dev"
+  : "https://srs-billing.joeyfarah.workers.dev";
 const REQUEST_TIMEOUT_MS = 15_000;
 
 const HOUR = 60 * 60 * 1000;

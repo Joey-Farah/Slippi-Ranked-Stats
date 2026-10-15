@@ -1127,6 +1127,20 @@ The windows are plain day counts (`1y` = 365, `2y` = 730), matching how `30d`/`9
 
 ---
 
+## ▶ BANKED IDEA — Rename the app, e.g. "Slippi Companion App" (2026-10-15, NOT started)
+
+Joey wants this on file — **no action planned yet.** The app has grown well past ranked stats
+(live session, overlay, input viewer, notes, unranked/direct grading), so the name may no longer
+fit. Things a rename touches, for when it's picked up: the display name (window title, header,
+release notes) is cheap; the Tauri **bundle identifier** is NOT — it decides `appDataDir`, so
+changing it strands every install's DBs, settings, card sign-in and Discord tokens unless the
+app migrates the old folder. Also: the GitHub repo + updater endpoint URL, the
+slippirankedstats.com domain and `mail.` sending domain, the Stripe public business name /
+statement descriptor (live billing, v1.13.0), Discord/Patreon/Ko-fi copy, and the OBS overlay
+file paths users already have set up (`<appDataDir>/stream-overlay/`).
+
+---
+
 ## ▶ BANKED IDEA — "Session Wrapped" shareable card (2026-10-12, NOT started)
 
 Joey wants this on file — **no action planned yet.** After a ranked session, offer a button to

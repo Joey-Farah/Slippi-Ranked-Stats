@@ -9,8 +9,8 @@ compatibility_date = "2026-08-01"
 [vars]
 EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
 # The live-mode $5/month Price (slice 8). Created 2026-10-14 as price_1UQe5uFKmBCOtBry5x6TwzDo
-# ("Include tax in price: No"); check that tax choice before using it.
-STRIPE_PRICE_ID = "price_REPLACE_WITH_LIVE_PRICE"
+# ("Include tax in price: No"): tax is added at Checkout, as Joey chose 2026-10-15.
+STRIPE_PRICE_ID = "price_1UQe5uFKmBCOtBry5x6TwzDo"
 # The hourly self-test (src/health.ts) emails here when something breaks, and again on recovery.
 ALERT_EMAIL = "joeyefarah@gmail.com"
 ENVIRONMENT_NAME = "production"
@@ -23,8 +23,8 @@ crons = ["17 * * * *"]  # hourly, off the top of the hour
 [[d1_databases]]
 binding = "DB"
 database_name = "srs-billing"
-# Replace with the id printed by `npx wrangler d1 create srs-billing`.
-database_id = "00000000-0000-0000-0000-000000000000"
+# Created 2026-10-15.
+database_id = "1701bc6f-3ca5-4b87-903b-0354cbeba111"
 migrations_dir = "migrations"
 
 # Staging: what the dev build talks to. Deploy with `npm run deploy:staging`.
