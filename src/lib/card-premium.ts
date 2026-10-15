@@ -161,17 +161,25 @@ async function call(
   body: object,
   failures: Record<string, SignInFailure>
 ): Promise<Record<string, unknown>> {
+  // ⚠ Not AbortSignal.timeout: Tauri's fetch never removes its abort listener, so a timeout
+  // firing after the reply was read cancels a request Rust has already freed. That rejects
+  // with "resource id is invalid" outside any await, and main.ts blanks the whole app on it.
+  // The timer has to die with the request.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let reply: unknown;
   try {
     const res = await fetch(BILLING_URL + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: controller.signal,
     });
     reply = await res.json();
   } catch {
     throw new SignInError("unreachable");
+  } finally {
+    clearTimeout(timer);
   }
   if (!reply || typeof reply !== "object" || Array.isArray(reply)) {
     throw new SignInError("unreachable");

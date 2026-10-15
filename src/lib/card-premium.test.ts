@@ -174,17 +174,49 @@ describe("when a step fails", () => {
   });
 
   it("gives up on a server that never answers", async () => {
-    const timedOut = new AbortController();
-    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(timedOut.signal);
     h.server = (_path, _body, signal) =>
       new Promise((_, reject) => signal?.addEventListener("abort", () => reject(signal.reason)));
 
     const m = await launch();
-    const pending = m.startSignIn("player@example.com");
-    await vi.waitFor(() => expect(timeout).toHaveBeenCalled());
-    timedOut.abort(new DOMException("timed out", "TimeoutError"));
-    await expect(pending).rejects.toMatchObject({ reason: "unreachable" });
-    timeout.mockRestore();
+    vi.useFakeTimers();
+    try {
+      const pending = m.startSignIn("player@example.com");
+      const settled = expect(pending).rejects.toMatchObject({ reason: "unreachable" });
+      await vi.advanceTimersByTimeAsync(15_000);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Tauri's fetch cancels the request on abort even after it has finished, and that cancel
+  // rejects outside any await ("resource id is invalid"), which main.ts turns into a blank app.
+  it("never aborts a request that has already been answered", async () => {
+    const signals: AbortSignal[] = [];
+    h.server = (path, body, signal) => {
+      if (signal) signals.push(signal);
+      return happyServer(path, body);
+    };
+
+    const m = await launch();
+    vi.useFakeTimers();
+    // Node's AbortSignal.timeout runs on internal timers fake time can't reach; put it on the
+    // fake clock so a stray timeout would actually fire here.
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+      const c = new AbortController();
+      setTimeout(() => c.abort(), ms);
+      return c.signal;
+    });
+    try {
+      await m.startSignIn("player@example.com");
+      await m.confirmCode("123456");
+      await vi.advanceTimersByTimeAsync(60_000);
+    } finally {
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
+    expect(signals).toHaveLength(2);
+    expect(signals.every((s) => !s.aborted)).toBe(true);
   });
 });
 
