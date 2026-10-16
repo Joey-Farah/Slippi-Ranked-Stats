@@ -23,6 +23,9 @@ checks interleave as they do in the app):
 ⚠ More failures now mean "keep Premium": the same unbounded grace the Discord route already gives
 when the check worker is unreachable (card billing caps its grace at 7 days). Healthy logins are
 unaffected (guard tests), and no stored keys changed, so the update logs nobody out.
+**Live-verified in `tauri dev` on macOS (2026-10-15) against real Discord:** connect, Re-check,
+early renewal (expiry moved to exactly +7 days), renewal after a planted rejected token (token
+replaced, still Premium), Disconnect then reconnect.
 
 **Launch-delay diagnosis (the patron getting Premium 22–30 s after launch):** `discord_debug` has
 caught ONE launch of theirs so far (10-15 19:36 UTC). The worker answered `premium` at +1 s on the
