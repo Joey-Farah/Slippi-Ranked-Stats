@@ -74,6 +74,9 @@ export type RefreshResult = { ok: true; token: string } | { ok: false; reason: "
 
 let refreshInFlight: Promise<RefreshResult> | null = null;
 
+/** Every caller waits on the one refresh, so one that never answers must not wait forever. */
+const REFRESH_TIMEOUT_MS = 15_000;
+
 /**
  * Exchanges the stored refresh token for a fresh access token (silent — no browser, no
  * user interaction) and stores the new pair. It never clears anything: whether a failure
@@ -99,6 +102,11 @@ async function sendRefresh(): Promise<RefreshResult> {
   const rt = get(discordRefreshToken);
   if (!rt) return { ok: false, reason: "none" };
 
+  // ⚠ Not AbortSignal.timeout: Tauri's fetch never removes its abort listener, so a timeout
+  // firing after the reply cancels a request Rust has already freed, and main.ts blanks the
+  // app on that rejection (see card-premium.ts `call`). The timer has to die with the request.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
   let data: { access_token?: unknown; refresh_token?: string; expires_in?: number; error?: unknown };
   let res: Response;
   try {
@@ -110,10 +118,13 @@ async function sendRefresh(): Promise<RefreshResult> {
         grant_type: "refresh_token",
         refresh_token: rt,
       }).toString(),
+      signal: controller.signal,
     });
     data = await res.json();
   } catch {
     return { ok: false, reason: "retry" };
+  } finally {
+    clearTimeout(timer);
   }
 
   if (res.ok && typeof data.access_token === "string") {

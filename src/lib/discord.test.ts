@@ -29,6 +29,8 @@ const h = vi.hoisted(() => {
     tokenAnswer: null as null | (() => Response),
     /** Runs while a refresh is in flight, before Discord answers it. */
     duringRefresh: null as null | (() => void),
+    /** The token endpoint accepts the connection and then never answers. */
+    hang: false,
   };
 
   function tokenEndpoint(form: URLSearchParams): Response {
@@ -62,6 +64,12 @@ vi.mock("@tauri-apps/plugin-http", () => ({
   fetch: async (url: string, init: RequestInit) => {
     await new Promise((r) => setTimeout(r, 5));
     if (url === "https://discord.com/api/oauth2/token") {
+      if (h.discord.hang) {
+        h.discord.refreshRequests++;
+        return new Promise<Response>((_, reject) =>
+          init.signal?.addEventListener("abort", () => reject(new Error("Request cancelled")))
+        );
+      }
       return h.tokenEndpoint(new URLSearchParams(String(init.body)));
     }
     if (url.endsWith("/check-premium")) return h.worker(JSON.parse(String(init.body)).token);
@@ -85,6 +93,7 @@ function expiredLogin(opts: { expiryKnown: boolean }) {
     refreshRequests: 0,
     tokenAnswer: null,
     duringRefresh: null,
+    hang: false,
   });
   discordToken.set("at-1");
   discordRefreshToken.set("rt-1");
@@ -145,6 +154,28 @@ describe("a renewal Discord doesn't answer properly", () => {
     };
     expect(await verifyPatronRoleWithRetry(undefined, { baseDelayMs: 1 })).toBe("premium");
     expectStillSignedIn();
+  });
+
+  it("gives up on a renewal that never answers, so a later Re-check isn't stuck behind it", async () => {
+    vi.useFakeTimers();
+    try {
+      h.discord.hang = true;
+      let first: string | undefined;
+      verifyPatronRole().then((r) => (first = r));
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(first).toBe("transient");
+      expect(get(discordPremium)).toBe(true);
+
+      h.discord.hang = false;
+      let second: string | undefined;
+      verifyPatronRole().then((r) => (second = r));
+      await vi.advanceTimersByTimeAsync(100);
+      expect(second).toBe("premium");
+      expect(h.discord.refreshRequests).toBe(2);
+      expectStillSignedIn();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("signs out when Discord says the refresh token is no good", async () => {
