@@ -1,6 +1,7 @@
-## ⚠ SESSION HANDOFF — 2026-10-15 night (DISCORD REFRESH-TOKEN FIX ON A BRANCH; LAUNCH-DELAY DIAGNOSIS)
+## ⚠ SESSION HANDOFF — 2026-10-15 night (v1.13.1 PREPARED: DISCORD REFRESH-TOKEN FIX; LAUNCH-DELAY DIAGNOSIS)
 
-**Branch `fix/discord-refresh-token`, NOT merged, NOT released.** Three fixes in `src/lib/discord.ts`,
+**PR #5 merged into `main`; version bumped to 1.13.1; `release-notes.md` carries v1.13.0's notes
+inside the v1.13.1 section (the two shipped hours apart). Tag NOT pushed until Joey's go-ahead.** Three fixes in `src/lib/discord.ts`,
 pinned by the new `src/lib/discord.test.ts` (a fake Discord token endpoint that rotates refresh
 tokens like the real one, plus a fake check worker, both with a few ms of latency so concurrent
 checks interleave as they do in the app):

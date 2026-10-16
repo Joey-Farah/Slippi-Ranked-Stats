@@ -1,3 +1,13 @@
+## What's New in v1.13.1
+
+Includes everything from v1.13.0, which came out just before this one — see below.
+
+### 🔑 Fewer Discord reconnects
+
+If you have Premium through Patreon or Ko-fi, the app quietly renews your Discord login about
+once a week. If Discord was busy or your internet dropped at that moment, the app could sign
+you out and ask you to connect Discord again. Now it keeps you signed in and tries again later.
+
 ## What's New in v1.13.0
 
 ### 💳 Get Premium with a card
