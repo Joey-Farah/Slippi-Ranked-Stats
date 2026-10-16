@@ -1,7 +1,48 @@
+## ⚠ SESSION HANDOFF — 2026-10-15 night (DISCORD REFRESH-TOKEN FIX ON A BRANCH; LAUNCH-DELAY DIAGNOSIS)
+
+**Branch `fix/discord-refresh-token`, NOT merged, NOT released.** Three fixes in `src/lib/discord.ts`,
+pinned by the new `src/lib/discord.test.ts` (a fake Discord token endpoint that rotates refresh
+tokens like the real one, plus a fake check worker, both with a few ms of latency so concurrent
+checks interleave as they do in the app):
+1. **One refresh at a time.** The launch check and a Re-check click could renew an expired login
+   with the same refresh token; Discord rotates it on use and refuses the second, and the loser
+   wiped the login the winner had just renewed. Callers now share the in-flight refresh.
+2. **Only OAuth `invalid_grant` (or no refresh token at all) ends a login.** It used to end on ANY
+   4xx (a 429, or our own `invalid_client` setup error like June's), and one level up on ANY
+   failed refresh, so a network blip or Discord 5xx at the weekly expiry logged the patron out and
+   turned Premium off. Now the refresh returns `ok | dead | none | retry`; `retry` keeps the login
+   and Premium and the launch loop tries again. Verified live 2026-10-15: a bogus refresh token gets
+   `400 {"error": "invalid_grant"}`.
+3. **A refresh answer only applies to the login it was made for**: a Connect Discord that finished
+   meanwhile survives a refusal, and a Disconnect clicked meanwhile isn't undone by a success.
+4. From the fresh-context review: the refresh **gives up after 15 s** (own timer, ⚠ never
+   `AbortSignal.timeout` with plugin-http), since every caller now waits on the one request; a
+   `null` reply is a retry, not a thrown error. Known and accepted: the early (near-expiry) renewal
+   ignores its result, so a dead refresh token is retried each launch until the access token really
+   expires, and an expired token under a 429 costs two refresh requests per attempt.
+⚠ More failures now mean "keep Premium": the same unbounded grace the Discord route already gives
+when the check worker is unreachable (card billing caps its grace at 7 days). Healthy logins are
+unaffected (guard tests), and no stored keys changed, so the update logs nobody out.
+**Live-verified in `tauri dev` on macOS (2026-10-15) against real Discord:** connect, Re-check,
+early renewal (expiry moved to exactly +7 days), renewal after a planted rejected token (token
+replaced, still Premium), Disconnect then reconnect.
+
+**Launch-delay diagnosis (the patron getting Premium 22–30 s after launch):** `discord_debug` has
+caught ONE launch of theirs so far (10-15 19:36 UTC). The worker answered `premium` at +1 s on the
+first try, but the app's `premium` ping landed at +19 s, in the same second as `watcher_start`, so
+that delay was inside the app, not Discord. Across all 52 launches of that install (`df5c1b34…`):
+usually `watcher_start` +0.1 s and `premium` +22–30 s; sometimes both together at +15–20 s; 12
+launches got `premium` only minutes later (a manual verify). `srs_isPremium` persists, so a slow
+check costs nothing; only a definitive "no" takes Premium away. Whether those 12 were real lockouts
+or habitual Re-check clicks is unknown. **NEXT:** re-pull `discord_debug` around 10-20 (`SELECT *
+FROM discord_debug ORDER BY id LIMIT 5000`, a tiny table; the CLAUDE.md D1 rule still applies) to
+catch a failing launch. The diagnostics self-disable 10-29; then delete the block. ⚠ That deployed
+worker code lives only on branch `fix/discord-check-debug`, not on `main`.
+
 ## ⚠ SESSION HANDOFF — 2026-10-15 evening (v1.13.0 PREPARED: CARD BILLING LIVE ON PRODUCTION)
 
 `feat/card-billing` is merged into `main` and the version is **1.13.0** (release notes written).
-**Tag NOT pushed until Joey's go-ahead** — pushing `v1.13.0` triggers the release workflow.
+**Released:** `v1.13.0` was pushed and the release published 2026-10-15 22:52 UTC (all assets + `latest.json`).
 
 - **Production is live and verified:** worker `https://srs-billing.joeyfarah.workers.dev`, D1
   `srs-billing`, all four secrets set, live webhook `we_1UQwoJFKmBCOtBry0tTqVhQp`. The hourly
@@ -255,9 +296,9 @@ app** to get Premium. Waiting on details from the user. Findings so far:
   wiped — if the connect code and replay folder ALSO reset, the webview's localStorage isn't
   persisting, and Discord isn't the cause) or **"\<name\> — Not a patron"** that Re-check fixes
   (the worker is returning a wrong answer)? Also ask for their OS and app version.
-- Minor, real, but can't cause an every-launch failure: `refreshDiscordToken` clears the refresh
-  token on ANY 4xx, including a 429 and the `invalid_grant` a concurrent refresh gets (launch
-  retry loop + a Re-check click). That would cause a weekly re-link at worst.
+- ~~Minor, real: `refreshDiscordToken` clears the refresh token on ANY 4xx~~ **FIXED 2026-10-15 on
+  branch `fix/discord-refresh-token`** (see the 2026-10-15 night banner). Turned out worse than noted:
+  any failed refresh at the weekly expiry (network, 5xx) logged the patron out.
 
 ### 3. Card billing: grill DONE, plan APPROVED, build STARTED on branch `feat/card-billing`
 
