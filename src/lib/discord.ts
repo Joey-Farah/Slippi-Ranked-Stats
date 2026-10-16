@@ -127,6 +127,10 @@ async function sendRefresh(): Promise<RefreshResult> {
     clearTimeout(timer);
   }
 
+  // The login changed while Discord was answering (Disconnect, or a new Connect Discord). The
+  // answer is about a login that's gone, so it neither saves nor ends anything.
+  if (get(discordRefreshToken) !== rt) return { ok: false, reason: "retry" };
+
   if (res.ok && typeof data.access_token === "string") {
     storeTokenResponse({ ...data, access_token: data.access_token });
     return { ok: true, token: data.access_token };

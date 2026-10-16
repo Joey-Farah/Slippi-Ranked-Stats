@@ -80,7 +80,7 @@ vi.mock("@tauri-apps/plugin-shell", () => ({ open: async () => {} }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: async () => "" }));
 vi.mock("./telemetry", () => ({ pingTelemetry: async () => {} }));
 
-const { verifyPatronRole, verifyPatronRoleWithRetry } = await import("./discord");
+const { verifyPatronRole, verifyPatronRoleWithRetry, disconnectDiscord } = await import("./discord");
 const { discordPremium, discordToken, discordRefreshToken, discordTokenExpiresAt, discordUsername } =
   await import("./store");
 
@@ -202,6 +202,14 @@ describe("Connect Discord finishing while the old login is being renewed", () =>
     expect(get(discordToken)).toBe("at-new");
     expect(get(discordRefreshToken)).toBe("rt-new");
     expect(get(discordPremium)).toBe(true);
+  });
+
+  it("stays disconnected when Disconnect is clicked while a renewal is running", async () => {
+    h.discord.duringRefresh = () => void disconnectDiscord();
+    await verifyPatronRole();
+    expect(get(discordToken)).toBeNull();
+    expect(get(discordRefreshToken)).toBeNull();
+    expect(get(discordPremium)).toBe(false);
   });
 });
 
