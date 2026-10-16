@@ -13,8 +13,13 @@ checks interleave as they do in the app):
    turned Premium off. Now the refresh returns `ok | dead | none | retry`; `retry` keeps the login
    and Premium and the launch loop tries again. Verified live 2026-10-15: a bogus refresh token gets
    `400 {"error": "invalid_grant"}`.
-3. **A refused renewal only ends the login it was checking**, so a Connect Discord that finished
-   meanwhile survives.
+3. **A refresh answer only applies to the login it was made for**: a Connect Discord that finished
+   meanwhile survives a refusal, and a Disconnect clicked meanwhile isn't undone by a success.
+4. From the fresh-context review: the refresh **gives up after 15 s** (own timer, ⚠ never
+   `AbortSignal.timeout` with plugin-http), since every caller now waits on the one request; a
+   `null` reply is a retry, not a thrown error. Known and accepted: the early (near-expiry) renewal
+   ignores its result, so a dead refresh token is retried each launch until the access token really
+   expires, and an expired token under a 429 costs two refresh requests per attempt.
 ⚠ More failures now mean "keep Premium": the same unbounded grace the Discord route already gives
 when the check worker is unreachable (card billing caps its grace at 7 days). Healthy logins are
 unaffected (guard tests), and no stored keys changed, so the update logs nobody out.
