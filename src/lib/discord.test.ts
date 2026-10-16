@@ -137,6 +137,7 @@ describe("a renewal Discord doesn't answer properly", () => {
     ["unreachable", () => { throw new TypeError("error sending request"); }],
     ["rejecting our app's own setup", () => Response.json({ error: "invalid_client" }, { status: 401 })],
     ["answering with garbage", () => new Response("<html>oops</html>", { status: 200 })],
+    ["answering with a null body", () => Response.json(null)],
   ])("keeps the login and Premium when Discord is %s", async (_, answer) => {
     h.discord.tokenAnswer = answer;
     expect(await verifyPatronRole()).toBe("transient");

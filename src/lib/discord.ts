@@ -120,7 +120,7 @@ async function sendRefresh(): Promise<RefreshResult> {
       }).toString(),
       signal: controller.signal,
     });
-    data = await res.json();
+    data = (await res.json()) ?? {};
   } catch {
     return { ok: false, reason: "retry" };
   } finally {
@@ -252,7 +252,7 @@ export async function verifyPatronRole(
 
   let data: { premium: boolean | null; reason: string; username?: string | null; userId?: string | null };
   try {
-    data = await res.json();
+    data = (await res.json()) ?? {};
   } catch {
     return "transient";
   }
