@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:webview:allow-set-webview-zoom",
     "sql:default",
     "sql:allow-load",
     "sql:allow-execute",
