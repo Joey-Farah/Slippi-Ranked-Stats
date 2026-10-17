@@ -710,8 +710,8 @@ export const liveSetRecord = derived(liveGameStats, ($stats) => {
 // Unranked + direct record for this watcher session, counted in games (the only honest unit —
 // these modes have no sets). Kept separate from liveSetRecord so the two are never summed.
 export const liveUnrankedRecord = derived(liveGameStats, ($stats) => {
-  // Quit-outs are excluded entirely (gameOutcome): outside ranked, leaving a game is how people
-  // get back to character select, not a forfeit — counting them made a 2–2 session read 4–2.
+  // Quit-outs follow gameOutcome: outside ranked, one in the first 30 s is no result; after that
+  // it counts against whoever quit.
   const t = tallyOutcomes($stats.filter((g) => g.match_type !== "ranked"));
   return { wins: t.wins, losses: t.losses, total: t.total, noResult: t.noResult };
 });

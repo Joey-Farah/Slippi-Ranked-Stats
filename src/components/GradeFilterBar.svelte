@@ -22,7 +22,7 @@
     uniquePlayerChars = [] as string[],
     uniqueOppChars = [] as string[],
     uniqueOppCodes = [] as string[],
-    /** Show a "no result" option. Only unranked/direct need it: a quit-out there counts as
+    /** Show a "no result" option. Only unranked/direct need it: an early quit-out there counts as
      *  neither a win nor a loss (see outcome.ts), so without this those games are unreachable
      *  by any result filter. Ranked has no such state. */
     allowNoResult = false,
@@ -126,7 +126,7 @@
       {#each resultOptions as [val, label]}
         <button
           type="button"
-          title={val === "none" ? "No result (quit-out)" : undefined}
+          title={val === "none" ? "No result (quit out in the first 30 s)" : undefined}
           onclick={() => (filterResult = val)}
           style="
             padding: 4px 12px; font-size: 12px; font-weight: 700; border: none;

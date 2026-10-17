@@ -1,3 +1,18 @@
+## ⚠ SESSION HANDOFF — 2026-10-16 evening (QUIT-OUT RULE BANKED; LUNAR INGEST PAUSED)
+
+1. **Unranked/direct quit-outs now count after 30 s** (banked on `main`, NOT released). Outside
+   ranked, a quit in the first 30 s (`QUIT_OUT_COUNTS_AFTER_FRAMES`, `src/lib/outcome.ts`) is still
+   no result; after that it counts against whoever quit. Joey's call: people play a whole game and
+   leave just before losing. Real case: 20 direct games vs GISE#163 read 3–9, now 10–9 (8 opponent
+   quits, 7 of them 2:21–3:45 in). ⚠ This reverses part of v1.11.0's "every non-ranked quit is no
+   result"; mutual quit-to-CSS games now count against the quitter too. `gameOutcome` takes a
+   REQUIRED duration arg (unknown duration = no result), so every caller passes `duration_frames`.
+   Not yet checked in `tauri dev`. Ship with a version bump.
+2. **Lunar ingest paused** (`feat/lunar-benchmarks`). The 10-16 run hung at 18:45 after ~193k
+   replays: a worker died, and an untimed `item.get()` waited forever. Fixed in `750f172`
+   (`WORKER_TIMEOUT_S` = 120). Both of the day's links are spent; the next frees ~17:23 on
+   2026-10-17. ~1.68M entries left (~3–3.5 h). Same resume command as `docs/plans/lunar-benchmarks.md`.
+
 ## ⚠ SESSION HANDOFF — 2026-10-15 night (v1.13.1 RELEASED: DISCORD REFRESH-TOKEN FIX; LAUNCH-DELAY DIAGNOSIS)
 
 **v1.13.1 released 2026-10-16 00:36 UTC** (PR #5; all assets + `latest.json` for every platform).

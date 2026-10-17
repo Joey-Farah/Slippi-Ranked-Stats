@@ -202,7 +202,7 @@
     if (gFilterLetter     !== null)  h = h.filter((e) => e.grade?.letter === gFilterLetter);
     // ⚠ Via gameOutcome, not a raw string compare: outside ranked a quit-out is neither a win
     // nor a loss, and that rule must stay in the one place that owns it (outcome.ts).
-    if (gFilterResult     !== "all") h = h.filter((e) => gameOutcome(e.result, e.matchType) === gFilterResult);
+    if (gFilterResult     !== "all") h = h.filter((e) => gameOutcome(e.result, e.matchType, e.durationFrames) === gFilterResult);
     if (gFilterPlayerChar !== null)  h = h.filter((e) => e.playerChar === gFilterPlayerChar);
     if (gFilterOppChar    !== null)  h = h.filter((e) => e.opponentChar === gFilterOppChar);
     if (gFilterOppCode.trim() !== "") {
