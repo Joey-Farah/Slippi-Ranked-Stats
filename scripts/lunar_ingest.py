@@ -34,6 +34,7 @@ Requires the `slpz` CLI (`cargo install slpz`). Options go BEFORE the input path
 """
 import argparse, collections, hashlib, json, os, queue, shutil, struct, subprocess, sys, tempfile
 import threading, time, urllib.error, urllib.request, zipfile
+import multiprocessing
 from multiprocessing import Pool
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -46,6 +47,8 @@ LINK_REUSE_S = 50 * 60      # signed links last an hour
 LINKS_PER_DAY = 2
 
 DEFAULT_DB = os.path.join(HERE, "raw_stats_v3.sqlite")
+# A single replay parses in well under a second; this only fires when its worker died.
+WORKER_TIMEOUT_S = 120
 SEED_DB = os.path.join(HERE, "raw_stats_v2.sqlite")
 LOGS = os.path.join(HERE, "logs")
 
@@ -559,7 +562,15 @@ def main():
             if name is None:
                 chunks_through += item == "done"
                 continue
-            _, outcome, src, rank, rank_pair, rows = item.get()
+            # ⚠ Never wait on a result without a timeout. A replay that kills its worker outright
+            # (a peppi panic can take the whole process down) leaves Pool to quietly replace the
+            # worker, and that task's result never arrives: on 2026-10-16 an untimed get() sat
+            # idle for 1.5 h, every reader stalled behind it, and the day's link expired.
+            try:
+                _, outcome, src, rank, rank_pair, rows = item.get(timeout=WORKER_TIMEOUT_S)
+            except multiprocessing.TimeoutError:
+                outcome, rows = "worker_lost", []
+                log(f"{name}: no result from its worker in {WORKER_TIMEOUT_S} s; skipped")
             slots.release()
             if outcome == "parsed":
                 fps = [fingerprint(pc, oc, stats) for stats, pc, oc, _ in rows]
