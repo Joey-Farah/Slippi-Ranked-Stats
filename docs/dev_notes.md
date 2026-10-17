@@ -12,6 +12,12 @@
    replays: a worker died, and an untimed `item.get()` waited forever. Fixed in `750f172`
    (`WORKER_TIMEOUT_S` = 120). Both of the day's links are spent; the next frees ~17:23 on
    2026-10-17. ~1.68M entries left (~3–3.5 h). Same resume command as `docs/plans/lunar-benchmarks.md`.
+3. **Chart hover offset fixed** (banked on `main`, NOT released; Joey verified in `tauri dev` on
+   Windows). Hovering the Rating / Rolling Win Rate charts highlighted a point well left of the
+   cursor whenever Ctrl +/- zoom wasn't 100%: CSS `zoom` on `#app` (v1.9.0) breaks ECharts' pointer
+   mapping. Ctrl +/- now uses Tauri's native page zoom (`getCurrentWebview().setZoom`, needs
+   `core:webview:allow-set-webview-zoom`), CSS `zoom` kept only as a fallback. Not yet checked on
+   macOS. Joey wants to release AFTER the Lunar ingest + regrade.
 
 ## ⚠ SESSION HANDOFF — 2026-10-15 night (v1.13.1 RELEASED: DISCORD REFRESH-TOKEN FIX; LAUNCH-DELAY DIAGNOSIS)
 
