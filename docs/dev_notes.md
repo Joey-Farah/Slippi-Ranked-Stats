@@ -59,7 +59,14 @@ launches got `premium` only minutes later (a manual verify). `srs_isPremium` per
 check costs nothing; only a definitive "no" takes Premium away. Whether those 12 were real lockouts
 or habitual Re-check clicks is unknown. **NEXT:** re-pull `discord_debug` around 10-20 (`SELECT *
 FROM discord_debug ORDER BY id LIMIT 5000`, a tiny table; the CLAUDE.md D1 rule still applies) to
-catch a failing launch. The diagnostics self-disable 10-29; then delete the block. ⚠ That deployed
+catch a failing launch. **Re-pulled 10-18: nothing new.** The patron hasn't opened the app since
+10-15 19:36 UTC (no telemetry, no worker check), and is still on 1.12.3, so their next launch is
+also their first on 1.13.1. Patron events pull: `WHERE install_id >= 'df5c1b34' AND install_id <
+'df5c1b35'` (uses `idx_events_install`, ~950 rows read). Re-pull again before 10-29; if they still
+haven't launched, extend `DEBUG_UNTIL`. Side note: 134 `no_role` checks came in ~1/s bursts
+(10-16 to 10-18), mostly from install `0cec4eeb…` right after it updated to 1.13.1, i.e. someone
+mashing Re-check without the Discord role; anonymous by design, so it can't be traced from here.
+The diagnostics self-disable 10-29; then delete the block. ⚠ That deployed
 worker code lives only on branch `fix/discord-check-debug`, not on `main`.
 
 ## ⚠ SESSION HANDOFF — 2026-10-15 evening (v1.13.0 PREPARED: CARD BILLING LIVE ON PRODUCTION)
