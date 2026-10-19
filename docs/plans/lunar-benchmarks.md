@@ -41,7 +41,28 @@ over Joey's stored sets before release (as for v1.10.0) and say it plainly in th
 - Our `--dataset db` builder already pools every source in the StatsDB, so a new source needs no
   change there.
 
-## ⚠ Status 2026-10-15 evening — the ingest is HALF DONE; resume at/after 11:32 on 2026-10-16
+## ⚠ Status 2026-10-19 — ~796k netplay entries left; resume at/after ~13:35 on 2026-10-20
+
+The 10-19 run (13:35) got through ~870k replays before the PC **blue-screened twice** (~15:05,
+~15:16; the second only 6 min after restarting). The DB passed `pragma quick_check` both times and
+nothing was lost: it now holds ~2.2M replays, and a re-run plans only the **~796k netplay entries**
+left (16 chunks, ~329 GB). Both of the day's links went (13:35 and 14:31; the 15:09 restart reused
+the 14:31 one), so the next frees ~13:35 on 10-20.
+
+**The crashes are the machine, not the script.** Four minidumps (`cdb !analyze -v`): 0x13A heap
+corruption ×2, 0x139 corrupted AVL tree, 0x18 corrupt refcount, all inside `nt`, each in a
+different process (SignalRgb, PowerShell, System, WebView2). That's memory corruption under
+full load, not one faulty driver, and not the I225-V NIC. Suspects: an Intel XTU profile on the
+i7-12700K, 4×8 GB DDR4 from two kits at 3600 XMP, and several RGB/hardware-access drivers running
+at once (SignalRGB, Armoury Crate `AsIO3`/`IOMap`, `MSIO`, `CTIAIO`). Long streams also hit
+`SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC` several times, which fits the same cause.
+
+**Before the next run:** XTU to defaults, RAM to default speed, quit SignalRGB / Armoury Crate /
+other RGB tools. Then resume lighter:
+`.venv/Scripts/python.exe -u scripts/lunar_ingest.py --workers 8 --connections 6
+>> scripts/logs/lunar_ingest.log 2>&1` (~2.5–3 h).
+
+## Status 2026-10-15 evening (superseded above) — the ingest was HALF DONE
 
 `scripts/lunar_ingest.py` (this branch) streams the full-database snapshot into
 `scripts/raw_stats_v3.sqlite` (Windows machine only; gitignored). After two runs it holds
