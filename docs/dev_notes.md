@@ -1,4 +1,17 @@
-## ⚠ SESSION HANDOFF — 2026-10-16 evening (QUIT-OUT RULE BANKED; LUNAR INGEST PAUSED)
+## ⚠ SESSION HANDOFF — 2026-10-19 (LUNAR INGEST ~796k LEFT; PC BLUE-SCREENS UNDER THE LOAD)
+
+**Lunar ingest** (`feat/lunar-benchmarks`) resumed 10-19 13:35 and got ~870k replays in before
+the Windows machine blue-screened twice (~15:05, ~15:16). The DB checked clean both times; ~796k
+netplay entries are left. Both of the day's Lunar links are spent, so the next frees ~13:35 on
+10-20. Four crash dumps were analysed with `cdb !analyze -v`: all kernel memory corruption
+(0x13A ×2, 0x139, 0x18), each in a different process, so it's the machine's stability under full
+load, not the script and not the network driver. Before the next run Joey is setting Intel XTU
+to defaults, the RAM (4 DIMMs, two kits, 3600 XMP) to default speed, and quitting the RGB tools
+(SignalRGB, Armoury Crate). Resume lighter: `--workers 8 --connections 6`. Full detail and the
+command: `docs/plans/lunar-benchmarks.md` on that branch. The banked quit-out rule and chart
+hover fix below still wait on this ingest + regrade before release.
+
+## SESSION HANDOFF — 2026-10-16 evening (QUIT-OUT RULE BANKED; LUNAR INGEST PAUSED)
 
 1. **Unranked/direct quit-outs now count after 30 s** (banked on `main`, NOT released). Outside
    ranked, a quit in the first 30 s (`QUIT_OUT_COUNTS_AFTER_FRAMES`, `src/lib/outcome.ts`) is still
