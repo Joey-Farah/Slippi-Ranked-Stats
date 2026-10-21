@@ -1,3 +1,13 @@
+## ⚠ SESSION HANDOFF — 2026-10-21 (v1.14.0 RELEASED: LUNAR BENCHMARKS + QUIT-OUT RULE + CHART HOVER FIX)
+
+The Lunar ingest finished 10-21 (18/18 chunks, no crash with XMP off, XTU at defaults, RGB tools
+closed). Benchmarks rebuilt from 2,895,376 games with non-legal stages and non-playable characters
+excluded (`benchmark_excluded` + `pool` view). Joey tested in `tauri dev`: his 1,028 graded sets
+went 70.2 → 69.6. The 538 stale-version rows left in `JOEY_870.db` `set_grades` are double-written
+FUN#941 grades from when that code was linked — hidden by design, not a bug. Released as v1.14.0
+with the banked quit-out rule and chart hover fix. Site HUD: 5,755,828 samples, 676 matchups.
+Still open: chancesdm's `discord_debug` re-pull before 10-29 (`fix/discord-check-debug`).
+
 ## ⚠ SESSION HANDOFF — 2026-10-19 (LUNAR INGEST ~796k LEFT; PC BLUE-SCREENS UNDER THE LOAD)
 
 **Lunar ingest** (`feat/lunar-benchmarks`) resumed 10-19 13:35 and got ~870k replays in before

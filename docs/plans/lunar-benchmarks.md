@@ -1,5 +1,5 @@
 ---
-status: INGEST DONE + benchmarks rebuilt 2026-10-21, not released (see Status). Branch feat/lunar-benchmarks.
+status: SHIPPED in v1.14.0 (2026-10-21). Ingest done, benchmarks rebuilt; Joey's 1,028 sets 70.2 → 69.6 in tauri dev.
 date: 2026-10-15
 ---
 
@@ -41,7 +41,7 @@ over Joey's stored sets before release (as for v1.10.0) and say it plainly in th
 - Our `--dataset db` builder already pools every source in the StatsDB, so a new source needs no
   change there.
 
-## ✅ Status 2026-10-21 — INGEST DONE, benchmarks rebuilt, NOT released
+## ✅ Status 2026-10-21 — INGEST DONE, benchmarks rebuilt, released in v1.14.0
 
 The last ~786k entries ran 10:41–12:50 on 10-21 (`--workers 8 --connections 20 --chunk-gb 52`,
 XMP off, XTU at defaults, RGB tools closed): no crash, nothing parked. ⚠ `--connections` must be

@@ -1,3 +1,28 @@
+## What's New in v1.14.0
+
+### 📊 Grades benchmarked against far more games
+
+Grades are now measured against about **2.9 million games**. Alongside
+Platinum+ ranked play, the benchmarks now include tournament and netplay replays. Games on
+non-legal stages are left out. Every character matchup now has its own baseline.
+
+Your grades will be recalculated the first time you open the app. Most stay the same; some
+move a little.
+
+Data from Lunar Melee (lunarmelee.com).
+
+### 🏳️ Quit-outs in unranked and direct
+
+Leaving a game in the first 30 seconds still counts as no result. After that, it counts as a
+loss for whoever quit, so someone leaving just before they lose no longer erases the game.
+
+### 📈 Chart hover fix
+
+Hovering the Rating and Rolling Win Rate charts now highlights the point under your cursor,
+at any zoom level.
+
+---
+
 ## What's New in v1.13.1
 
 Includes everything from v1.13.0, which came out just before this one — see below.
