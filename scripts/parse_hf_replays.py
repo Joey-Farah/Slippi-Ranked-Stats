@@ -1234,10 +1234,19 @@ def build_baselines_from_db(db_path: str, output_path: str):
     import sqlite3
     con = sqlite3.connect(db_path)
     stat_cols = ", ".join(f'"{k}"' for k in STAT_KEYS)
+    # Lunar's direct/netplay sets include modded games with non-playable characters (Master
+    # Hand, Wireframes, Giga Bowser, Sandbag…), stored as Unknown_<id>. Neither side of such a
+    # game is a real match, so the whole game stays out of every section. Games listed in
+    # `benchmark_excluded` (non-legal stages, which the app never grades) are left out too;
+    # they stay in `games`, so an exclusion can be undone by deleting its row.
+    con.execute("CREATE TABLE IF NOT EXISTS benchmark_excluded (filename TEXT PRIMARY KEY, reason TEXT)")
+    con.execute("CREATE TEMP VIEW pool AS SELECT * FROM games "
+                "WHERE player_char NOT LIKE 'Unknown%' AND opp_char NOT LIKE 'Unknown%' "
+                "AND filename NOT IN (SELECT filename FROM benchmark_excluded)")
 
     def entry_for(where: str, params: tuple = ()) -> dict:
         """Percentile entry (sample_size + one block per stat) for one group."""
-        rows = con.execute(f"SELECT {stat_cols} FROM games {where}", params).fetchall()
+        rows = con.execute(f"SELECT {stat_cols} FROM pool {where}", params).fetchall()
         entry = {"sample_size": len(rows)}
         cols = list(zip(*rows)) if rows else [[] for _ in STAT_KEYS]
         for key, col in zip(STAT_KEYS, cols):
@@ -1248,17 +1257,17 @@ def build_baselines_from_db(db_path: str, output_path: str):
         return [r[0] for r in con.execute(sql, params)]
 
     print(f"Building baselines from {db_path}...", flush=True)
-    total = con.execute("SELECT COUNT(*) FROM games").fetchone()[0]
-    sources = dict(con.execute("SELECT source, COUNT(*) FROM games GROUP BY source"))
+    total = con.execute("SELECT COUNT(*) FROM pool").fetchone()[0]
+    sources = dict(con.execute("SELECT source, COUNT(*) FROM pool GROUP BY source"))
 
     by_player_char = {c: entry_for("WHERE player_char = ?", (c,))
-                      for c in distinct("SELECT DISTINCT player_char FROM games")}
+                      for c in distinct("SELECT DISTINCT player_char FROM pool")}
     by_opponent_char = {c: entry_for("WHERE opp_char = ?", (c,))
-                        for c in distinct("SELECT DISTINCT opp_char FROM games")}
+                        for c in distinct("SELECT DISTINCT opp_char FROM pool")}
 
     by_matchup: dict = {}
     pairs = con.execute(
-        "SELECT player_char, opp_char, COUNT(*) FROM games GROUP BY player_char, opp_char"
+        "SELECT player_char, opp_char, COUNT(*) FROM pool GROUP BY player_char, opp_char"
     ).fetchall()
     for player_char, opp_char, n in pairs:
         if n < MIN_MATCHUP_SAMPLES:
@@ -1271,9 +1280,9 @@ def build_baselines_from_db(db_path: str, output_path: str):
     by_opponent_char["_overall"] = overall_entry
 
     by_rank: dict = {}
-    for rank in distinct("SELECT DISTINCT rank FROM games WHERE rank IS NOT NULL"):
+    for rank in distinct("SELECT DISTINCT rank FROM pool WHERE rank IS NOT NULL"):
         by_rank[rank] = {"_overall": entry_for("WHERE rank = ?", (rank,))}
-        for c in distinct("SELECT DISTINCT player_char FROM games WHERE rank = ?", (rank,)):
+        for c in distinct("SELECT DISTINCT player_char FROM pool WHERE rank = ?", (rank,)):
             by_rank[rank][c] = entry_for("WHERE rank = ? AND player_char = ?", (rank, c))
     con.close()
 

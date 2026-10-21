@@ -1,5 +1,5 @@
 ---
-status: PLAN agreed with Joey 2026-10-15 (steps 1–5 approved; step 0 dropped). Steps 1–4 built 2026-10-15; the ingest is half done, see Status. Branch feat/lunar-benchmarks.
+status: INGEST DONE + benchmarks rebuilt 2026-10-21, not released (see Status). Branch feat/lunar-benchmarks.
 date: 2026-10-15
 ---
 
@@ -41,7 +41,45 @@ over Joey's stored sets before release (as for v1.10.0) and say it plainly in th
 - Our `--dataset db` builder already pools every source in the StatsDB, so a new source needs no
   change there.
 
-## ⚠ Status 2026-10-19 — ~796k netplay entries left; resume at/after ~13:35 on 2026-10-20
+## ✅ Status 2026-10-21 — INGEST DONE, benchmarks rebuilt, NOT released
+
+The last ~786k entries ran 10:41–12:50 on 10-21 (`--workers 8 --connections 20 --chunk-gb 52`,
+XMP off, XTU at defaults, RGB tools closed): no crash, nothing parked. ⚠ `--connections` must be
+≥ the planned chunk count, and the chunk count grows with `--connections` (chunk size = span ÷
+connections), so pin `--chunk-gb` and raise `--connections` until they agree.
+
+**Pool:** `raw_stats_v3.sqlite` holds 2,895,376 games (ranked 849k, lunar netplay 745k / unranked
+417k / direct 409k / ranked 199k / tournament 184k, v3.7 91k after de-dup).
+
+**Two exclusions the builder now applies** (`build_baselines_from_db`, via a `pool` view; rows
+stay in `games`, so both are reversible):
+- **Non-playable characters** (`Unknown_26`…`Unknown_42`: Master Hand, Wireframes, Giga Bowser,
+  Sandbag…, ~5.1k modded games): the whole game is dropped.
+- **Non-legal stages**, listed in a `benchmark_excluded` table (13,773 files). The DB has no stage
+  column, so: v3.7 by its file-name code (1,716 `(YI)`), Lunar by matching its API's non-legal
+  replays (`scripts/lunar_nonlegal_fetch.py` → `lunar_nonlegal_match.py --write`) on character
+  pair + start time (Slippi's `Game_YYYYMMDDTHHMMSS` local time vs the API's UTC `startAt`, any
+  whole-hour offset). Validated on 976 known Battlefield games: 958 matched (98%), ~6% extra
+  files from ambiguity (extra exclusions are harmless). Of Lunar's 78,777 non-legal games,
+  61,900 aren't 1v1 (Target Test / Home-Run), so were never ingested; 11,778 matched our rows.
+  ⚠ The API's inputs/min is NOT ours (~4× higher), so it can't be a match key. Not covered:
+  ~52.7k v3.7 files with no stage in their name (est. ~2k non-legal) and tournament files with
+  custom names; both negligible.
+
+**Rebuilt** `grade_baselines.json` + `grade-benchmarks.ts` (`BENCHMARKS_VERSION`
+`2026-10-21T18:34:47`): 5,755,828 player-rows, all 26 characters, **676/676 matchups ≥50
+samples** (was 569). Parity test green.
+
+**Grade shift over Joey's 1,566 stored sets** (stat values fixed, only benchmarks swapped; the
+harness reproduced 1,566/1,566 stored category scores first): overall −0.49 mean, neutral −0.40,
+punish −1.19, defense +0.71; 64 sets drop a letter (mostly S→A), 17 rise, 1,485 unchanged.
+Largest per-stat moves: inputs/min −4.49, kill% −2.23, death% +2.19, L-cancel −1.64.
+
+**Next:** Joey decides whether to ship. Release = merge into `main`, version bump, release notes
+(short and plain + "Data from Lunar Melee (lunarmelee.com)"), the website's replay-count HUD
+(`site/index.html`), and the banked quit-out rule + chart hover fix ride along.
+
+## Status 2026-10-19 (superseded above) — ~796k netplay entries left
 
 The 10-19 run (13:35) got through ~870k replays before the PC **blue-screened twice** (~15:05,
 ~15:16; the second only 6 min after restarting). The DB passed `pragma quick_check` both times and
