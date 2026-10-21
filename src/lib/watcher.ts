@@ -562,7 +562,7 @@ async function handleLiveGame(
         const grade = gradeGame(stats, playerCharName, opponentCharName);
         const hasRealData = Object.values(grade.categories).some((c) => c.score !== null);
         if (hasRealData) {
-          const outcome = gameOutcome(g.result, mode);
+          const outcome = gameOutcome(g.result, mode, stats.duration_frames);
           const featured = featuredCategory(grade, outcome === "win");
           lastOverlaySet.set({
             setId: Date.now(),
@@ -779,7 +779,7 @@ async function computeAllTimeRecord(
   let allTimeLosses = 0;
 
   if (mode !== "ranked") {
-    // Quit-outs don't count either way outside ranked — see gameOutcome.
+    // Quit-outs outside ranked follow gameOutcome (no result under 30 s, else the quitter loses).
     const t = tallyOutcomes(gamesVsOpp);
     return { allTimeWins: t.wins, allTimeLosses: t.losses, unit: "games" };
   }

@@ -3,7 +3,7 @@ import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
 import {
-  isPremium,
+  discordPremium,
   isOwner,
   discordToken,
   discordUsername,
@@ -66,16 +66,48 @@ function storeTokenResponse(data: {
   );
 }
 
+/** How a refresh ended. Only `dead` (Discord refused the refresh token itself) or `none` (there
+ *  isn't one) means the login is over. `retry` is everything else: rate limited, Discord down,
+ *  no network, an answer we can't read, or Discord rejecting our app's own setup (June's
+ *  `invalid_client`), none of which says anything about the user's login. */
+export type RefreshResult = { ok: true; token: string } | { ok: false; reason: "dead" | "none" | "retry" };
+
+let refreshInFlight: Promise<RefreshResult> | null = null;
+
+/** Every caller waits on the one refresh, so one that never answers must not wait forever. */
+const REFRESH_TIMEOUT_MS = 15_000;
+
 /**
  * Exchanges the stored refresh token for a fresh access token (silent — no browser, no
- * user interaction). Returns the new access token, or null if there's no refresh token or
- * Discord refused it (refresh tokens can be revoked or, after long dormancy, invalidated).
- * On a hard refusal we clear the dead refresh token so callers fall back to a re-link.
+ * user interaction) and stores the new pair. It never clears anything: whether a failure
+ * ends the login is the caller's decision, made from the reason.
+ *
+ * `dead` is OAuth's `invalid_grant`, the standard answer for a refresh token that was revoked,
+ * expired or already used. A login used to end on ANY 4xx, so a 429 or our own setup error
+ * logged patrons out, and a network blip or 5xx did the same one level up.
+ *
+ * One refresh at a time: Discord rotates the refresh token on every use, so a second request
+ * with the same token (the launch check and a Re-check click renewing together) is refused,
+ * and acting on that refusal used to throw away the login the first request had just renewed.
+ * A caller that arrives while a refresh is running waits for that one instead.
  */
-export async function refreshDiscordToken(): Promise<string | null> {
-  const rt = get(discordRefreshToken);
-  if (!rt) return null;
+export function refreshDiscordToken(): Promise<RefreshResult> {
+  refreshInFlight ??= sendRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
 
+async function sendRefresh(): Promise<RefreshResult> {
+  const rt = get(discordRefreshToken);
+  if (!rt) return { ok: false, reason: "none" };
+
+  // ⚠ Not AbortSignal.timeout: Tauri's fetch never removes its abort listener, so a timeout
+  // firing after the reply cancels a request Rust has already freed, and main.ts blanks the
+  // app on that rejection (see card-premium.ts `call`). The timer has to die with the request.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+  let data: { access_token?: unknown; refresh_token?: string; expires_in?: number; error?: unknown };
   let res: Response;
   try {
     res = await fetch("https://discord.com/api/oauth2/token", {
@@ -86,25 +118,24 @@ export async function refreshDiscordToken(): Promise<string | null> {
         grant_type: "refresh_token",
         refresh_token: rt,
       }).toString(),
+      signal: controller.signal,
     });
+    data = (await res.json()) ?? {};
   } catch {
-    return null; // network/transient — keep the refresh token, try again next launch
+    return { ok: false, reason: "retry" };
+  } finally {
+    clearTimeout(timer);
   }
 
-  if (!res.ok) {
-    // 4xx = the refresh token itself is bad (revoked/expired). Clear it so the user re-links.
-    // 5xx = Discord hiccup; leave it so we can retry later.
-    if (res.status >= 400 && res.status < 500) discordRefreshToken.set(null);
-    return null;
-  }
+  // The login changed while Discord was answering (Disconnect, or a new Connect Discord). The
+  // answer is about a login that's gone, so it neither saves nor ends anything.
+  if (get(discordRefreshToken) !== rt) return { ok: false, reason: "retry" };
 
-  try {
-    const data = await res.json();
-    storeTokenResponse(data);
-    return data.access_token as string;
-  } catch {
-    return null;
+  if (res.ok && typeof data.access_token === "string") {
+    storeTokenResponse({ ...data, access_token: data.access_token });
+    return { ok: true, token: data.access_token };
   }
+  return { ok: false, reason: data.error === "invalid_grant" ? "dead" : "retry" };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -182,7 +213,7 @@ export type VerifyResult = "premium" | "no_role" | "no_token" | "auth_invalid" |
  * which uses a bot token (server-side) to look up the user's roles in the SRS
  * guild. Also refreshes the stored username.
  *
- * Only flips `isPremium` on a definitive response. Transient failures
+ * Only flips `discordPremium` on a definitive response. Transient failures
  * (5xx/429/network) leave the prior value alone so a Discord hiccup can't
  * silently downgrade an existing patron.
  */
@@ -221,7 +252,7 @@ export async function verifyPatronRole(
 
   let data: { premium: boolean | null; reason: string; username?: string | null; userId?: string | null };
   try {
-    data = await res.json();
+    data = (await res.json()) ?? {};
   } catch {
     return "transient";
   }
@@ -235,33 +266,38 @@ export async function verifyPatronRole(
 
   switch (data.reason) {
     case "premium":
-      isPremium.set(true);
+      discordPremium.set(true);
       pingTelemetry("premium");
       return "premium";
 
     case "no_role":
-      isPremium.set(false);
+      discordPremium.set(false);
       return "no_role";
 
     case "not_in_guild":
-      isPremium.set(false);
+      discordPremium.set(false);
       return "auth_invalid";
 
     case "auth_invalid":
       // Discord rejected the access token — the common case is simply that it expired (~7 days).
       // Before clearing premium and forcing a re-link, try ONE silent refresh with the stored
       // refresh token and re-verify with the new access token. Only give up if there's no
-      // refresh token (older installs that linked before this shipped) or the refresh itself
-      // failed (token actually revoked). The `_afterRefresh` guard caps this at a single retry.
+      // refresh token (older installs that linked before this shipped) or Discord refused it
+      // (revoked). The `_afterRefresh` guard caps this at a single retry.
       if (!_afterRefresh) {
-        const fresh = await refreshDiscordToken();
-        if (fresh) return verifyPatronRole(fresh, true);
+        const renewed = await refreshDiscordToken();
+        if (renewed.ok) return verifyPatronRole(renewed.token, true);
+        // Discord gave no usable answer: keep the login and Premium, and try again later.
+        if (renewed.reason === "retry") return "transient";
       }
+      // Only end the login this check was about. A Connect Discord that finished meanwhile
+      // stored a newer one, which this answer says nothing about.
+      if (get(discordToken) !== t) return "transient";
       discordToken.set(null);
       discordRefreshToken.set(null);
       discordTokenExpiresAt.set(null);
       discordUsername.set(null);
-      isPremium.set(false);
+      discordPremium.set(false);
       return "auth_invalid";
 
     default:
@@ -307,5 +343,5 @@ export async function disconnectDiscord(): Promise<void> {
   discordRefreshToken.set(null);
   discordTokenExpiresAt.set(null);
   discordUsername.set(null);
-  isPremium.set(false);
+  discordPremium.set(false);
 }

@@ -10,7 +10,7 @@
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import Notes from "./components/tabs/Notes.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, discordPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
   import { getDb, getGames, getSnapshots, getSeasons, pruneUnproductiveScannedFiles } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
@@ -18,6 +18,7 @@
   import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
   import { verifyPatronRoleWithRetry } from "./lib/discord";
   import { refreshNotes } from "./lib/notes";
+  import { initCardPremium, CARD_BILLING_ENABLED } from "./lib/card-premium";
   import { scrollAffordance } from "./lib/tab-scroll";
   import { onOpenUrl, register } from "@tauri-apps/plugin-deep-link";
   import { get } from "svelte/store";
@@ -105,6 +106,7 @@
   });
 
   import { invoke } from "@tauri-apps/api/core";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { check } from "@tauri-apps/plugin-updater";
   import { relaunch } from "@tauri-apps/plugin-process";
 
@@ -138,7 +140,7 @@
     // proactively refresh a near-expired access token before the check (see discord.ts).
     const token = get(discordToken);
     if (token) verifyPatronRoleWithRetry().catch(() => {});
-    else isPremium.set(false);
+    else discordPremium.set(false);
 
     pingTelemetry("open");
 
@@ -147,6 +149,10 @@
     // render them the instant an opponent is detected, whether or not that tab was ever
     // visited. The table is tiny; this is one small query at launch.
     refreshNotes().catch(() => {});
+
+    // Card Premium (docs/plans/direct-billing.md): renews the Pass at launch. One switch
+    // (CARD_BILLING_ENABLED) turns the whole card route on or off.
+    if (CARD_BILLING_ENABLED) initCardPremium().catch((e) => console.error("card premium:", e));
 
     try {
       const update = await check();
@@ -262,6 +268,13 @@
   // the responsive grids actually re-flow at their breakpoints, and no size compensation is
   // needed. It also makes ResizeObserver fire, which is what lets charts re-fit on zoom (with
   // `transform` they were measured at their untransformed size and never resized at all).
+  //
+  // ⚠ The zoom is applied to the WEBVIEW (Tauri's native page zoom), not as CSS `zoom` on #app.
+  // CSS `zoom` on an ancestor breaks ECharts' pointer mapping: it reads the mouse position in one
+  // coordinate space and the canvas in another, so the hover highlight landed left of the cursor
+  // by a gap that grew with distance from the chart's left edge. Native page zoom changes
+  // devicePixelRatio like browser zoom does, so every coordinate stays consistent. CSS `zoom` is
+  // kept only as a fallback if the native call fails.
   function setZoom(z: number) {
     uiZoom.set(Math.min(2.0, Math.max(0.5, Math.round(z * 10) / 10)));
   }
@@ -269,8 +282,14 @@
     setZoom(get(uiZoom) + delta);
   }
   $effect(() => {
+    const z = $uiZoom;
     const app = document.getElementById("app");
-    if (app) app.style.zoom = String($uiZoom);
+    getCurrentWebview().setZoom(z)
+      .then(() => { if (app) app.style.zoom = ""; })
+      .catch((e) => {
+        console.warn("[zoom] native webview zoom failed, falling back to CSS zoom:", e);
+        if (app) app.style.zoom = String(z);
+      });
   });
   function handleKeydown(e: KeyboardEvent) {
     if (!e.ctrlKey) return;

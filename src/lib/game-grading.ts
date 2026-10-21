@@ -106,6 +106,7 @@ export interface GameGradeEntry {
   playerChar:    string;
   opponentChar:  string;
   result:        string;
+  durationFrames: number;
   grade:         SetGrade | null;
   /** Null grade is not an error — see `scoreGameStats`. */
   ungradable:    boolean;
@@ -130,6 +131,7 @@ export function scoreGameStats(rows: readonly GameStatsRow[]): GameGradeEntry[] 
       playerChar:   row.player_char,
       opponentChar: row.opponent_char,
       result:       row.result,
+      durationFrames: row.duration_frames,
       ungradable,
       grade: ungradable
         ? null

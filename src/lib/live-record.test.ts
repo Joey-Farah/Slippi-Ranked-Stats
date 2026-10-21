@@ -88,17 +88,17 @@ describe("live session records", () => {
     expect(await read(liveUnrankedRecord)).toEqual({ wins: 2, losses: 2, total: 4, noResult: 0 });
   });
 
-  it("counts a forfeit as a win in ranked, but as no result in direct/unranked", async () => {
-    // Changed 2026-10-06. A ranked quit-out is a real forfeit and Slippi scores it as a win.
-    // Outside ranked it is just how people end a game or return to character select, and
-    // counting it made a 2–2 friendlies session read as 4–2.
+  it("counts a forfeit as a win in ranked; outside ranked only past the first 30 s", async () => {
+    // Ranked quit-outs are real forfeits. Outside ranked (2026-10-16): a quit in the first
+    // 30 s is no result, after that it counts against whoever quit.
     const { liveGameStats, liveSetRecord, liveUnrankedRecord } = await import("./store");
     liveGameStats.set([
       game("r1", "ranked", "win"),
       game("r1", "ranked", "lras_win"),
-      game("d1", "direct", "lras_win"),
+      game("d1", "direct", "lras_win"),                              // 2 min: counts
+      { ...game("d1", "direct", "lras_loss"), duration_frames: 600 }, // 10 s: no result
     ]);
     expect(await read(liveSetRecord)).toEqual({ wins: 1, losses: 0, total: 1 });
-    expect(await read(liveUnrankedRecord)).toEqual({ wins: 0, losses: 0, total: 0, noResult: 1 });
+    expect(await read(liveUnrankedRecord)).toEqual({ wins: 1, losses: 0, total: 1, noResult: 1 });
   });
 });

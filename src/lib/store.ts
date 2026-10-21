@@ -126,7 +126,14 @@ export const uiZoom = persisted<number>("srs_uiZoom", 1);
 // (the pre-toggle behaviour), but it runs right through the rating line and sometimes you just
 // want to read the rating itself — so it's persisted rather than reset every launch.
 export const showRatingAvg = persisted<boolean>("srs_showRatingAvg", true);
-export const isPremium = persisted<boolean>("srs_isPremium", false);
+// Premium comes by either of two routes that never interact (docs/plans/direct-billing.md,
+// decision 10): the Discord patron role, and a card subscription's Pass. `discordPremium` keeps
+// the old `srs_isPremium` key, so existing patrons need no migration. Only discord.ts and
+// App.svelte write it; only card-premium.ts writes `cardPremium` (never persisted: it's
+// recomputed from account.db every launch). Everything else reads `isPremium`.
+export const discordPremium = persisted<boolean>("srs_isPremium", false);
+export const cardPremium = writable<boolean>(false);
+export const isPremium = derived([discordPremium, cardPremium], ([d, c]) => d || c);
 
 // Live Ranked Stats overlay (premium): the unified always-on OBS Browser Source showing
 // tag / rank / MMR / global placement / season + today's record, plus a post-set bridge
@@ -703,8 +710,8 @@ export const liveSetRecord = derived(liveGameStats, ($stats) => {
 // Unranked + direct record for this watcher session, counted in games (the only honest unit —
 // these modes have no sets). Kept separate from liveSetRecord so the two are never summed.
 export const liveUnrankedRecord = derived(liveGameStats, ($stats) => {
-  // Quit-outs are excluded entirely (gameOutcome): outside ranked, leaving a game is how people
-  // get back to character select, not a forfeit — counting them made a 2–2 session read 4–2.
+  // Quit-outs follow gameOutcome: outside ranked, one in the first 30 s is no result; after that
+  // it counts against whoever quit.
   const t = tallyOutcomes($stats.filter((g) => g.match_type !== "ranked"));
   return { wins: t.wins, losses: t.losses, total: t.total, noResult: t.noResult };
 });

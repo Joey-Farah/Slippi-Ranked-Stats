@@ -1,3 +1,242 @@
+## ⚠ SESSION HANDOFF — 2026-10-19 (LUNAR INGEST ~796k LEFT; PC BLUE-SCREENS UNDER THE LOAD)
+
+**Lunar ingest** (`feat/lunar-benchmarks`) resumed 10-19 13:35 and got ~870k replays in before
+the Windows machine blue-screened twice (~15:05, ~15:16). The DB checked clean both times; ~796k
+netplay entries are left. Both of the day's Lunar links are spent, so the next frees ~13:35 on
+10-20. Four crash dumps were analysed with `cdb !analyze -v`: all kernel memory corruption
+(0x13A ×2, 0x139, 0x18), each in a different process, so it's the machine's stability under full
+load, not the script and not the network driver. Before the next run Joey is setting Intel XTU
+to defaults, the RAM (4 DIMMs, two kits, 3600 XMP) to default speed, and quitting the RGB tools
+(SignalRGB, Armoury Crate). Resume lighter: `--workers 8 --connections 6`. Full detail and the
+command: `docs/plans/lunar-benchmarks.md` on that branch. The banked quit-out rule and chart
+hover fix below still wait on this ingest + regrade before release.
+
+## SESSION HANDOFF — 2026-10-16 evening (QUIT-OUT RULE BANKED; LUNAR INGEST PAUSED)
+
+1. **Unranked/direct quit-outs now count after 30 s** (banked on `main`, NOT released). Outside
+   ranked, a quit in the first 30 s (`QUIT_OUT_COUNTS_AFTER_FRAMES`, `src/lib/outcome.ts`) is still
+   no result; after that it counts against whoever quit. Joey's call: people play a whole game and
+   leave just before losing. Real case: 20 direct games vs GISE#163 read 3–9, now 10–9 (8 opponent
+   quits, 7 of them 2:21–3:45 in). ⚠ This reverses part of v1.11.0's "every non-ranked quit is no
+   result"; mutual quit-to-CSS games now count against the quitter too. `gameOutcome` takes a
+   REQUIRED duration arg (unknown duration = no result), so every caller passes `duration_frames`.
+   Not yet checked in `tauri dev`. Ship with a version bump.
+2. **Lunar ingest paused** (`feat/lunar-benchmarks`). The 10-16 run hung at 18:45 after ~193k
+   replays: a worker died, and an untimed `item.get()` waited forever. Fixed in `750f172`
+   (`WORKER_TIMEOUT_S` = 120). Both of the day's links are spent; the next frees ~17:23 on
+   2026-10-17. ~1.68M entries left (~3–3.5 h). Same resume command as `docs/plans/lunar-benchmarks.md`.
+3. **Chart hover offset fixed** (banked on `main`, NOT released; Joey verified in `tauri dev` on
+   Windows). Hovering the Rating / Rolling Win Rate charts highlighted a point well left of the
+   cursor whenever Ctrl +/- zoom wasn't 100%: CSS `zoom` on `#app` (v1.9.0) breaks ECharts' pointer
+   mapping. Ctrl +/- now uses Tauri's native page zoom (`getCurrentWebview().setZoom`, needs
+   `core:webview:allow-set-webview-zoom`), CSS `zoom` kept only as a fallback. Not yet checked on
+   macOS. Joey wants to release AFTER the Lunar ingest + regrade.
+
+## ⚠ SESSION HANDOFF — 2026-10-15 night (v1.13.1 RELEASED: DISCORD REFRESH-TOKEN FIX; LAUNCH-DELAY DIAGNOSIS)
+
+**v1.13.1 released 2026-10-16 00:36 UTC** (PR #5; all assets + `latest.json` for every platform).
+`release-notes.md` carries v1.13.0's notes inside the v1.13.1 section, since the two shipped hours
+apart, and the updater notes include both. Three fixes in `src/lib/discord.ts`,
+pinned by the new `src/lib/discord.test.ts` (a fake Discord token endpoint that rotates refresh
+tokens like the real one, plus a fake check worker, both with a few ms of latency so concurrent
+checks interleave as they do in the app):
+1. **One refresh at a time.** The launch check and a Re-check click could renew an expired login
+   with the same refresh token; Discord rotates it on use and refuses the second, and the loser
+   wiped the login the winner had just renewed. Callers now share the in-flight refresh.
+2. **Only OAuth `invalid_grant` (or no refresh token at all) ends a login.** It used to end on ANY
+   4xx (a 429, or our own `invalid_client` setup error like June's), and one level up on ANY
+   failed refresh, so a network blip or Discord 5xx at the weekly expiry logged the patron out and
+   turned Premium off. Now the refresh returns `ok | dead | none | retry`; `retry` keeps the login
+   and Premium and the launch loop tries again. Verified live 2026-10-15: a bogus refresh token gets
+   `400 {"error": "invalid_grant"}`.
+3. **A refresh answer only applies to the login it was made for**: a Connect Discord that finished
+   meanwhile survives a refusal, and a Disconnect clicked meanwhile isn't undone by a success.
+4. From the fresh-context review: the refresh **gives up after 15 s** (own timer, ⚠ never
+   `AbortSignal.timeout` with plugin-http), since every caller now waits on the one request; a
+   `null` reply is a retry, not a thrown error. Known and accepted: the early (near-expiry) renewal
+   ignores its result, so a dead refresh token is retried each launch until the access token really
+   expires, and an expired token under a 429 costs two refresh requests per attempt.
+⚠ More failures now mean "keep Premium": the same unbounded grace the Discord route already gives
+when the check worker is unreachable (card billing caps its grace at 7 days). Healthy logins are
+unaffected (guard tests), and no stored keys changed, so the update logs nobody out.
+**Live-verified in `tauri dev` on macOS (2026-10-15) against real Discord:** connect, Re-check,
+early renewal (expiry moved to exactly +7 days), renewal after a planted rejected token (token
+replaced, still Premium), Disconnect then reconnect.
+
+**Launch-delay diagnosis (the patron getting Premium 22–30 s after launch):** `discord_debug` has
+caught ONE launch of theirs so far (10-15 19:36 UTC). The worker answered `premium` at +1 s on the
+first try, but the app's `premium` ping landed at +19 s, in the same second as `watcher_start`, so
+that delay was inside the app, not Discord. Across all 52 launches of that install (`df5c1b34…`):
+usually `watcher_start` +0.1 s and `premium` +22–30 s; sometimes both together at +15–20 s; 12
+launches got `premium` only minutes later (a manual verify). `srs_isPremium` persists, so a slow
+check costs nothing; only a definitive "no" takes Premium away. Whether those 12 were real lockouts
+or habitual Re-check clicks is unknown. **NEXT:** re-pull `discord_debug` around 10-20 (`SELECT *
+FROM discord_debug ORDER BY id LIMIT 5000`, a tiny table; the CLAUDE.md D1 rule still applies) to
+catch a failing launch. **Re-pulled 10-18: nothing new.** The patron hasn't opened the app since
+10-15 19:36 UTC (no telemetry, no worker check), and is still on 1.12.3, so their next launch is
+also their first on 1.13.1. Patron events pull: `WHERE install_id >= 'df5c1b34' AND install_id <
+'df5c1b35'` (uses `idx_events_install`, ~950 rows read). Re-pull again before 10-29; if they still
+haven't launched, extend `DEBUG_UNTIL`. Side note: 134 `no_role` checks came in ~1/s bursts
+(10-16 to 10-18), mostly from install `0cec4eeb…` right after it updated to 1.13.1, i.e. someone
+mashing Re-check without the Discord role; anonymous by design, so it can't be traced from here.
+The diagnostics self-disable 10-29; then delete the block. ⚠ That deployed
+worker code lives only on branch `fix/discord-check-debug`, not on `main`.
+
+## ⚠ SESSION HANDOFF — 2026-10-15 evening (v1.13.0 PREPARED: CARD BILLING LIVE ON PRODUCTION)
+
+`feat/card-billing` is merged into `main` and the version is **1.13.0** (release notes written).
+**Released:** `v1.13.0` was pushed and the release published 2026-10-15 22:52 UTC (all assets + `latest.json`).
+
+- **Production is live and verified:** worker `https://srs-billing.joeyfarah.workers.dev`, D1
+  `srs-billing`, all four secrets set, live webhook `we_1UQwoJFKmBCOtBry0tTqVhQp`. The hourly
+  self-test passes (first OK run 17:17 CDT, "recovered" email received). A real production sign-in
+  (code by email) and a live Checkout page were checked; no payment made.
+- **Release builds talk to production, dev builds to staging** (`import.meta.env.DEV` in
+  `card-premium.ts` + `pass-key.ts`). Verified in the built bundle: production URL + key only.
+- Stripe live: public business name = Joey's LLC, statement descriptor matched to the website
+  slippirankedstats.com, support email `hello@joeyfarah.dev` (Cloudflare Email Routing → Gmail).
+- ⚠ **D1 read budget:** see the "Cloudflare D1" rule in CLAUDE.md (an analysis query burned 98%
+  of the account's daily 5M reads on 2026-10-15).
+- Still open (not this release): chancesdm Discord diagnostics (self-disable 2026-10-29), the
+  Discord Re-check/launch-refresh token race, Lunar ingest (resumes 2026-10-16 11:32), the
+  banked app-rename idea.
+
+## ⚠ SESSION HANDOFF — 2026-10-15 (CARD BILLING SLICE 3 DONE; LUNAR BENCHMARK INGEST RUNNING)
+
+**Card billing slice 3 done** (this branch, `e365ac2`): `/portal` → Stripe Customer Portal
+(cancel / change card; under Managed Payments it's the only way to change a subscription's card)
+and a "Manage subscription" button; a declined renewal (past_due/unpaid) comes back as
+`not_paid` + `paymentFailed`, the panel says "Your last payment didn't go through" with "Update
+card", and `/checkout` refuses a second subscription beside it. A cached `active` is trusted only
+until `current_period_end`, so a lost webhook can't keep a non-payer Premium forever. 55 worker /
+262 app tests. Live-checked: the portal opens for the real test subscription. ⚠ **Joey's rule
+(2026-10-15): don't spend time live-testing what is Stripe's own machinery** (renewals, declines,
+retries, the portal's forms); unit-test our reaction to Stripe's statuses, and live-check only the
+join between us and Stripe. Next: **slice 4** (one device, newest wins: the worker already answers
+`device_replaced`; slice 4 is the app side + UI).
+
+**Two folders now:** this branch is checked out in a git worktree at
+`C:\Users\joeyf\Documents\GitHub\Slippi-Ranked-Stats-billing` (deps installed there), while the
+main folder is on `feat/lunar-benchmarks`, running the multi-hour Lunar replay ingest
+(`docs/plans/lunar-benchmarks.md` on that branch). Don't switch the main folder's branch while
+that ingest runs. `tauri dev` leaves CRLF-only churn in `src-tauri/Cargo.toml` + `gen/schemas`;
+don't commit it.
+
+## SESSION HANDOFF — 2026-10-14 evening (CARD BILLING SLICE 1 DONE: STAGING LIVE, REAL EMAIL)
+
+Slice 1 is **demoed end to end on Windows** against the live staging worker, with real email:
+Joey signed in through the dev app with a code that arrived in his Gmail inbox (not spam).
+
+- **Staging is deployed:** `https://srs-billing-staging.joeyfarah.workers.dev`, D1
+  `srs-billing-staging` (id now committed in `wrangler.toml`), migration `0001_sign_in.sql` applied.
+- **Resend is live on staging:** domain `mail.slippirankedstats.com` verified (added via Resend's
+  Cloudflare auto-configure, so only `send.mail` + `resend._domainkey.mail` records were created;
+  no DMARC yet, optional). `RESEND_API_KEY` is set on the staging worker, so codes are **emailed,
+  no longer logged**. Test address that delivers nowhere: `delivered@resend.dev`.
+- ⚠ **`wrangler secret put` through Claude Code's `!` prompt saves an EMPTY secret** — there's no
+  TTY, so wrangler never prompts and reads nothing. On staging a blank key silently falls back to
+  logging codes (`ALLOW_LOGGED_CODES`) and still answers `ok`, so it LOOKS like it worked. Set
+  secrets from a real terminal, or pipe them: `(Get-Clipboard -Raw).Trim() | npx wrangler secret put
+  NAME --env staging`. Verify a send by the ABSENCE of the `[staging] sign-in code` log line.
+- **Bug found in the demo, fixed (`d227cf6`):** any successful sign-in step blanked the whole app
+  15 s later ("App failed to start: The resource id … is invalid"). Tauri's plugin-http `fetch`
+  never removes its abort listener, so `AbortSignal.timeout` firing after the reply cancelled a
+  request Rust had already freed; the rejection is unhandled and `main.ts` replaces the app on any
+  unhandled rejection. `call()` now uses its own timer, cleared in `finally`. ⚠ **Never pass
+  `AbortSignal.timeout` to plugin-http's fetch.** The regression test puts `AbortSignal.timeout`
+  on the fake clock (Node's runs on internal timers vitest can't advance), else it passes on the
+  broken code.
+- Minor, for slice 7: on launch the panel shows the email box for ~1 s before account.db loads.
+- The in-app check can be driven headlessly: launch `npm run tauri dev` with
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` and talk CDP to the page.
+
+**Slice 2 (Subscribe → Premium) DONE and DEMOED end to end the same night (21:27):** dev app →
+Subscribe → test-mode Managed Payments Checkout (4242 card) → app flipped to "✓ Premium" by
+polling, `/checkout/done` page shown, and the signed webhook recorded the subscription as
+`active` in staging D1. That also proves PASS_SIGNING_KEY matches `src/lib/pass-key.ts`.
+Stripe test setup that exists now: Managed Payments activated; test product "SRS Premium Access"
+(tax code SaaS – personal use) with price `price_1UQeJ3FKmBCOtBrybTSdtSvc` (in wrangler.toml);
+webhook `we_1UQeHJFKmBCOtBrymOOvppke`; both Stripe secrets on staging. ⚠ A LIVE product + price
+`price_1UQe5uFKmBCOtBry5x6TwzDo` also got created by accident ("Include tax in price: No") — noted
+in wrangler.toml for slice 8; decide the tax choice there. ⚠ **Every Stripe product needs a tax
+code under Managed Payments**, in test mode too, or Checkout 400s ("product tax code is missing").
+
+⚠ **Incident, contained:** the first `sk_test_` key was stored with a BOM (Windows PowerShell
+prepends U+FEFF when piping to a program), Stripe rejected it, and the Workers runtime logged the
+WHOLE Authorization header as a non-ASCII warning — key in the `wrangler tail` output. Test key,
+no money at risk; Joey ROLLED it (expire now). Fixed twice: every worker secret goes through
+`secret()` (src/http.ts, trims incl. U+FEFF, with a test that fails without it), and
+`workers/billing/scripts/setup-stripe.ps1` sets BOTH `[Console]::InputEncoding` and
+`$OutputEncoding` to BOM-less UTF-8 (`$OutputEncoding` alone still emits the BOM — measured).
+The script waits for an `sk_test_`/`sk_live_` key to appear on the clipboard, creates the webhook
+via the API, stores both secrets unprinted, clears the clipboard; `-Replace` recreates an
+existing webhook, `-Production` targets the live worker. Also: paths in `!` commands must use
+forward slashes — the `!` prompt is bash and eats backslashes.
+
+Original slice-2 build notes: Worker: `/pass/renew`, `/checkout`, `/stripe/webhook`,
+`GET /checkout/done|cancelled`, migration `0002_subscriptions.sql` (applied remotely). Stripe is
+called over plain fetch (no SDK), API version pinned `2025-03-31.basil`, Checkout uses
+`managed_payments[enabled]=true` + the account's own Stripe customer (both confirmed in Stripe's
+docs). App: Pass verified with WebCrypto against `src/lib/pass-key.ts` (⚠ the STAGING public key;
+slice 8 needs its own production pair), `isPremium = discordPremium || cardPremium`
+(`discordPremium` keeps `srs_isPremium`). `PASS_SIGNING_KEY` is set on staging (generated and
+piped straight in, never printed). Grace needs no "unreachable" flag: definite answers delete the
+Pass, so an expired Pass still on disk already means "no answer since".
+
+**To demo slice 2, Joey needs to (Stripe dashboard, TEST mode):**
+1. Settings → Managed Payments: activate it and accept the terms.
+2. Product catalog → create "Slippi Ranked Stats Premium", $5.00 USD monthly, with a tax code
+   labelled "Eligible for Managed Payments". Copy the **price id** (`price_…`) into
+   `STRIPE_PRICE_ID` under `[env.staging.vars]` in `workers/billing/wrangler.toml`.
+3. Developers → Webhooks → add endpoint
+   `https://srs-billing-staging.joeyfarah.workers.dev/stripe/webhook` with the five
+   `customer.subscription.*` events (created/updated/deleted/paused/resumed).
+4. Secrets (from a real terminal, or piped from the clipboard): `STRIPE_SECRET_KEY` (the test
+   `sk_test_…`) and `STRIPE_WEBHOOK_SECRET` (the endpoint's `whsec_…`), both `--env staging`.
+Then redeploy, and in `npm run tauri dev`: sign in → Subscribe → pay with 4242 4242 4242 4242 →
+the panel flips to "✓ Premium" and the Premium tabs unlock.
+
+## SESSION HANDOFF — 2026-10-14 (CARD BILLING SLICE 1: SIGN-IN — CODE DONE; superseded by the evening banner above)
+
+Branch **`feat/card-billing`** (`main` merged in, so it also carries the untested overlay work
+from 10-13). Slice 1 of `docs/plans/direct-billing.md` is built: email → emailed code → "Signed in
+as x", surviving a restart. Worker 23 tests (`cd workers/billing && npm test`), app suite green,
+`tsc` clean, verified end to end against `wrangler dev`. **Dev builds only**: the sidebar panel
+(`CardAccountPanel.svelte`) and the launch load are behind `import.meta.env.DEV`, verified absent
+from a production `vite build`. Nothing touches `isPremium` yet (slice 2).
+
+⚠ **The verify contract changed from the plan after a fresh-context review:** `/auth/start`
+returns a random `challenge`, and `/auth/verify` takes `{challenge, code, deviceId}`, not the
+email. Without it, anyone who knew a player's email could burn that code's 5 tries or retire it
+by asking for a new one. Other review fixes: rate limits are checked *inside* the INSERT (100
+parallel requests used to send 15 codes against a limit of 5), a 10/day per-email cap, IPv6
+limited per /64, display-name/multi-recipient addresses refused, and **`sessions` replaced
+`devices`**, so a new sign-in marks the old session `replaced_at` instead of overwriting it.
+Slice 4 needs that to answer `device_replaced` rather than `signed_out`.
+
+**To demo it (Windows, needs Joey's Cloudflare login; no Resend needed yet):**
+1. `cd workers\billing` → `npm install --legacy-peer-deps` → `npx wrangler login` if needed.
+2. `npx wrangler d1 create srs-billing-staging` → paste the printed id over the zeros under
+   `[[env.staging.d1_databases]]` in `wrangler.toml` and commit it (D1 ids aren't secrets).
+3. `npx wrangler d1 migrations apply srs-billing-staging --remote --env staging`
+4. `npm run deploy:staging` → must land on `https://srs-billing-staging.joeyfarah.workers.dev`
+   (`BILLING_URL` in `card-premium.ts`).
+5. Leave `npx wrangler tail --env staging` running: staging has no `RESEND_API_KEY`, so codes
+   are logged as `[staging] sign-in code for <email>: 123456` (`ALLOW_LOGGED_CODES`, staging only;
+   a test pins that production's config doesn't set it).
+6. Repo root: `npm run tauri dev` → sidebar → **DEV · CARD PREMIUM** → email → code from the
+   tail → "Signed in as …". Quit and relaunch → still signed in. Sign out → relaunch → signed out.
+
+**Open / deferred, none blocking:**
+- `login_codes` rows are never deleted; purge old ones from the slice-6 cron.
+- Sign-out is local only: the server-side session stays live until the next sign-in replaces
+  it. Harmless now; revisit with renewals (slice 2/4).
+- Resend's free tier (100 emails/day) is a shared bottleneck: the per-IP limit slows a flood but
+  can't stop a distributed one from exhausting it and blocking sign-in for everyone that day.
+- The plan's pure `decide()` reducer isn't built: slice 1 has no renew/grace logic to put in it.
+  It arrives with renewals.
+- The production `[[d1_databases]]` id is also still zeros (slice 8).
+
 ## ⚠ SESSION HANDOFF — 2026-10-13 (OVERLAY FIT + PERSISTENT PER-GAME GRADES — BANKED, UNTESTED LIVE)
 
 Code done, 222/222 tests pass, **not yet tested in OBS / a real game**. Details in the CLAUDE.md "Banked on `main`" bullet dated 2026-10-13. Next: Joey tests live (stacked + side, each skin/size, a ranked set and an unranked run), then fold into a release with a version bump + release notes.
@@ -100,9 +339,9 @@ app** to get Premium. Waiting on details from the user. Findings so far:
   wiped — if the connect code and replay folder ALSO reset, the webview's localStorage isn't
   persisting, and Discord isn't the cause) or **"\<name\> — Not a patron"** that Re-check fixes
   (the worker is returning a wrong answer)? Also ask for their OS and app version.
-- Minor, real, but can't cause an every-launch failure: `refreshDiscordToken` clears the refresh
-  token on ANY 4xx, including a 429 and the `invalid_grant` a concurrent refresh gets (launch
-  retry loop + a Re-check click). That would cause a weekly re-link at worst.
+- ~~Minor, real: `refreshDiscordToken` clears the refresh token on ANY 4xx~~ **FIXED 2026-10-15 on
+  branch `fix/discord-refresh-token`** (see the 2026-10-15 night banner). Turned out worse than noted:
+  any failed refresh at the weekly expiry (network, 5xx) logged the patron out.
 
 ### 3. Card billing: grill DONE, plan APPROVED, build STARTED on branch `feat/card-billing`
 
@@ -988,6 +1227,20 @@ anywhere else is the bug the table exists to prevent.
 
 The windows are plain day counts (`1y` = 365, `2y` = 730), matching how `30d`/`90d` already worked
 — not calendar-month arithmetic, so "Last Year" is 365 days rather than the same date last year.
+
+---
+
+## ▶ BANKED IDEA — Rename the app, e.g. "Slippi Companion App" (2026-10-15, NOT started)
+
+Joey wants this on file — **no action planned yet.** The app has grown well past ranked stats
+(live session, overlay, input viewer, notes, unranked/direct grading), so the name may no longer
+fit. Things a rename touches, for when it's picked up: the display name (window title, header,
+release notes) is cheap; the Tauri **bundle identifier** is NOT — it decides `appDataDir`, so
+changing it strands every install's DBs, settings, card sign-in and Discord tokens unless the
+app migrates the old folder. Also: the GitHub repo + updater endpoint URL, the
+slippirankedstats.com domain and `mail.` sending domain, the Stripe public business name /
+statement descriptor (live billing, v1.13.0), Discord/Patreon/Ko-fi copy, and the OBS overlay
+file paths users already have set up (`<appDataDir>/stream-overlay/`).
 
 ---
 

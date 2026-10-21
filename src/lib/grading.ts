@@ -420,7 +420,7 @@ export function gradeGame(
   playerChar: string,
   opponentChar: string,
 ): SetGrade {
-  const won = gameOutcome(game.result, game.match_type) === "win";
+  const won = gameOutcome(game.result, game.match_type, game.duration_frames) === "win";
   const ranked = game.match_type === "ranked";
   return gradeSet([game], playerChar, opponentChar, won ? "win" : "loss",
                   won ? 1 : 0, won ? 0 : 1, null, false, ranked);

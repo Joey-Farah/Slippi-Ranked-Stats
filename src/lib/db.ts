@@ -6,6 +6,7 @@ const DB_DIR = "Slippi Ranked Stats/data";
 const _dbCache = new Map<string, Database>();
 let _scanned: Database | null = null;
 let _notes: Database | null = null;
+let _account: Database | null = null;
 
 function dbPath(connectCode: string): string {
   const safe = connectCode.replace("#", "_");
@@ -14,6 +15,7 @@ function dbPath(connectCode: string): string {
 
 const SCANNED_PATH = `sqlite:${DB_DIR}/scanned.db`;
 const NOTES_PATH = `sqlite:${DB_DIR}/notes.db`;
+const ACCOUNT_PATH = `sqlite:${DB_DIR}/account.db`;
 
 async function ensureDataDir(): Promise<void> {
   await mkdir(DB_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
@@ -762,4 +764,38 @@ export async function updateOpponentTag(
 
 export async function deleteNote(db: Database, id: number): Promise<void> {
   await db.execute(`DELETE FROM notes WHERE id = $1`, [id]);
+}
+
+// ── Card Premium account ─────────────────────────────────────────────────────────────────
+// The card route's device id + session (card-premium.ts), stored as one JSON row. Its own
+// database for the same reason as notes.db: Premium belongs to the person, not to whichever
+// connect code is primary. And SQLite rather than localStorage, which is the prime suspect
+// in the open report of the Discord route forgetting its tokens between launches.
+async function getAccountDb(): Promise<Database> {
+  if (!_account) {
+    await ensureDataDir();
+    _account = await Database.load(ACCOUNT_PATH);
+    await _account.execute(`
+      CREATE TABLE IF NOT EXISTS card_account (
+        id    INTEGER PRIMARY KEY CHECK (id = 1),
+        state TEXT NOT NULL
+      )
+    `);
+  }
+  return _account;
+}
+
+export async function loadCardState(): Promise<string | null> {
+  const db = await getAccountDb();
+  const rows = await db.select<{ state: string }[]>(`SELECT state FROM card_account WHERE id = 1`);
+  return rows[0]?.state ?? null;
+}
+
+export async function saveCardState(state: string): Promise<void> {
+  const db = await getAccountDb();
+  await db.execute(
+    `INSERT INTO card_account (id, state) VALUES (1, $1)
+     ON CONFLICT (id) DO UPDATE SET state = excluded.state`,
+    [state]
+  );
 }

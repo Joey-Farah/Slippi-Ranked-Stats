@@ -1,0 +1,54 @@
+name = "srs-billing"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# Production. Secrets (never commit them): RESEND_API_KEY, STRIPE_SECRET_KEY,
+# STRIPE_WEBHOOK_SECRET, PASS_SIGNING_KEY, each set with `npx wrangler secret put NAME`.
+# ⚠ From a real terminal: through Claude Code's `!` prompt wrangler can't prompt, and saves an
+# EMPTY secret. Or pipe it in: `(Get-Clipboard -Raw).Trim() | npx wrangler secret put NAME`.
+[vars]
+EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
+# The live-mode $5/month Price (slice 8). Created 2026-10-14 as price_1UQe5uFKmBCOtBry5x6TwzDo
+# ("Include tax in price: No"): tax is added at Checkout, as Joey chose 2026-10-15.
+STRIPE_PRICE_ID = "price_1UQe5uFKmBCOtBry5x6TwzDo"
+# The hourly self-test (src/health.ts) emails here when something breaks, and again on recovery.
+ALERT_EMAIL = "joeyefarah@gmail.com"
+ENVIRONMENT_NAME = "production"
+# The public key the production app ships (slice 8 generates the production pair).
+PASS_PUBLIC_KEY = '{"kty":"EC","crv":"P-256","x":"bC_LMcXLECoVeF42XlD96MZcxZoC2ih89pNInMgz_p4","y":"EbDMKOs41QPzufNzalnN-u4Zfh6HWM4hP_Yhs5PUVVg"}'
+
+[triggers]
+crons = ["17 * * * *"]  # hourly, off the top of the hour
+
+[[d1_databases]]
+binding = "DB"
+database_name = "srs-billing"
+# Created 2026-10-15.
+database_id = "1701bc6f-3ca5-4b87-903b-0354cbeba111"
+migrations_dir = "migrations"
+
+# Staging: what the dev build talks to. Deploy with `npm run deploy:staging`.
+# Until Resend is set up it has no RESEND_API_KEY, so sign-in codes go to the worker's log
+# instead of an inbox (read them with `npx wrangler tail --env staging`). Production never sets
+# ALLOW_LOGGED_CODES, so a missing key there is an error rather than a silent log.
+[env.staging]
+name = "srs-billing-staging"
+
+[env.staging.vars]
+EMAIL_FROM = "Slippi Ranked Stats <login@mail.slippirankedstats.com>"
+ALLOW_LOGGED_CODES = "1"
+# The test-mode $5/month Price.
+STRIPE_PRICE_ID = "price_1UQeJ3FKmBCOtBrybTSdtSvc"
+ALERT_EMAIL = "joeyefarah@gmail.com"
+ENVIRONMENT_NAME = "staging"
+# = src/lib/pass-key.ts (the staging pair). The self-test checks fresh Passes verify against it.
+PASS_PUBLIC_KEY = '{"kty":"EC","crv":"P-256","x":"pjzjKrq4ktCkUMkHShyFeR0cQ9p5n77IG394PvdvyiI","y":"sYxRNqzzf-RrdLutIePFX8ar1WltAygG4ioprVpdkek"}'
+
+[env.staging.triggers]
+crons = ["17 * * * *"]
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "srs-billing-staging"
+database_id = "1bbb1d40-ecce-4387-ad59-316c19c5e404"
+migrations_dir = "migrations"

@@ -267,8 +267,8 @@
       const g = games[i];
       const grade = gameGrade(g);
       if (!grade) continue;
-      const o = gameOutcome(g.result, g.match_type);
-      // A quit-out outside ranked has no result, so there is no win to key BEST/WORST off.
+      const o = gameOutcome(g.result, g.match_type, g.duration_frames);
+      // An early quit-out outside ranked has no result, so there is no win to key BEST/WORST off.
       // Fall back to whether the player was ahead on stocks when it stopped.
       const won = o === "none" ? g.kills > g.deaths : o === "win";
       return { grade, won, featured: featuredCategory(grade, won), index: i + 1, outcome: o };
@@ -389,7 +389,7 @@
 {#if !$isPremium}
   <PremiumGate
     featureName="Live Session Tracking"
-    description="Live session tracking includes NOW PLAYING, per-game stats (openings/kill, neutral win rate), and session rating delta. Premium also unlocks in-depth set grades with per-category scores, a full 14-stat breakdown, and matchup grade averages in the Grading tab. Support on Ko-fi or Patreon to unlock access."
+    description="Live session tracking includes NOW PLAYING, per-game stats (openings/kill, neutral win rate), and session rating delta. Premium also unlocks in-depth set grades with per-category scores, a full 14-stat breakdown, and matchup grade averages in the Grading tab."
   />
 
 {:else}
@@ -945,7 +945,7 @@
                8px/6px spacing that block dominated the tab. -->
           <div class="game-rows">
             {#each allGames as g, i}
-              {@const outcome = gameOutcome(g.result, g.match_type)}
+              {@const outcome = gameOutcome(g.result, g.match_type, g.duration_frames)}
               {@const gg = gameGrade(g)}
               <div class="game-grid game-row" style="border-left-color: {outcome === 'win' ? '#2ecc71' : outcome === 'loss' ? '#e74c3c' : 'var(--border)'}">
                 <div style="font-size: 11px; color: var(--muted)">G{i + 1}</div>

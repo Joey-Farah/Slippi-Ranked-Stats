@@ -40,10 +40,10 @@
   // ── Summary (respects the your-character filter) ────────────────────────────
 
   let totalGames = $derived(baseGames.length);
-  // Counted, NOT derived as total − wins: a quit-out outside ranked has no result, and
+  // Counted, NOT derived as total − wins: an early quit-out outside ranked has no result, and
   // subtracting would quietly file every one of them as a loss.
-  let wins = $derived(baseGames.filter((g) => gameOutcome(g.result, g.match_type) === "win").length);
-  let losses = $derived(baseGames.filter((g) => gameOutcome(g.result, g.match_type) === "loss").length);
+  let wins = $derived(baseGames.filter((g) => gameOutcome(g.result, g.match_type, g.duration_frames) === "win").length);
+  let losses = $derived(baseGames.filter((g) => gameOutcome(g.result, g.match_type, g.duration_frames) === "loss").length);
   let decided = $derived(wins + losses);
   let winPct = $derived(decided > 0 ? (wins / decided) * 100 : 0);
 
@@ -55,8 +55,8 @@
   let oppCharStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
     for (const g of filtered) {
-      const o = gameOutcome(g.result, g.match_type);
-      if (o === "none") continue;          // quit-out: no result to chart
+      const o = gameOutcome(g.result, g.match_type, g.duration_frames);
+      if (o === "none") continue;          // early quit-out: no result to chart
       const e = m.get(g.opponent_char_id) ?? { wins: 0, total: 0 };
       e.total++;
       if (o === "win") e.wins++;
@@ -81,8 +81,8 @@
   let myCharStats = $derived((() => {
     const m = new Map<number, { wins: number; total: number }>();
     for (const g of baseGames) {
-      const o = gameOutcome(g.result, g.match_type);
-      if (o === "none") continue;          // quit-out: no result to chart
+      const o = gameOutcome(g.result, g.match_type, g.duration_frames);
+      if (o === "none") continue;          // early quit-out: no result to chart
       const e = m.get(g.player_char_id) ?? { wins: 0, total: 0 };
       e.total++;
       if (o === "win") e.wins++;
@@ -102,7 +102,7 @@
     const m = new Map<number, { wins: number; losses: number }>();
     for (const g of baseGames) {
       const e = m.get(g.stage_id) ?? { wins: 0, losses: 0 };
-      const o = gameOutcome(g.result, g.match_type);
+      const o = gameOutcome(g.result, g.match_type, g.duration_frames);
       if (o === "win") e.wins++;
       else if (o === "loss") e.losses++;
       m.set(g.stage_id, e);
@@ -125,7 +125,7 @@
     const m = new Map<string, { wins: number; losses: number }>();
     for (const g of baseGames) {
       const e = m.get(g.opponent_code) ?? { wins: 0, losses: 0 };
-      const o = gameOutcome(g.result, g.match_type);
+      const o = gameOutcome(g.result, g.match_type, g.duration_frames);
       if (o === "win") e.wins++;
       else if (o === "loss") e.losses++;
       m.set(g.opponent_code, e);
