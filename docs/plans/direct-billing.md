@@ -52,12 +52,18 @@ approved.
   their card on link.com. We build no billing-management UI and send only sign-in codes.
 - Stripe handles disputes and transaction support; if it asks for input and gets none in 48h it
   may refund on its own. ⚠ Keep the support email in the Stripe dashboard current.
-- The fee isn't on the docs pages; the ~3.5% surcharge comes from third-party comparisons.
-  Confirm it on the dashboard.
+- **Fees, confirmed from live balance transactions (2026-10-26):** per $5 charge, 45¢ card
+  processing (2.9% + 30¢) + ~18¢ Managed Payments (3.5%) + ~4¢ Billing (0.7%) = **~$4.33 net**.
+  The two surcharges post as separate daily `stripe_fee` rows, not on the charge, and the charge
+  itself sits ~7 days before it's available. So a payout can carry the fees of signups whose money
+  hasn't landed yet (the 10-26 $8.22 payout looked short for that reason). Sales tax is withheld
+  on top (`withheld_tax`) and never comes out of the $5.
 
 ## Still open
 
 - Lifetime price (non-blocking).
+- **Annual plan (revisit later, Joey 2026-10-26: not urgent).** The fixed 30¢ is the largest
+  fee at $5. A yearly price pays it once: ~$3.85 in fees on $50/yr vs ~$8 for twelve monthly charges.
 
 ---
 
