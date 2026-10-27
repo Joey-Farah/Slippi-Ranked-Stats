@@ -12,6 +12,7 @@ first frame. A file older than 3 s draws an idle controller (app closed). Older 
 stay on SSE. Pinned in `overlay-inputs-dom.test.ts`. Verified by Joey in OBS via `tauri dev`.
 ⚠ When an overlay feature "works in the preview but not OBS", read the OBS log first
 (`%APPDATA%/obs-studio/logs/`, lines `[obs-browser: '<source>']`) — page console errors land there.
+Planned, not started: remove every Lunar Melee mention from the repo — `docs/plans/remove-lunar-mentions.md`.
 
 ## ⚠ SESSION HANDOFF — 2026-10-21 (v1.14.0 RELEASED: LUNAR BENCHMARKS + QUIT-OUT RULE + CHART HOVER FIX)
 
