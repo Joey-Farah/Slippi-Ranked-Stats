@@ -1,3 +1,12 @@
+## What's New in v1.14.1
+
+### 🎮 Input viewer fixed in newer OBS
+
+On recent versions of OBS, the controller input viewer showed in the app's preview but stayed
+blank on stream. It works again, with the same Local file setup — nothing to change in OBS.
+
+---
+
 ## What's New in v1.14.0
 
 ### 📊 Grades benchmarked against far more games

@@ -162,6 +162,62 @@ describe("input viewer in a real DOM", () => {
     expect(litCount(inputsEl), "A is held in this frame").toBeGreaterThan(0);
   });
 
+  // OBS's Chromium 150+ refuses a Local-file source's connection to 127.0.0.1 outright, so the
+  // stream errors before delivering anything. The page must then read the file mirror instead.
+  describe("when the browser refuses the stream (OBS Local file)", () => {
+    /** Capture the page's <script> loads instead of letting happy-dom fetch them. */
+    function captureScripts(): HTMLScriptElement[] {
+      const seen: HTMLScriptElement[] = [];
+      const orig = document.head.appendChild.bind(document.head);
+      (document.head as any).appendChild = (n: Node) => {
+        if (n instanceof HTMLScriptElement) { seen.push(n); return n; }
+        return orig(n);
+      };
+      return seen;
+    }
+    const inputLoads = (s: HTMLScriptElement[]) =>
+      s.filter((x) => x.getAttribute("src")?.startsWith("inputs-state.js"));
+
+    it("falls back to inputs-state.js and draws its frames", async () => {
+      const { inputsEl, src } = await mountOverlay("digital");
+      const scripts = captureScripts();
+      src.onerror?.();
+      expect(src.closed, "a refused stream should be closed, not retried forever").toBe(true);
+
+      const loads = inputLoads(scripts);
+      expect(loads.length, "the page should poll the file mirror").toBe(1);
+      (window as any).__SRS_INPUTS = {
+        t: Date.now(),
+        d: { game_id: "GALE01", controllers: [], digital: boxFrame(["a", "b", "up"]) },
+      };
+      (loads[0] as any).onload();
+      expect((inputsEl as HTMLElement).hidden).toBe(false);
+      expect(litCount(inputsEl)).toBe(3);
+    });
+
+    it("draws an idle controller once the file goes stale (app closed)", async () => {
+      const { inputsEl, src } = await mountOverlay("digital");
+      const scripts = captureScripts();
+      src.onerror?.();
+      (window as any).__SRS_INPUTS = {
+        t: Date.now() - 60_000,
+        d: { game_id: "GALE01", controllers: [], digital: boxFrame(["a"]) },
+      };
+      (inputLoads(scripts)[0] as any).onload();
+      expect(litCount(inputsEl), "a frame from a closed app must not be drawn").toBe(0);
+    });
+
+    it("keeps using the stream when it errors after delivering frames", async () => {
+      // A dropped connection, not a refusal: EventSource reconnects by itself.
+      const { src } = await mountOverlay("digital");
+      const scripts = captureScripts();
+      src.send({ game_id: "GALE01", controllers: [], digital: boxFrame() });
+      src.onerror?.();
+      expect(src.closed).toBe(false);
+      expect(inputLoads(scripts).length).toBe(0);
+    });
+  });
+
   it("does not render at all when the toggle is off", async () => {
     const { overlayPreviewHtml } = await import("./stats-overlay");
     const page = overlayPreviewHtml({ show: { inputs: false }, inputPort: 14524 } as any);

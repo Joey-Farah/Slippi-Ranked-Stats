@@ -791,6 +791,7 @@ function overlayDoc(boot: string): string {
       var skin = (s && s.inputSkin) || "controller";
       if (!want) {
         if (iSrc) { iSrc.close(); iSrc = null; iPort = 0; }
+        iFileMode = false;
         inputsEl.hidden = true;
         return;
       }
@@ -798,20 +799,58 @@ function overlayDoc(boot: string): string {
       if (skin !== iSkin) { iEls = null; iSkin = ""; buildInputDom(skin); }
       iCurSkin = skin;
       iScale = (s && s.inputScale) || 1.6;
+      if (iFileMode) { pollInputFile(); return; }
       if (iSrc && iPort === s.inputPort) return;
       if (iSrc) { iSrc.close(); iSrc = null; }
       iPort = s.inputPort;
+      var gotFrame = false;
       try {
         iSrc = new EventSource("http://127.0.0.1:" + iPort + "/");
         iSrc.onmessage = function (ev) {
+          gotFrame = true;
           // "null" is meaningful: Dolphin closed or no game booted. Hide, don't freeze on the
           // last frame, or the overlay shows inputs for a game that isn't running.
           if (ev.data === "null") { idleInputs(); return; }
           try { drawInputs(JSON.parse(ev.data), iCurSkin); } catch (err) {}
         };
-        // EventSource reconnects on its own; just stop drawing stale state meanwhile.
-        iSrc.onerror = function () { idleInputs(); };
-      } catch (err) { iSrc = null; iPort = 0; }
+        iSrc.onerror = function () {
+          // ⚠ Refused before a single frame = the browser won't let this page reach localhost
+          // at all (OBS's Chromium 150+ blocks a Local-file source from loopback). Retrying
+          // can never succeed, so switch to the file mirror the app writes beside
+          // stats-state.js. An error AFTER frames is a dropped connection: EventSource
+          // reconnects on its own, so just stop drawing stale state meanwhile.
+          if (!gotFrame) { iSrc.close(); iSrc = null; iFileMode = true; pollInputFile(); return; }
+          idleInputs();
+        };
+      } catch (err) { iSrc = null; iPort = 0; iFileMode = true; pollInputFile(); }
+    }
+
+    // ── File fallback ──
+    // Same script-tag trick as poll() (a Local-file page can't fetch() its own files), one
+    // request in flight at a time, as fast as frames are drawn.
+    var iFileMode = false, iFileChain = false;
+    var INPUT_FILE_MS = 16;
+    // The app rewrites the file at least once a second; older than this means it's closed.
+    var INPUT_STALE_MS = 3000;
+    // ⚠ apply() calls this every state poll. iFileChain (not an in-flight flag) is what stops
+    // those calls from starting a second chain in the gap between one read and the next.
+    function pollInputFile() {
+      if (iFileChain || !iFileMode) return;
+      iFileChain = true;
+      readInputFile();
+    }
+    function readInputFile() {
+      var sc = document.createElement("script");
+      sc.src = "inputs-state.js?t=" + Date.now();
+      sc.onload = sc.onerror = function () {
+        sc.remove();
+        if (!iFileMode) { iFileChain = false; return; }
+        var f = window.__SRS_INPUTS;
+        if (!f || !f.d || Date.now() - f.t > INPUT_STALE_MS) idleInputs();
+        else drawInputs(f.d, iCurSkin);
+        setTimeout(readInputFile, INPUT_FILE_MS);
+      };
+      document.head.appendChild(sc);
     }
     var iCurSkin = "controller";
     var iScale = 1.6;

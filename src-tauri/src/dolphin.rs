@@ -357,9 +357,17 @@ pub fn dolphin_inputs() -> Result<Option<DolphinSnapshot>, String> {
 // keeps using `stats-state.js`, so if this socket is absent the rest of the overlay is unaffected
 // and only the input panel goes missing. The port is advertised THROUGH `stats-state.js`, so the
 // file channel stays the one thing the page needs to find at startup.
+//
+// ⚠ The socket alone is NOT enough. OBS's browser (Chromium 150+, OBS log: "The request client is
+// not a secure context and the resource is in more-private address space `loopback`") blocks a
+// Local-file Browser Source — origin `http://absolute` — from reaching 127.0.0.1 at all, and no
+// response header can lift that. So every frame is ALSO mirrored to `inputs-state.js` beside
+// `stats-state.js`, and the page falls back to polling it when the stream is refused. That keeps
+// the Local-file setup working without asking anyone to re-point OBS at a URL.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU16, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 /// Latest snapshot, pre-serialised so a frame is encoded once rather than per connection.
 static LATEST: Mutex<Option<String>> = Mutex::new(None);
@@ -380,6 +388,51 @@ fn set_latest(json: Option<String>) {
 
 fn get_latest() -> Option<String> {
     LATEST.lock().ok().and_then(|g| g.clone())
+}
+
+/// `<appDataDir>/stream-overlay/inputs-state.js`, set once when the stream starts.
+static INPUT_FILE: OnceLock<PathBuf> = OnceLock::new();
+
+/// Rewrite the file this often even when nothing changed, so the page can tell "controller at
+/// rest" (fresh timestamp) from "app closed" (stale timestamp) and stop drawing a frozen frame.
+const FILE_HEARTBEAT_MS: u128 = 1000;
+
+/// The file mirror of the stream, driven from the poller thread.
+struct FileFeed {
+    /// What is on disk. Separate from what the poller last saw, because a write can fail.
+    written: Option<Option<String>>,
+    written_at: std::time::Instant,
+}
+
+impl FileFeed {
+    fn new() -> Self {
+        FileFeed { written: None, written_at: std::time::Instant::now() }
+    }
+
+    fn tick(&mut self, cur: &Option<String>) {
+        let Some(path) = INPUT_FILE.get() else { return };
+        let changed = self.written.as_ref() != Some(cur);
+        if !changed && self.written_at.elapsed().as_millis() < FILE_HEARTBEAT_MS {
+            return;
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let body = format!(
+            "window.__SRS_INPUTS = {{\"t\":{now},\"d\":{}}};\n",
+            cur.as_deref().unwrap_or("null")
+        );
+        // Write-then-rename so the page never runs a half-written script. ⚠ On Windows the rename
+        // fails while OBS has the file open for a read; `written` is then left unchanged so the
+        // next tick retries. Dropping the frame instead would strand a RELEASE, leaving a button
+        // drawn as held until the next input.
+        let tmp = path.with_extension("js.tmp");
+        if std::fs::write(&tmp, body).is_ok() && std::fs::rename(&tmp, path).is_ok() {
+            self.written = Some(cur.clone());
+            self.written_at = std::time::Instant::now();
+        }
+    }
 }
 
 /// Poll Dolphin on a dedicated OS thread.
@@ -404,6 +457,7 @@ fn box_only_frame() -> Option<String> {
 fn spawn_poller() {
     std::thread::spawn(|| {
         let period = std::time::Duration::from_micros(1_000_000 / POLL_HZ);
+        let mut feed = FileFeed::new();
         loop {
             match read_dolphin_inputs() {
                 Ok(Some(snap)) => set_latest(serde_json::to_string(&snap).ok()),
@@ -416,6 +470,7 @@ fn spawn_poller() {
                 // port drops, so this goes quiet on its own when the controller is unplugged.
                 _ => set_latest(box_only_frame()),
             }
+            feed.tick(&get_latest());
             std::thread::sleep(period);
         }
     });
@@ -426,7 +481,12 @@ fn spawn_poller() {
 /// Idempotent: the frontend calls this whenever the input-viewer toggle turns on, which can
 /// happen repeatedly in one session.
 #[tauri::command]
-pub async fn start_dolphin_input_stream() -> Result<u16, String> {
+pub async fn start_dolphin_input_stream(app: tauri::AppHandle) -> Result<u16, String> {
+    use tauri::Manager;
+    if let Ok(dir) = app.path().app_data_dir() {
+        let _ = INPUT_FILE.set(dir.join("stream-overlay").join("inputs-state.js"));
+    }
+
     let existing = PORT.load(Ordering::SeqCst);
     if existing != 0 {
         return Ok(existing);

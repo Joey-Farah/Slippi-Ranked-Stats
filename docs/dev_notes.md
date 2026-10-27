@@ -1,3 +1,18 @@
+## ⚠ SESSION HANDOFF — 2026-10-26 (v1.14.1: INPUT VIEWER BLANK IN NEW OBS — FIXED)
+
+OBS's browser (CEF/Chromium 150) refuses a **Local file** Browser Source (origin `http://absolute`)
+any connection to `127.0.0.1`. The OBS log says it outright: "The request client is not a secure
+context and the resource is in more-private address space `loopback`". No response header lifts
+that, so the SSE input stream was dead in OBS while the in-app preview (not an insecure context)
+kept working. Fix keeps the Local-file setup (Joey rejected pointing OBS at a localhost URL):
+`dolphin.rs` mirrors every frame to `stream-overlay/inputs-state.js` (write-then-rename, retried
+on a failed rename so a release is never stranded, 1 s heartbeat timestamp), and the page
+switches to polling that file (~60 Hz, one script-tag chain) when the stream errors before its
+first frame. A file older than 3 s draws an idle controller (app closed). Older OBS + the preview
+stay on SSE. Pinned in `overlay-inputs-dom.test.ts`. Verified by Joey in OBS via `tauri dev`.
+⚠ When an overlay feature "works in the preview but not OBS", read the OBS log first
+(`%APPDATA%/obs-studio/logs/`, lines `[obs-browser: '<source>']`) — page console errors land there.
+
 ## ⚠ SESSION HANDOFF — 2026-10-21 (v1.14.0 RELEASED: LUNAR BENCHMARKS + QUIT-OUT RULE + CHART HOVER FIX)
 
 The Lunar ingest finished 10-21 (18/18 chunks, no crash with XMP off, XTU at defaults, RGB tools
