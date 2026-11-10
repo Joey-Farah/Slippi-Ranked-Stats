@@ -167,7 +167,12 @@ function opponentPrevSeason(history: SeasonData[]): PrevSeasonInfo | null {
 // Fields already populated from the replay header are never downgraded to null/empty by a thin
 // API response — the header's tag beats no tag, and the live in-game character beats no icon.
 function applyOpponentProfile(matchId: string, opponentCode: string): void {
-  fetchRatingSnapshot(opponentCode)
+  loadOpponentProfile(matchId, opponentCode).catch(() => {});
+}
+
+// The same, but rejects on failure — for the dev session sim, which reports the error.
+export function loadOpponentProfile(matchId: string, opponentCode: string): Promise<void> {
+  return fetchRatingSnapshot(opponentCode)
     .then(({ snapshot, seasons: history, displayName: oppTag, characters }) => {
       const tier = getRankTier(snapshot.rating, snapshot.global_rank > 0, snapshot.wins + snapshot.losses);
       const mains = topOpponentChars(characters);
@@ -191,8 +196,7 @@ function applyOpponentProfile(matchId: string, opponentCode: string): void {
       // doesn't sit in the Notes tab under a tag they haven't used in a year. No-ops unless
       // they actually have notes and the name has changed.
       if (oppTag) syncOpponentTag(opponentCode, oppTag).catch(() => {});
-    })
-    .catch(() => {});
+    });
 }
 
 export async function startWatcher(

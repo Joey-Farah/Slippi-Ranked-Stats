@@ -19,6 +19,7 @@ import { parseSlpFile } from "./parser";
 import { resolveReplayPath, indexByBasename } from "./replay-index";
 import { collectSlpFiles } from "./parser";
 import { replayDirs } from "./store";
+import { loadOpponentProfile } from "./watcher";
 
 export interface SimResult {
   matchId: string;
@@ -27,13 +28,16 @@ export interface SimResult {
   games: number;
   parsed: number;
   runStartedAt: string;
+  profile: string;
 }
 
 /** The most recent match with at least `minGames` games, preferring a mode that has a run clock
  *  (unranked/direct) so the timer is actually visible. */
 interface MatchRow { match_id: string; n: number; match_type: string }
 
-async function pickMatch(db: any, minGames: number, preferUnranked: boolean): Promise<string | null> {
+async function pickMatch(
+  db: any, minGames: number, preferUnranked: boolean, rankedOnly: boolean, skip: number,
+): Promise<string | null> {
   const rows: MatchRow[] = await db.select(
     `SELECT match_id, COUNT(*) AS n, match_type FROM games
       WHERE match_id IS NOT NULL
@@ -42,6 +46,11 @@ async function pickMatch(db: any, minGames: number, preferUnranked: boolean): Pr
     [minGames],
   );
   if (rows.length === 0) return null;
+  if (rankedOnly) {
+    // `skip` steps back through recent sets, so repeated clicks show different opponents.
+    const ranked = rows.filter((r: MatchRow) => r.match_type === "ranked");
+    return ranked.length ? ranked[skip % ranked.length].match_id : null;
+  }
   if (preferUnranked) {
     const u = rows.find((r: MatchRow) => r.match_type !== "ranked");
     if (u) return u.match_id;
@@ -57,17 +66,19 @@ async function pickMatch(db: any, minGames: number, preferUnranked: boolean): Pr
  * many hours ago the session happened to be.
  */
 export async function simulateLiveSession(
-  opts: { minGames?: number; preferUnranked?: boolean } = {},
+  opts: { minGames?: number; preferUnranked?: boolean; rankedOnly?: boolean; midSet?: boolean; skip?: number } = {},
 ): Promise<SimResult> {
   if (!import.meta.env.DEV) throw new Error("simulateLiveSession is dev-only");
-  const { minGames = 2, preferUnranked = true } = opts;
+  const { minGames = 2, preferUnranked = true, rankedOnly = false, midSet = false, skip = 0 } = opts;
 
   const code = get(connectCode);
   const db = await getDb(code);
-  const matchId = await pickMatch(db, minGames, preferUnranked);
-  if (!matchId) throw new Error("no stored match with enough games");
+  const matchId = await pickMatch(db, minGames, preferUnranked, rankedOnly, skip);
+  if (!matchId) throw new Error(rankedOnly ? "no stored ranked set with enough games" : "no stored match with enough games");
 
-  const rows: GameRow[] = await getGamesByMatchId(db, matchId);
+  let rows: GameRow[] = await getGamesByMatchId(db, matchId);
+  // Mid-set: drop the deciding game, so the card shows a set still in progress (1–0 / 1–1).
+  if (midSet && rows.length > 1) rows = rows.slice(0, -1);
   if (rows.length === 0) throw new Error("match has no games");
 
   // Replay folders get reorganised, so stored paths go stale — reuse the same basename lookup
@@ -131,8 +142,19 @@ export async function simulateLiveSession(
     all_time_losses: 0,
     all_time_unit: mode === "ranked" ? "sets" : "games",
   } as any);
+  // The watcher fills rank/Rating/season from the opponent's Slippi profile; without this the
+  // card sits on "Fetching rank…" forever. Awaited so a failure is reported, not swallowed.
+  let profile = "no connect code";
+  if (rows[0].opponent_code) {
+    try {
+      await loadOpponentProfile(matchId, rows[0].opponent_code);
+      profile = "profile loaded";
+    } catch (e: any) {
+      profile = `profile failed: ${e?.message ?? e}`;
+    }
+  }
 
-  return { matchId, mode, opponent: rows[0].opponent_code ?? "", games: rows.length, parsed: stats.length, runStartedAt };
+  return { matchId, mode, opponent: rows[0].opponent_code ?? "", games: rows.length, parsed: stats.length, runStartedAt, profile };
 }
 
 /** Put the live stores back to idle. */

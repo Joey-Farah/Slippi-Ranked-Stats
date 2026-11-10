@@ -1,3 +1,18 @@
+## What's New in v1.15.0
+
+### 👀 Live Session is easier to read at a glance
+
+The Now Playing card is bigger and easier to read from across the desk. Your opponent's tag,
+connect code, rank and Rating are now large, and they grow with the window, so a second-monitor
+setup gets the biggest text. Scouting notes on the Live Session tab are bigger too.
+
+### ⇄ Notes on either side
+
+A new button in the session bar moves your scouting notes to the left or right of the match
+card. The app remembers your choice.
+
+---
+
 ## What's New in v1.14.1
 
 ### 🎮 Input viewer fixed in newer OBS

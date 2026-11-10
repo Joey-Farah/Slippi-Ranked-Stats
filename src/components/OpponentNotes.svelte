@@ -104,9 +104,18 @@
 {/if}
 
 <style>
+  /* Read at game start alongside NOW PLAYING, so the notes themselves scale up with the card's
+     width the same way. Only here — NoteList is shared with the Notes tab, which keeps its size. */
   .notes-card {
+    container-type: inline-size;
     margin-bottom: 16px;
     border-left: 3px solid #f39c12;
+  }
+
+  .notes-card :global(.body),
+  .notes-card :global(.bullet) {
+    font-size: clamp(12.5px, 2.5cqi, 17px);
+    line-height: 1.4;
   }
 
   .head {
@@ -191,7 +200,7 @@
     display: flex;
     align-items: baseline;
     gap: 7px;
-    font-size: 11px;
+    font-size: clamp(11px, 2.1cqi, 14px);
     font-weight: 700;
     color: var(--text);
     margin-bottom: 3px;

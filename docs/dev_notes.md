@@ -1,3 +1,16 @@
+## ⚠ SESSION HANDOFF — 2026-11-09 (v1.15.0: LIVE SESSION READABLE AT A GLANCE)
+
+Joey's ask: the NOW PLAYING card was too small to read from a second monitor at game start
+(connect code was 11px grey, rank/Rating 12px). Rebuilt the card with container-query sizing
+(`cqi` against the card, not `vw`), a medal | who | how-good identity row, and a centred score
+row; bigger scouting-note text on the live tab only; a persisted "Move notes to the left/right"
+column swap. Iterated with Joey over four screenshots in `tauri dev` (one-row layout squeezed the
+tag; left-aligned and single-column versions left dead space) — approved, released as v1.15.0.
+Dev sim: **Load ranked set (mid-set)** + it now fetches the opponent profile and reports errors.
+Note: `src/lib/__gradecmp.test.ts` is a local, `.git/info/exclude`d harness that fails (reads an
+old session's scratchpad) — not a real failure; the 287 tracked tests pass.
+Still planned, not started: `docs/plans/remove-lunar-mentions.md`.
+
 ## ⚠ SESSION HANDOFF — 2026-10-26 (v1.14.1: INPUT VIEWER BLANK IN NEW OBS — FIXED)
 
 OBS's browser (CEF/Chromium 150) refuses a **Local file** Browser Source (origin `http://absolute`)

@@ -48,6 +48,9 @@ export const parserCapabilityVersion = persisted<number>("srs_parserCapabilityVe
 
 export const connectCode = persisted<string>("srs_connectCode", "");
 
+// Live Session tab: put the scouting notes column on the left and the match on the right.
+export const liveNotesFirst = persisted<boolean>("srs_liveNotesFirst", false);
+
 // The player's Slippi display tag (e.g. "Joey Dadnuts"). Fetched from the API
 // alongside each rating snapshot for the primary connect code; persisted so the
 // stream overlay can show it before the first fetch of a session.

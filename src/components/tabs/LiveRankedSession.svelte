@@ -6,7 +6,7 @@
     statsOverlayPreview, liveSetRecord, liveUnrankedRecord, setResultFromGames,
     statsOverlayVisibility, type OverlayVisibility,
     inputSkin, INPUT_SKINS, type InputSkin, dolphinInputPort,
-    inputScaleId, INPUT_SCALES, inputScaleRem, type InputScaleId,
+    inputScaleId, INPUT_SCALES, inputScaleRem, type InputScaleId, liveNotesFirst,
   } from "../../lib/store";
   import { get } from "svelte/store";
   import { CHARACTERS, STAGES, getRankTier, isLegalStage } from "../../lib/parser";
@@ -117,11 +117,16 @@
   // button below are dropped entirely by the bundler — it cannot ship to users.
   const IS_DEV = import.meta.env.DEV;
   let devSimMsg = $state("");
-  async function devSimulateSession() {
+  let devRankedSkip = 0;
+  async function devSimulateSession(ranked = false) {
     devSimMsg = "loading…";
     try {
-      const r = await simulateLiveSession({ minGames: 2, preferUnranked: true });
-      devSimMsg = `${r.mode} · ${r.parsed} games vs ${r.opponent}`;
+      const r = await simulateLiveSession(
+        ranked
+          ? { minGames: 2, rankedOnly: true, midSet: true, skip: devRankedSkip++ }
+          : { minGames: 2, preferUnranked: true },
+      );
+      devSimMsg = `${r.mode} · ${r.parsed} games vs ${r.opponent} · ${r.profile}`;
     } catch (e: any) {
       devSimMsg = `failed: ${e?.message ?? e}`;
     }
@@ -404,11 +409,18 @@
       <span style="font-size: 11px; font-weight: 700; color: var(--accent)">DEV</span>
       <button
         type="button"
-        onclick={devSimulateSession}
+        onclick={() => devSimulateSession()}
         style="padding: 6px 11px; border-radius: 6px; cursor: pointer; font-family: inherit;
           font-size: 12px; font-weight: 700; border: 1px solid var(--accent);
           background: transparent; color: var(--accent);"
       >Load last session</button>
+      <button
+        type="button"
+        onclick={() => devSimulateSession(true)}
+        style="padding: 6px 11px; border-radius: 6px; cursor: pointer; font-family: inherit;
+          font-size: 12px; font-weight: 700; border: 1px solid var(--accent);
+          background: transparent; color: var(--accent);"
+      >Load ranked set (mid-set) — click again for another</button>
       <button
         type="button"
         onclick={devClearSession}
@@ -684,12 +696,18 @@
         <span class="s-value"><span class="win-text">{$liveUnrankedRecord.wins}</span>–<span class="loss-text">{$liveUnrankedRecord.losses}</span></span>
       </div>
     {/if}
+    <button
+      type="button"
+      class="swap-btn"
+      title="Swap which side the scouting notes and the match card are on"
+      onclick={() => liveNotesFirst.update((v) => !v)}
+    >{$liveNotesFirst ? "Move notes to the right →" : "← Move notes to the left"}</button>
   </div>
 
   <!-- Two columns on a wide window, one when narrow: the live match on the left, your notes on
        the right. Everything was previously full-width and stacked, which left a lot of dead
        horizontal space while still needing a scroll to reach the bottom. -->
-  <div class="live-grid">
+  <div class="live-grid" class:notes-first={$liveNotesFirst}>
   <div class="live-col">
 
   <!-- NOW PLAYING card. Hoisted above the state branches below along with the notes panel:
@@ -701,39 +719,42 @@
          opponent's leaderboard placement — recomputing it from rating alone here would drop
          Grandmaster back to a Master colour. -->
     {@const oppMedal = $activeSet.opponent_tier ? RANK_MEDAL_SVGS[$activeSet.opponent_tier] : ""}
-    <div style="
-      background: var(--card); border: 1px solid var(--border);
-      border-left: 3px solid #2ecc71; border-radius: 8px;
-      padding: 14px 16px; margin-bottom: 16px;
-    ">
-      <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #2ecc71; margin-bottom: 10px">
-        NOW PLAYING
-      </div>
-      <!-- Fixed proportions rather than space-between: the old flex row pushed the three
-           blocks to the far edges of a wide window and left a void in the middle. -->
-      <div style="
-        display: grid; grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1fr);
-        align-items: center; gap: 20px;
-      ">
+    <!-- Sized to be read at a glance from another monitor as the game loads: everything scales
+         with the card's own width (container units), so a wide second-monitor window gets big
+         type and a narrow one stays about where it was. -->
+    <div class="np-card">
+      <div class="np-label">NOW PLAYING</div>
+      <!-- Identity gets a full-width row of its own, with score and all-time record beneath.
+           Side by side, the score and clock claimed their width first and squeezed the tag down
+           to "C…" at an ordinary window width. -->
+      <div class="np-grid">
         <!-- Opponent identity -->
-        <div style="display: flex; align-items: center; gap: 12px; min-width: 0">
+        <div class="np-ident">
           {#if oppMedal}
-            <div style="width: 42px; height: 42px; flex-shrink: 0" aria-hidden="true">
+            <div class="np-medal" aria-hidden="true">
               {@html oppMedal}
             </div>
           {/if}
-          <div style="min-width: 0">
-            <div style="
-              font-size: 17px; font-weight: 700; line-height: 1.2;
-              overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-            ">{$activeSet.opponent_tag || $activeSet.opponent_code}</div>
+          <!-- Who they are on the left, how good they are on the right. One tall column left
+               the card's width empty on both sides. -->
+          <div class="np-who">
+            <div class="np-tag">{$activeSet.opponent_tag || $activeSet.opponent_code}</div>
             {#if $activeSet.opponent_tag}
-              <div style="font-size: 11px; color: var(--muted)">{$activeSet.opponent_code}</div>
+              <div class="np-code">{$activeSet.opponent_code}</div>
             {/if}
+            <!-- >= 0 rather than != null: the game-start peek leaves this as -1 because the
+                 character only becomes known from the metadata block when the game ends. -->
+            {#if $activeSet.opponent_char_id >= 0}
+              <div class="np-sub">
+                {CHARACTERS[$activeSet.opponent_char_id] ?? `Char ${$activeSet.opponent_char_id}`}
+              </div>
+            {/if}
+          </div>
+          <div class="np-how">
             {#if $activeSet.opponent_rating !== null}
               <!-- An unranked player's rating is Slippi's 1100 placeholder (or a provisional
                    mid-placement number), so printing it would present a non-number as fact. -->
-              <div style="font-size: 12px; color: {$activeSet.opponent_tier_color ?? 'var(--muted)'}">
+              <div class="np-rank" style="color: {$activeSet.opponent_tier_color ?? 'var(--muted)'}">
                 {#if $activeSet.opponent_tier === "Unranked"}
                   Unranked
                 {:else}
@@ -741,7 +762,7 @@
                 {/if}
               </div>
             {:else}
-              <div style="font-size: 12px; color: var(--muted)">Fetching rank…</div>
+              <div class="np-rank" style="color: var(--muted)">Fetching rank…</div>
             {/if}
             <!-- Their ranked record this season, straight off their Slippi profile. Someone
                  who hasn't played yet gets a plain note instead of "0W–0L (—)", which reads
@@ -750,39 +771,25 @@
               {@const sw = $activeSet.opponent_season_wins}
               {@const sl = $activeSet.opponent_season_losses}
               {#if sw + sl > 0}
-                <div style="font-size: 12px; margin-top: 1px">
+                <div class="np-line">
                   <span class="win-text">{sw}W</span>–<span class="loss-text">{sl}L</span>
                   <span style="color: var(--muted)">({winRate(sw, sl)}) this season</span>
                 </div>
               {:else}
-                <div style="font-size: 12px; margin-top: 1px; color: var(--muted)">
+                <div class="np-line" style="color: var(--muted)">
                   No ranked games this season
                 </div>
               {/if}
-            {/if}
-            <!-- >= 0 rather than != null: the game-start peek leaves this as -1 because the
-                 character only becomes known from the metadata block when the game ends. -->
-            {#if $activeSet.opponent_char_id >= 0}
-              <div style="font-size: 11px; color: var(--muted)">
-                {CHARACTERS[$activeSet.opponent_char_id] ?? `Char ${$activeSet.opponent_char_id}`}
-              </div>
             {/if}
           </div>
         </div>
         <!-- Score and clock sit side by side: stacked, the clock left a column of dead space
              beside a 30px score. The pair is centred as a unit so the score stays put when the
              clock is absent (ranked never has one). -->
-        <div style="display: flex; align-items: center; justify-content: center; gap: 18px">
-          <div style="text-align: center">
-          <div style="font-size: 30px; font-weight: 700; letter-spacing: 4px; line-height: 1">
-            <span class="win-text">{$activeSet.games_won}</span>
-            <span style="color: var(--muted)">–</span>
-            <span class="loss-text">{$activeSet.games_lost}</span>
-          </div>
-          <div style="font-size: 10px; color: var(--muted); margin-top: 2px">
-            {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
-          </div>
-          </div>
+        <!-- Score centred under the identity, flanked by the run clock (left) and the all-time
+             record (right). The flanks are equal 1fr columns, so the score stays centred even
+             when the clock is absent (ranked never has one). -->
+        <div class="np-flank np-flank-left">
           <!-- Unranked/direct only: how long this connection has been going. Ranked sets end on
                their own, so there's nothing to count. Survives the 15-minute idle clear, so a
                run that goes quiet and resumes under the same match_id keeps its total. -->
@@ -798,19 +805,29 @@
             </div>
           {/if}
         </div>
-        <div style="text-align: right">
+        <div style="text-align: center">
+          <div class="np-score">
+            <span class="win-text">{$activeSet.games_won}</span>
+            <span style="color: var(--muted)">–</span>
+            <span class="loss-text">{$activeSet.games_lost}</span>
+          </div>
+          <div class="np-caption">
+            {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
+          </div>
+        </div>
+        <div class="np-flank np-flank-right">
           {#if $activeSet.all_time_wins + $activeSet.all_time_losses > 0}
-            <div style="font-size: 13px">
-              All-time: <span class="win-text">{$activeSet.all_time_wins}W</span>–<span class="loss-text">{$activeSet.all_time_losses}L</span>
+            <div class="np-record">
+              <span class="win-text">{$activeSet.all_time_wins}W</span>–<span class="loss-text">{$activeSet.all_time_losses}L</span>
             </div>
-            <div style="font-size: 11px; color: var(--muted)">
-              {$activeSet.all_time_unit === "sets" ? "sets" : "games"} vs this opponent
+            <div class="np-sub">
+              all-time {$activeSet.all_time_unit === "sets" ? "sets" : "games"} vs them
             </div>
           {:else}
-            <div style="font-size: 13px; color: var(--muted)">First match vs<br/>this opponent</div>
+            <div class="np-line" style="color: var(--muted)">First match vs<br/>this opponent</div>
           {/if}
           {#if $activeSet.session_already_faced}
-            <div style="font-size: 11px; color: #f39c12; margin-top: 4px">⚠ Rematch this session</div>
+            <div class="np-line" style="color: #f39c12; margin-top: 6px; font-weight: 600">⚠ Rematch this session</div>
           {/if}
         </div>
       </div>
@@ -822,16 +839,12 @@
       {#if $activeSet.opponent_prev_season}
         {@const ps = $activeSet.opponent_prev_season}
         {@const psMedal = RANK_MEDAL_SVGS[ps.tier] ?? ""}
-        <div style="
-          display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-          margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
-          font-size: 12px;
-        ">
-          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted)">
+        <div class="np-prev">
+          <span class="np-prev-name">
             {ps.name.toUpperCase()}
           </span>
           {#if psMedal}
-            <div style="width: 20px; height: 20px; flex-shrink: 0" aria-hidden="true">
+            <div class="np-prev-medal" aria-hidden="true">
               {@html psMedal}
             </div>
           {/if}
@@ -1066,6 +1079,174 @@
     white-space: nowrap;
   }
 
+  /* NOW PLAYING. Glanced at from another monitor as a game loads, so the type is sized for
+     distance, ranked by what you check first: who (tag, code), how good (rank · Rating), then
+     history. Every size is clamp(floor, cqi, ceiling) against the card's own width — a narrow
+     window keeps roughly the old sizes, a wide one grows them, and the ceiling stops a
+     full-screen 4K window from turning it into a billboard. */
+  .np-card {
+    container-type: inline-size;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid #2ecc71;
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+
+  .np-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #2ecc71;
+    margin-bottom: 12px;
+  }
+
+  .np-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px 24px;
+  }
+
+  .np-flank {
+    min-width: 0;
+  }
+
+  .np-flank-left {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .np-flank-right {
+    text-align: left;
+  }
+
+  /* Medal | who (tag, code, character) | how good (rank · Rating, season), the last behind a
+     divider. The rank column sizes to its content so the tag gets whatever is left. */
+  .np-ident {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    min-width: 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .np-who {
+    min-width: 0;
+  }
+
+  .np-how {
+    min-width: 0;
+    max-width: 30ch;
+    padding-left: 18px;
+    box-shadow: inset 1px 0 0 var(--border);
+  }
+
+  /* Too narrow for two halves: the rank drops under the name. */
+  @container (max-width: 420px) {
+    .np-how {
+      grid-column: 1 / -1;
+      max-width: none;
+      padding-left: 0;
+      box-shadow: none;
+    }
+  }
+
+  .np-medal {
+    width: clamp(48px, 12cqi, 84px);
+    height: clamp(48px, 12cqi, 84px);
+    flex-shrink: 0;
+  }
+
+  .np-tag {
+    font-size: clamp(22px, 6cqi, 40px);
+    font-weight: 800;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The code is what you'd type into slippi.gg, so it's full-contrast text, not a muted caption. */
+  .np-code {
+    font-size: clamp(15px, 3.6cqi, 24px);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .np-rank {
+    font-size: clamp(17px, 4.4cqi, 30px);
+    font-weight: 700;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .np-line {
+    font-size: clamp(13px, 2.9cqi, 19px);
+    line-height: 1.35;
+    margin-top: 3px;
+  }
+
+  .np-sub {
+    font-size: clamp(11px, 2.4cqi, 15px);
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .np-score {
+    font-size: clamp(30px, 8cqi, 54px);
+    font-weight: 700;
+    letter-spacing: 4px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .np-caption {
+    font-size: clamp(10px, 1.6cqi, 12px);
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .np-record {
+    font-size: clamp(18px, 4.4cqi, 30px);
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .np-prev {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: clamp(12px, 2.1cqi, 16px);
+  }
+
+  .np-prev-name {
+    font-size: clamp(10px, 1.6cqi, 12px);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .np-prev-medal {
+    width: clamp(20px, 3.6cqi, 28px);
+    height: clamp(20px, 3.6cqi, 28px);
+    flex-shrink: 0;
+  }
+
   /* Two columns when there's room for both to be useful, one when there isn't. auto-fit with a
      min track means the breakpoint follows the actual available width — including after a
      Ctrl +/− zoom, which now re-runs layout rather than just scaling the pixels. */
@@ -1079,6 +1260,31 @@
   /* Each column owns its own vertical rhythm; the cards inside already carry bottom margins. */
   .live-col {
     min-width: 0;
+  }
+
+  /* Swap by visual order only, so neither column re-mounts (a half-typed note survives). In
+     the one-column layout this puts the notes on top, which is the same preference. */
+  .live-grid.notes-first > .live-col:first-child {
+    order: 2;
+  }
+
+  .swap-btn {
+    margin-left: auto;
+    align-self: center;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .swap-btn:hover {
+    color: var(--text);
   }
 
   /* Per-game list for the current match. The cap is viewport-relative so the list stretches
