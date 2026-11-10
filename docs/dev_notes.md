@@ -11,6 +11,17 @@ Note: `src/lib/__gradecmp.test.ts` is a local, `.git/info/exclude`d harness that
 old session's scratchpad) — not a real failure; the 287 tracked tests pass.
 Still planned, not started: `docs/plans/remove-lunar-mentions.md`.
 
+**To analyse later — installer "Error opening file for writing" on update (first seen 2026-11-09).**
+Updating Joey's Windows install 1.14.1 → 1.15.0 through the in-app updater, the NSIS installer
+popped "Error opening file for writing: …\AppData\Local\Slippi Ranked Stats\slippi-ranked-stats.exe"
+(Abort/Retry/Ignore). Retry went through; the exe then reported 1.15.0, and no app/installer process
+was left running. First time ever seen. Not the `tauri dev` build — that runs
+`src-tauri\target\debug\slippi-ranked-stats.exe`, a different file, and had already exited.
+Leading theory: the old app was still shutting down when the installer reached the exe (a race).
+If it recurs or a user reports it, check what keeps the process alive after quit — first
+suspects are the `dolphin.rs` / `boxx.rs` input-reader threads and the localhost SSE server —
+and the updater's Windows `installMode` / how the app exits before the installer runs.
+
 ## ⚠ SESSION HANDOFF — 2026-10-26 (v1.14.1: INPUT VIEWER BLANK IN NEW OBS — FIXED)
 
 OBS's browser (CEF/Chromium 150) refuses a **Local file** Browser Source (origin `http://absolute`)
