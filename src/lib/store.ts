@@ -353,6 +353,26 @@ export interface LiveGameStats {
 
 export const liveGameStats = writable<LiveGameStats[]>([]);
 
+/** The last opponent shown on the Live Session card, kept after `activeSet` clears.
+ *
+ *  `activeSet` is nulled the instant a ranked set reaches 2 (and after the 15-min idle timeout
+ *  for unranked/direct), which made the NOW PLAYING card vanish right when you'd want to read
+ *  it. The card falls back to this until the next match replaces it. Display-only: the overlay
+ *  and every other consumer keep reading `activeSet`, so "nothing live" still means nothing live.
+ *
+ *  Dropped when `liveGameStats` empties (session gap, watcher stop, dev clear) — the same rule
+ *  `liveNoteSubject` uses — so it can't resurrect someone you played last night. Kept by a
+ *  module-level subscription rather than a derived, so it tracks even while the tab is closed. */
+export const lastActiveSet = writable<ActiveSet | null>(null);
+activeSet.subscribe((s) => { if (s) lastActiveSet.set(s); });
+liveGameStats.subscribe((g) => {
+  if (g.length === 0) {
+    let live: ActiveSet | null = null;
+    activeSet.subscribe((s) => (live = s))();
+    if (!live) lastActiveSet.set(null);
+  }
+});
+
 export interface SetResultFlash {
   result: "win" | "loss";
   opponent_code: string;

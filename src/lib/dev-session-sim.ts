@@ -159,6 +159,8 @@ export async function simulateLiveSession(
 
 /** Put the live stores back to idle. */
 export function clearLiveSimulation() {
-  liveGameStats.set([]);
+  // activeSet first: lastActiveSet only drops the held card when the games list empties while
+  // nothing is live, so the reverse order would leave the simulated opponent on screen.
   activeSet.set(null);
+  liveGameStats.set([]);
 }

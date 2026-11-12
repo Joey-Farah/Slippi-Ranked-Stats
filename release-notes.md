@@ -1,3 +1,13 @@
+## What's New in v1.15.1
+
+### 🪪 Opponent card stays up after the match
+
+When a set or unranked session ends, the opponent card on the Live Session tab now stays on
+screen, labelled **Last Played**, until your next match starts. Before, it disappeared as soon
+as the set ended.
+
+---
+
 ## What's New in v1.15.0
 
 ### 👀 Live Session is easier to read at a glance

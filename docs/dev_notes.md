@@ -1,3 +1,13 @@
+## ⚠ SESSION HANDOFF — 2026-11-11 (v1.15.1: OPPONENT CARD HOLDS AFTER THE MATCH)
+
+Joey's ask: the Live Session opponent card vanished the moment a set ended (`activeSet` is
+nulled when someone reaches 2; unranked/direct after the 15-min idle clear). New `lastActiveSet`
+store in `store.ts` remembers the last non-null `activeSet`; the card renders
+`$activeSet ?? $lastActiveSet` and reads **LAST PLAYED** / caption **Final** (ranked) when not
+live, with the run clock hidden. Dropped when `liveGameStats` empties while nothing is live (same
+rule as `liveNoteSubject`). Display-only — the overlay and the watcher still read `activeSet`.
+Verified by Joey in `tauri dev`; released as v1.15.1.
+
 ## ⚠ SESSION HANDOFF — 2026-11-09 (v1.15.0: LIVE SESSION READABLE AT A GLANCE)
 
 Joey's ask: the NOW PLAYING card was too small to read from a second monitor at game start

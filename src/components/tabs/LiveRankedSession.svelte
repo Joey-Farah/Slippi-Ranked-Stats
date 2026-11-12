@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    isPremium, watcherActive, activeSet, liveSessionStartRating,
+    isPremium, watcherActive, activeSet, lastActiveSet, liveSessionStartRating,
     snapshots, liveGameStats, lastSetGrade,
     statsOverlayEnabled, statsOverlayExpanded, statsOverlayPayload, statsOverlayLayout,
     statsOverlayPreview, liveSetRecord, liveUnrankedRecord, setResultFromGames,
@@ -221,6 +221,11 @@
   // Only point the iframe at the file once it's been written at least once (previewVer > 0),
   // so it never loads a not-yet-existing preview.html (which would 404 to a blank box).
   let previewSrc = $derived(previewPath && previewVer > 0 ? convertFileSrc(previewPath) + "?v=" + previewVer : "");
+
+  // The opponent card keeps showing the last match after it ends, until the next one starts
+  // (see lastActiveSet). `cardLive` is false while it's showing a finished match.
+  let shownSet = $derived($activeSet ?? $lastActiveSet);
+  let cardLive = $derived(!!$activeSet);
 
   let sessionDelta = $derived(
     $liveSessionStartRating !== null && $snapshots.length > 0
@@ -714,16 +719,16 @@
        when the app launches into a set already in progress the watcher recovers the opponent
        from the DB, but those games are pre-existing so liveGameStats stays empty — this used to
        fall inside the "no games tracked yet" branch and hide the opponent we'd just identified. -->
-  {#if $activeSet}
+  {#if shownSet}
     <!-- Tier colour comes from the watcher (opponent_tier_color), which computed it with the
          opponent's leaderboard placement — recomputing it from rating alone here would drop
          Grandmaster back to a Master colour. -->
-    {@const oppMedal = $activeSet.opponent_tier ? RANK_MEDAL_SVGS[$activeSet.opponent_tier] : ""}
+    {@const oppMedal = shownSet.opponent_tier ? RANK_MEDAL_SVGS[shownSet.opponent_tier] : ""}
     <!-- Sized to be read at a glance from another monitor as the game loads: everything scales
          with the card's own width (container units), so a wide second-monitor window gets big
          type and a narrow one stays about where it was. -->
     <div class="np-card">
-      <div class="np-label">NOW PLAYING</div>
+      <div class="np-label">{cardLive ? "NOW PLAYING" : "LAST PLAYED"}</div>
       <!-- Identity gets a full-width row of its own, with score and all-time record beneath.
            Side by side, the score and clock claimed their width first and squeezed the tag down
            to "C…" at an ordinary window width. -->
@@ -738,27 +743,27 @@
           <!-- Who they are on the left, how good they are on the right. One tall column left
                the card's width empty on both sides. -->
           <div class="np-who">
-            <div class="np-tag">{$activeSet.opponent_tag || $activeSet.opponent_code}</div>
-            {#if $activeSet.opponent_tag}
-              <div class="np-code">{$activeSet.opponent_code}</div>
+            <div class="np-tag">{shownSet.opponent_tag || shownSet.opponent_code}</div>
+            {#if shownSet.opponent_tag}
+              <div class="np-code">{shownSet.opponent_code}</div>
             {/if}
             <!-- >= 0 rather than != null: the game-start peek leaves this as -1 because the
                  character only becomes known from the metadata block when the game ends. -->
-            {#if $activeSet.opponent_char_id >= 0}
+            {#if shownSet.opponent_char_id >= 0}
               <div class="np-sub">
-                {CHARACTERS[$activeSet.opponent_char_id] ?? `Char ${$activeSet.opponent_char_id}`}
+                {CHARACTERS[shownSet.opponent_char_id] ?? `Char ${shownSet.opponent_char_id}`}
               </div>
             {/if}
           </div>
           <div class="np-how">
-            {#if $activeSet.opponent_rating !== null}
+            {#if shownSet.opponent_rating !== null}
               <!-- An unranked player's rating is Slippi's 1100 placeholder (or a provisional
                    mid-placement number), so printing it would present a non-number as fact. -->
-              <div class="np-rank" style="color: {$activeSet.opponent_tier_color ?? 'var(--muted)'}">
-                {#if $activeSet.opponent_tier === "Unranked"}
+              <div class="np-rank" style="color: {shownSet.opponent_tier_color ?? 'var(--muted)'}">
+                {#if shownSet.opponent_tier === "Unranked"}
                   Unranked
                 {:else}
-                  {$activeSet.opponent_tier ?? ""} · {$activeSet.opponent_rating.toFixed(0)}
+                  {shownSet.opponent_tier ?? ""} · {shownSet.opponent_rating.toFixed(0)}
                 {/if}
               </div>
             {:else}
@@ -767,9 +772,9 @@
             <!-- Their ranked record this season, straight off their Slippi profile. Someone
                  who hasn't played yet gets a plain note instead of "0W–0L (—)", which reads
                  like a missing value rather than a fact about them. -->
-            {#if $activeSet.opponent_season_wins !== null && $activeSet.opponent_season_losses !== null}
-              {@const sw = $activeSet.opponent_season_wins}
-              {@const sl = $activeSet.opponent_season_losses}
+            {#if shownSet.opponent_season_wins !== null && shownSet.opponent_season_losses !== null}
+              {@const sw = shownSet.opponent_season_wins}
+              {@const sl = shownSet.opponent_season_losses}
               {#if sw + sl > 0}
                 <div class="np-line">
                   <span class="win-text">{sw}W</span>–<span class="loss-text">{sl}L</span>
@@ -807,26 +812,30 @@
         </div>
         <div style="text-align: center">
           <div class="np-score">
-            <span class="win-text">{$activeSet.games_won}</span>
+            <span class="win-text">{shownSet.games_won}</span>
             <span style="color: var(--muted)">–</span>
-            <span class="loss-text">{$activeSet.games_lost}</span>
+            <span class="loss-text">{shownSet.games_lost}</span>
           </div>
           <div class="np-caption">
-            {$activeSet.mode === "ranked" ? "Current Set" : "Games This Session"}
+            {#if shownSet.mode === "ranked"}
+              {cardLive ? "Current Set" : "Final"}
+            {:else}
+              Games This Session
+            {/if}
           </div>
         </div>
         <div class="np-flank np-flank-right">
-          {#if $activeSet.all_time_wins + $activeSet.all_time_losses > 0}
+          {#if shownSet.all_time_wins + shownSet.all_time_losses > 0}
             <div class="np-record">
-              <span class="win-text">{$activeSet.all_time_wins}W</span>–<span class="loss-text">{$activeSet.all_time_losses}L</span>
+              <span class="win-text">{shownSet.all_time_wins}W</span>–<span class="loss-text">{shownSet.all_time_losses}L</span>
             </div>
             <div class="np-sub">
-              all-time {$activeSet.all_time_unit === "sets" ? "sets" : "games"} vs them
+              all-time {shownSet.all_time_unit === "sets" ? "sets" : "games"} vs them
             </div>
           {:else}
             <div class="np-line" style="color: var(--muted)">First match vs<br/>this opponent</div>
           {/if}
-          {#if $activeSet.session_already_faced}
+          {#if shownSet.session_already_faced}
             <div class="np-line" style="color: #f39c12; margin-top: 6px; font-weight: 600">⚠ Rematch this session</div>
           {/if}
         </div>
@@ -836,8 +845,8 @@
            identity column: that column is already the tallest of the three, and the season name
            needs the room. The name is spelled out because Slippi's profile history skips seasons
            a player sat out — for a returning player this may be several seasons back. -->
-      {#if $activeSet.opponent_prev_season}
-        {@const ps = $activeSet.opponent_prev_season}
+      {#if shownSet.opponent_prev_season}
+        {@const ps = shownSet.opponent_prev_season}
         {@const psMedal = RANK_MEDAL_SVGS[ps.tier] ?? ""}
         <div class="np-prev">
           <span class="np-prev-name">
