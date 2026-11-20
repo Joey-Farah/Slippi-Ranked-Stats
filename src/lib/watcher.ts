@@ -6,7 +6,7 @@ import { parseSlpFile, getRankTier, isLegalStage, type ParsedGameRow } from "./p
 import { tallyOutcomes, gameOutcome } from "./outcome";
 import {
   insertGame,
-  getGames,
+  loadGamesForCodes,
   insertSnapshot,
   getSnapshots,
   insertSeason,
@@ -21,6 +21,7 @@ import { fetchRatingSnapshot, previousSeason, type ProfileCharacter, type Season
 import { API_CHAR_TO_EXTERNAL, internalToExternal, externalToInternal } from "./char-icons";
 import {
   games,
+  effectiveCodes,
   snapshots,
   seasons,
   watcherActive,
@@ -492,8 +493,10 @@ async function processSlpFile(
     // Mark as scanned so manual scanner skips it
     await markFilesScanned([filename], connectCode);
 
-    const loaded = await getGames(db);
-    games.set(loaded);
+    // Reload EVERY code, tagged with sourceCode — reloading only this code's DB used to drop the
+    // linked codes' games from the store until the next launch, and an untagged row is
+    // invisible to the sidebar code picker.
+    games.set(await loadGamesForCodes(get(effectiveCodes)));
 
     statusMessage.set("Session being monitored");
 

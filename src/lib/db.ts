@@ -272,6 +272,19 @@ export async function updateGameFilepath(
   await db.execute(`UPDATE games SET filepath = $1 WHERE filename = $2`, [filepath, filename]);
 }
 
+/** Every game across the given connect codes, each tagged with the `sourceCode` it came from,
+ *  oldest first. The ONE way to fill the `games` store: the code picker filters on
+ *  `sourceCode`, so a load that skips the tag would silently empty a single-code view. */
+export async function loadGamesForCodes(codes: readonly string[]): Promise<GameRow[]> {
+  const arrays = await Promise.all(
+    codes.map(async (c) => {
+      const rows = await getGames(await getDb(c));
+      return rows.map((g) => ({ ...g, sourceCode: c }));
+    })
+  );
+  return arrays.flat().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
 export async function getGames(
   db: Database,
   since?: string

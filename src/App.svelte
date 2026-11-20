@@ -10,9 +10,9 @@
   import UnrankedStats from "./components/tabs/UnrankedStats.svelte";
   import Notes from "./components/tabs/Notes.svelte";
   import OnboardingView from "./components/OnboardingView.svelte";
-  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, discordPremium, setResultFlash, discordToken, effectiveCodes, primaryCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
+  import { activeTab, connectCode, replayDirs, games, snapshots, seasons, sidebarOpen, isPremium, discordPremium, setResultFlash, discordToken, effectiveCodes, activeCode, statsOverlayPayload, statsOverlayEnabled, statsOverlayPreview, statsOverlayLayout, statsOverlayVisibility, parserCapabilityVersion, uiZoom, dolphinInputPort, inputSkin, inputScaleId, inputScaleRem } from "./lib/store";
   import { pingTelemetry } from "./lib/telemetry";
-  import { getDb, getGames, getSnapshots, getSeasons, pruneUnproductiveScannedFiles } from "./lib/db";
+  import { getDb, getSnapshots, getSeasons, loadGamesForCodes, pruneUnproductiveScannedFiles } from "./lib/db";
   import { startWatcher, stopWatcher } from "./lib/watcher";
   import { scanDirectory, PARSER_CAPABILITY_VERSION } from "./lib/parser";
   import { ensureStatsOverlayFiles, writeStatsOverlayState, OVERLAY_VERSION } from "./lib/stats-overlay";
@@ -166,38 +166,36 @@
     }
   });
 
-  // Reload all data whenever the effective code list or primary code changes
+  // Reload data whenever the code list or the picked code changes. Switching codes in the
+  // sidebar picker only needs the rating + watcher redone: the games store already holds every
+  // code (the picker filters it in filteredGames), so the games reload and the startup scan
+  // run only when the code LIST changes.
+  let _loadedCodesKey = "";
   $effect(() => {
     const codes = $effectiveCodes;
-    const primary = $primaryCode;
-    if (codes.length === 0) return;
+    const active = $activeCode;
+    if (codes.length === 0 || !active) return;
     (async () => {
       try {
-        // Union games from all codes in the profile
-        const allGameArrays = await Promise.all(
-          codes.map(async (c) => {
-            const db = await getDb(c);
-            const rows = await getGames(db);
-            return rows.map((g) => ({ ...g, sourceCode: c }));
-          })
-        );
-        const merged = allGameArrays
-          .flat()
-          .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-        games.set(merged);
+        const codesKey = codes.join(",");
+        const codesChanged = codesKey !== _loadedCodesKey;
+        // Games before the watcher: startWatcher snapshots the known match_ids from `games`.
+        if (codesChanged) games.set(await loadGamesForCodes(codes));
+        _loadedCodesKey = codesKey; // only once loaded, so a failed load is retried next run
 
-        // Snapshots and seasons only from the primary code
-        const primaryDb = await getDb(primary);
-        const loadedSnaps = await getSnapshots(primaryDb, primary);
+        // Snapshots and seasons from the active code (picked, or the one played last under All codes)
+        const activeDb = await getDb(active);
+        const loadedSnaps = await getSnapshots(activeDb, active);
         snapshots.set(loadedSnaps);
-        const loadedSeasons = await getSeasons(primaryDb, primary);
+        const loadedSeasons = await getSeasons(activeDb, active);
         seasons.set(loadedSeasons);
 
-        // Watcher on primary code only
+        // Watcher on the active code only
         const dirs = get(replayDirs).filter(Boolean);
         if (dirs.length > 0) {
           await stopWatcher();
-          startWatcher(dirs, primary, primaryDb).catch(() => {});
+          startWatcher(dirs, active, activeDb).catch(() => {});
+          if (!codesChanged) return;
 
           // Ingest replays created while the app was CLOSED — the watcher only catches files
           // written while it's running, so sets played without the app open were never picked up
@@ -223,15 +221,7 @@
 
           scanDirectory(dirs, codes, dbsByCode)
             .then(async (res) => {
-              if (res.filesScanned > 0) {
-                const arrays = await Promise.all(
-                  codes.map(async (c) => {
-                    const rows = await getGames(dbsByCode[c]);
-                    return rows.map((g) => ({ ...g, sourceCode: c }));
-                  })
-                );
-                games.set(arrays.flat().sort((a, b) => a.timestamp.localeCompare(b.timestamp)));
-              }
+              if (res.filesScanned > 0) games.set(await loadGamesForCodes(codes));
             })
             .catch(() => {});
         }

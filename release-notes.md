@@ -1,3 +1,19 @@
+## What's New in v1.16.0
+
+### 🔀 Switch between your connect codes
+
+If you've added more than one connect code, you can now click a code in the sidebar to see just
+that account's stats. Its rating and live session come along with it. Pick **All codes** to see
+everything combined, as before. You no longer need to remove and re-add codes to switch.
+
+In **All codes**, the rating and live session follow the code you played on most recently.
+
+### 🛠️ Fix
+
+Games from your other connect codes no longer drop out of your stats after you play a live game.
+
+---
+
 ## What's New in v1.15.1
 
 ### 🪪 Opponent card stays up after the match

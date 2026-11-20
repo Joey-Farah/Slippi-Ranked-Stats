@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     isPremium, connectCode, effectiveCodes, sets, replayDirs,
-    unrankedGames, directGames,
+    unrankedGames, directGames, games, viewCode,
     gradeHistory, gradeHistoryBusy, gradeHistoryProgress,
     discordToken, discordUsername,
     type GradeHistoryEntry, type LiveGameStats,
@@ -187,16 +187,25 @@
   let gFilterOppCode    = $state("");
   let gSortMode         = $state<SortMode>("date-desc");
 
+  // Sidebar code picker: stored game grades are pooled across every linked code (deduped by
+  // filename), so with one code picked keep only the grades of that code's games.
+  let viewFiles = $derived(
+    $viewCode === null ? null : new Set($games.filter((g) => g.sourceCode === $viewCode).map((g) => g.filename))
+  );
+  let scopedGameGrades = $derived(
+    viewFiles === null ? $unrankedGameGrades : $unrankedGameGrades.filter((e) => viewFiles!.has(e.filename))
+  );
+
   // Dropdown options come from the whole unranked set, not the mode-filtered slice, so picking
   // "Direct" can't empty the character lists and strand a selection that's still applied.
-  let gameUniquePlayerChars = $derived([...new Set($unrankedGameGrades.map((e) => e.playerChar))].sort());
-  let gameUniqueOppChars    = $derived([...new Set($unrankedGameGrades.map((e) => e.opponentChar))].sort());
+  let gameUniquePlayerChars = $derived([...new Set(scopedGameGrades.map((e) => e.playerChar))].sort());
+  let gameUniqueOppChars    = $derived([...new Set(scopedGameGrades.map((e) => e.opponentChar))].sort());
   let gameUniqueOppCodes    = $derived(
-    [...new Set($unrankedGameGrades.map((e) => e.opponentCode))].filter(Boolean).sort()
+    [...new Set(scopedGameGrades.map((e) => e.opponentCode))].filter(Boolean).sort()
   );
 
   let unrankedList = $derived((() => {
-    let h = $unrankedGameGrades.filter(
+    let h = scopedGameGrades.filter(
       (e) => gameGradeFilter === "all" || e.matchType === gameGradeFilter
     );
     if (gFilterLetter     !== null)  h = h.filter((e) => e.grade?.letter === gFilterLetter);

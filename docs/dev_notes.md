@@ -1,3 +1,16 @@
+## ⚠ SESSION HANDOFF — 2026-11-19 (v1.16.0: CONNECT-CODE PICKER)
+
+Joey's ask: switch between his ranked connect codes for stats + Live Session without deleting
+and re-adding them (the old "multi-connect-code profiles" idea from 2026-04-19 had planned a
+selector but v1.4.0 only shipped the union). With 2+ codes the sidebar list is now a picker
+(All codes + each code). Picked code scopes `filteredGames` (by `sourceCode`) and becomes
+`activeCode` for rating/snapshots/watcher; All codes follows the code played most recently.
+"Primary" removed from the UI at Joey's request — `connectCode` is still the double-write target
+for grades (untouched). Also fixed: the watcher reloaded only its own DB after each live game,
+dropping linked codes' games from the store. Tested by Joey with gameplay in `tauri dev`;
+released as v1.16.0. Detail in the CLAUDE.md v1.16.0 bullet.
+Open idea: watcher auto-follows whichever of your codes is in the replay.
+
 ## ⚠ SESSION HANDOFF — 2026-11-11 (v1.15.1: OPPONENT CARD HOLDS AFTER THE MATCH)
 
 Joey's ask: the Live Session opponent card vanished the moment a set ended (`activeSet` is

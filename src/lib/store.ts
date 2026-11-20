@@ -83,6 +83,20 @@ export const effectiveCodes = derived(
 // Alias used by App.svelte (always the primary connect code)
 export const primaryCode = derived(connectCode, ($code) => $code);
 
+// Code picker (sidebar). "" = All codes: the combined view above. Otherwise one code, which
+// scopes every statistic (via filteredGames) and also becomes the code whose rating history,
+// snapshots and live session are tracked — so you can swap accounts without deleting codes.
+// Persisted as a bare string, so it can name a code that has since been removed: viewCode
+// validates it against the list and falls back to All codes rather than to an empty view.
+export const selectedCode = persisted<string>("srs_selectedCode", "");
+
+/** The code the stats are scoped to, or null for All codes. */
+export const viewCode = derived(
+  [selectedCode, effectiveCodes],
+  ([$sel, $codes]) => ($sel && $codes.includes($sel) ? $sel : null)
+);
+
+
 // Date-range presets for the sidebar filter, newest window last.
 //
 // Each `id` is persisted verbatim in localStorage under `srs_dateRange`, so these strings are
@@ -239,6 +253,25 @@ export const discordTokenExpiresAt = persisted<number | null>("srs_discordTokenE
 export const games = writable<GameRow[]>([]);
 export const snapshots = writable<SnapshotRow[]>([]);
 export const seasons = writable<SeasonRow[]>([]);
+
+// Declared here, not beside viewCode: it reads `games`, and a derived built before that const
+// is initialised throws at module load.
+/** The code whose rating, snapshots and live session are tracked: the picked code, or under
+ *  All codes the one you played on most recently (ratings from different accounts can't be
+ *  combined, so the combined view still has to follow one). Falls back to the first code
+ *  before any games are loaded. A string, so it only notifies when the code actually changes —
+ *  App.svelte restarts the watcher on every change. */
+export const activeCode = derived(
+  [viewCode, effectiveCodes, games],
+  ([$view, $codes, $games]) => {
+    if ($view) return $view;
+    for (let i = $games.length - 1; i >= 0; i--) {
+      const c = $games[i].sourceCode;
+      if (c && $codes.includes(c)) return c;
+    }
+    return $codes[0] ?? "";
+  }
+);
 
 // ── UI state ───────────────────────────────────────────────────────────────
 
@@ -441,8 +474,10 @@ export const gradeHistoryProgress = writable<{ current: number; total: number }>
 // Non-legal stages are dropped here rather than at parse time, so the games stay in the
 // database and this stays reversible. Every statistic in the app derives from this store, so
 // one filter covers all of them. See LEGAL_STAGES for why they're excluded at all.
-export const filteredGames = derived([games, dateRange], ([$games, $range]) => {
-  const legal = $games.filter((g) => isLegalStage(g.stage_id));
+export const filteredGames = derived([games, dateRange, viewCode], ([$games, $range, $view]) => {
+  const legal = $games.filter(
+    (g) => isLegalStage(g.stage_id) && ($view === null || g.sourceCode === $view)
+  );
   const cutoff = rangeCutoff($range);
   if (cutoff === null) return legal;
   return legal.filter((g) => new Date(g.timestamp) >= cutoff);

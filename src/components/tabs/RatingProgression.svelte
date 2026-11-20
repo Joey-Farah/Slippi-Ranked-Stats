@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { snapshots, dateFilteredSnapshots, seasons, sets, connectCode, linkedCodes, showRatingAvg } from "../../lib/store";
+  import { snapshots, dateFilteredSnapshots, seasons, sets, activeCode, linkedCodes, showRatingAvg } from "../../lib/store";
   import LineChart from "../charts/LineChart.svelte";
 
   // Convert an ISO timestamp string to a local-time display string "YYYY-MM-DD HH:MM"
@@ -132,7 +132,7 @@
   </p>
   {#if $linkedCodes.length > 0}
     <p class="muted" style="font-size:11px; margin-bottom:12px">
-      Rating history reflects <strong style="color:var(--text)">{$connectCode}</strong> only. When using multiple linked codes, only the code at the top of the list is tracked here.
+      Rating history reflects <strong style="color:var(--text)">{$activeCode}</strong> only. Pick another code in the sidebar to see its rating.
     </p>
   {/if}
 

@@ -13,7 +13,7 @@
  * bundle — see the guard in simulateLiveSession().
  */
 import { get } from "svelte/store";
-import { activeSet, liveGameStats, connectCode, type LiveGameStats, type LiveMode } from "./store";
+import { activeSet, liveGameStats, activeCode, type LiveGameStats, type LiveMode } from "./store";
 import { getDb, getGamesByMatchId, type GameRow } from "./db";
 import { parseSlpFile } from "./parser";
 import { resolveReplayPath, indexByBasename } from "./replay-index";
@@ -71,7 +71,7 @@ export async function simulateLiveSession(
   if (!import.meta.env.DEV) throw new Error("simulateLiveSession is dev-only");
   const { minGames = 2, preferUnranked = true, rankedOnly = false, midSet = false, skip = 0 } = opts;
 
-  const code = get(connectCode);
+  const code = get(activeCode);
   const db = await getDb(code);
   const matchId = await pickMatch(db, minGames, preferUnranked, rankedOnly, skip);
   if (!matchId) throw new Error(rankedOnly ? "no stored ranked set with enough games" : "no stored match with enough games");

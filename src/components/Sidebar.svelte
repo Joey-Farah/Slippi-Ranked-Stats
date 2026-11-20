@@ -8,6 +8,7 @@
     isScanning, isFetchingSnapshot, scanProgress, statusMessage, sidebarOpen, isPremium,
     discordPremium, cardPremium,
     discordToken, discordUsername, linkedCodes, displayName,
+    selectedCode, viewCode, activeCode,
   } from "../lib/store";
   import { startDiscordAuth, verifyPatronRole, disconnectDiscord } from "../lib/discord";
   import { pingTelemetry } from "../lib/telemetry";
@@ -18,7 +19,7 @@
   import { getRankTier } from "../lib/parser";
   import { scanDirectory, cancelScan } from "../lib/parser";
   import { fetchRatingSnapshot } from "../lib/api";
-  import { insertSnapshot, insertSeason, getGames, getSnapshots, getSeasons, clearScannedFiles } from "../lib/db";
+  import { insertSnapshot, insertSeason, getSnapshots, getSeasons, clearScannedFiles, loadGamesForCodes } from "../lib/db";
   import CardAccountPanel from "./CardAccountPanel.svelte";
   import { CARD_BILLING_ENABLED } from "../lib/card-premium";
 
@@ -117,14 +118,8 @@
     return dbs;
   }
 
-  async function loadMergedGames(dbsByCode: Record<string, import("@tauri-apps/plugin-sql").default>) {
-    const arrays = await Promise.all(
-      allCodes.map(async (c) => {
-        const rows = await getGames(dbsByCode[c]);
-        return rows.map((g) => ({ ...g, sourceCode: c }));
-      })
-    );
-    return arrays.flat().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  async function loadMergedGames(_dbsByCode: Record<string, import("@tauri-apps/plugin-sql").default>) {
+    return loadGamesForCodes(allCodes);
   }
 
   async function handleScan() {
@@ -178,7 +173,8 @@
   }
 
   async function handleFetchSnapshot() {
-    const code = $connectCode;
+    // The picked code's rating (under All codes, the one played last) — same code the snapshots store holds.
+    const code = $activeCode;
     if (!code) {
       statusMessage.set("Add a connect code first.");
       return;
@@ -228,9 +224,34 @@
   <div class="sidebar-section">
     <span class="sidebar-label">Connect Codes</span>
 
+    <!-- With 2+ codes the rows double as a picker: click one to scope every tab to it (and track
+         its rating + live session), or All codes for the combined view. One code = no picker. -->
+    {#if allCodes.length > 1}
+      <button
+        class="code-pick all-row"
+        class:picked={$viewCode === null}
+        onclick={() => selectedCode.set("")}
+        title="Combine stats from every code (rating + live session follow the code you played last: {$activeCode})"
+      >
+        <span class="pick-dot"></span>
+        <span style="flex:1">All codes</span>
+      </button>
+    {/if}
     {#each allCodes as code}
       <div style="display:flex; align-items:center; gap:6px; padding:4px 0; border-bottom:1px solid var(--border)">
-        <span style="flex:1; font-size:12px; font-weight:600">{code}</span>
+        {#if allCodes.length > 1}
+          <button
+            class="code-pick"
+            class:picked={$viewCode === code}
+            onclick={() => selectedCode.set(code)}
+            title="Show only {code}'s stats, rating and live session"
+          >
+            <span class="pick-dot"></span>
+            <span style="flex:1">{code}</span>
+          </button>
+        {:else}
+          <span style="flex:1; font-size:12px; font-weight:600">{code}</span>
+        {/if}
         <button
           onclick={() => removeCode(code)}
           title="Remove"
@@ -327,8 +348,8 @@
         </div>
       </div>
     {/if}
-    {#if $connectCode}
-      <button class="btn btn-secondary" style="font-size:12px" onclick={() => openUrl(`https://slippi.gg/user/${$connectCode.toLowerCase().replace("#", "-")}`)}>
+    {#if $activeCode}
+      <button class="btn btn-secondary" style="font-size:12px" onclick={() => openUrl(`https://slippi.gg/user/${$activeCode.toLowerCase().replace("#", "-")}`)}>
         Go to your Slippi profile ↗
       </button>
     {/if}
@@ -584,3 +605,36 @@
 
   </div><!-- end sidebar-scroll -->
 </aside>
+
+<style>
+  /* Code picker rows (only shown with 2+ codes). A radio-style dot, not a checkbox: exactly one
+     scope is active at a time, and All codes is one of the choices. */
+  .code-pick {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  .code-pick:hover { color: var(--text); }
+  .code-pick.picked { color: var(--text); }
+  /* The All codes row has no wrapping row div, so it carries its own spacing + rule. */
+  .code-pick.all-row { width: 100%; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .pick-dot {
+    flex: 0 0 auto;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1.5px solid var(--muted);
+    box-sizing: border-box;
+  }
+  .code-pick.picked .pick-dot { border-color: var(--accent); background: var(--accent); }
+</style>
